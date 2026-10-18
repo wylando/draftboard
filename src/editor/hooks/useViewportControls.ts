@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { fitBox, rotatedBounds, unionBoxes, zoomAt } from '../geometry';
 import { useEditor } from '../EditorContext';
+import { byIdOf, isEffectivelyVisible } from '../model/tree';
 
 const ZOOM_STEP = 2;
 
@@ -12,7 +13,8 @@ export function useViewportControls() {
     const center = { x: canvasSize.width / 2, y: canvasSize.height / 2 };
     const setZoom = (zoom: number) => dispatch({ type: 'setViewport', viewport: zoomAt(viewport, center, zoom) });
     const fit = (ids?: string[]) => {
-      const targets = nodes.filter((n) => n.visible && (!ids || ids.includes(n.id)));
+      const byId = byIdOf(nodes);
+      const targets = nodes.filter((n) => isEffectivelyVisible(byId, n) && (!ids || ids.includes(n.id)));
       const bounds = unionBoxes(targets.map((n) => rotatedBounds(n, n.rotation)));
       if (bounds) dispatch({ type: 'setViewport', viewport: fitBox(bounds, canvasSize) });
     };

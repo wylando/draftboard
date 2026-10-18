@@ -81,6 +81,9 @@ export const tokens = defineTokens({
     control: { value: '28px' },
     swatch: { value: '16px' },
     layerRow: { value: '32px' },
+    /** Layers tree: compact rows and one indent step (chevron width), as in code-editor file trees. */
+    treeRow: { value: '24px' },
+    treeIndent: { value: '16px' },
     zoomLabel: { value: '48px' },
     kbd: { value: '20px' },
     content: { value: '760px' },

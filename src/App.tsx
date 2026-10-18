@@ -8,6 +8,7 @@ import { Toolbar } from './editor/components/Toolbar';
 import { useKeyboardShortcuts } from './editor/hooks/useKeyboardShortcuts';
 import { useViewportControls } from './editor/hooks/useViewportControls';
 import { KeybindingsProvider } from './settings/keybindings/KeybindingsContext';
+import { PreferencesProvider } from './settings/preferences/PreferencesContext';
 import { SettingsPage } from './settings/SettingsPage';
 
 const editorClass = css({ display: 'flex', flexDirection: 'column', height: 'full' });
@@ -36,13 +37,15 @@ export function App() {
   // survive switching between the canvas and Settings.
   return (
     <KeybindingsProvider>
-      <EditorProvider>
-        {route === 'settings' ? (
-          <SettingsPage onClose={() => navigate('editor')} />
-        ) : (
-          <Editor onOpenSettings={() => navigate('settings')} />
-        )}
-      </EditorProvider>
+      <PreferencesProvider>
+        <EditorProvider>
+          {route === 'settings' ? (
+            <SettingsPage onClose={() => navigate('editor')} />
+          ) : (
+            <Editor onOpenSettings={() => navigate('settings')} />
+          )}
+        </EditorProvider>
+      </PreferencesProvider>
     </KeybindingsProvider>
   );
 }

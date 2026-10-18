@@ -4,6 +4,7 @@ import { bindingFromEvent } from '../../settings/keybindings/keys';
 import { useKeybindings } from '../../settings/keybindings/KeybindingsContext';
 import { useLatest } from '../../shared/useLatest';
 import type { EditorAction, EditorState } from '../model/editorReducer';
+import { byIdOf, isEffectivelyVisible } from '../model/tree';
 
 const NUDGE = 1;
 const NUDGE_LARGE = 10;
@@ -50,8 +51,13 @@ function runCommand(id: CommandId, o: Options): void {
       return dispatch({ type: 'duplicateSelection' });
     case 'edit.delete':
       return dispatch({ type: 'deleteSelection' });
-    case 'edit.selectAll':
-      return dispatch({ type: 'select', ids: state.nodes.filter((n) => n.visible).map((n) => n.id) });
+    case 'edit.selectAll': {
+      // Select siblings of the current selection (top level if nothing is selected).
+      const byId = byIdOf(state.nodes);
+      const scope = byId.get(state.selection[0] ?? '')?.parentId ?? null;
+      const ids = state.nodes.filter((n) => n.parentId === scope && isEffectivelyVisible(byId, n)).map((n) => n.id);
+      return dispatch({ type: 'select', ids });
+    }
     case 'edit.escape':
       return state.tool !== 'select'
         ? dispatch({ type: 'setTool', tool: 'select' })
@@ -64,6 +70,10 @@ function runCommand(id: CommandId, o: Options): void {
       return dispatch({ type: 'reorderSelection', direction: 'front' });
     case 'arrange.back':
       return dispatch({ type: 'reorderSelection', direction: 'back' });
+    case 'arrange.group':
+      return dispatch({ type: 'groupSelection' });
+    case 'arrange.ungroup':
+      return dispatch({ type: 'ungroupSelection' });
     case 'view.zoomIn':
       return o.zoomIn();
     case 'view.zoomOut':

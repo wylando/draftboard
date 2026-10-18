@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { css } from 'styled-system/css';
 import { Button, icons, NavItem } from '../design-system';
+import { CanvasSection } from './CanvasSection';
 import { GettingStartedSection } from './GettingStartedSection';
 import { ShortcutsSection } from './ShortcutsSection';
 
-type SectionId = 'shortcuts' | 'guide';
+type SectionId = 'shortcuts' | 'canvas' | 'guide';
 
 const SECTIONS: Array<{ id: SectionId; label: string }> = [
   { id: 'shortcuts', label: 'Keyboard shortcuts' },
+  { id: 'canvas', label: 'Canvas' },
   { id: 'guide', label: 'Getting started' },
 ];
 
@@ -64,7 +66,11 @@ export function SettingsPage({ onClose }: { onClose: () => void }) {
           ))}
         </nav>
         <main className={contentClass}>
-          <div className={innerClass}>{section === 'shortcuts' ? <ShortcutsSection /> : <GettingStartedSection />}</div>
+          <div className={innerClass}>
+            {section === 'shortcuts' && <ShortcutsSection />}
+            {section === 'canvas' && <CanvasSection />}
+            {section === 'guide' && <GettingStartedSection />}
+          </div>
         </main>
       </div>
     </div>

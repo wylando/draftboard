@@ -8,6 +8,9 @@ type Pt = [number, number];
 
 interface PointerOpts {
   shiftKey?: boolean;
+  /** Pass both metaKey and ctrlKey for "Mod": the app accepts either, so tests pass on macOS and Linux. */
+  metaKey?: boolean;
+  ctrlKey?: boolean;
   button?: number;
 }
 
@@ -18,6 +21,10 @@ declare global {
       visitEmpty(): Chainable<void>;
       /** Dispatch a pointer event at canvas-relative coordinates. */
       canvasPointer(type: 'pointerdown' | 'pointermove' | 'pointerup', at: Pt, opts?: PointerOpts): Chainable<void>;
+      /** Press and release at one point without moving. */
+      canvasClick(at: Pt, opts?: PointerOpts): Chainable<void>;
+      /** Dispatch a dblclick at canvas-relative coordinates. */
+      canvasDblClick(at: Pt): Chainable<void>;
       /** Press at `from`, move in steps to `to`, release. */
       canvasDrag(from: Pt, to: Pt, opts?: PointerOpts): Chainable<void>;
       /** Select a tool via its toolbar button, then drag on the canvas. */
@@ -57,8 +64,26 @@ Cypress.Commands.add('canvasPointer', (type, at, opts = {}) => {
         button,
         buttons: type === 'pointerup' ? 0 : 1 << button,
         shiftKey: opts.shiftKey ?? false,
+        metaKey: opts.metaKey ?? false,
+        ctrlKey: opts.ctrlKey ?? false,
       }),
     );
+  });
+});
+
+Cypress.Commands.add('canvasClick', (at, opts = {}) => {
+  cy.canvasPointer('pointerdown', at, opts);
+  cy.canvasPointer('pointerup', at, opts);
+});
+
+Cypress.Commands.add('canvasDblClick', (at) => {
+  cy.get('[data-testid=canvas]').then(($canvas) => {
+    const rect = $canvas[0]!.getBoundingClientRect();
+    const clientX = rect.left + at[0];
+    const clientY = rect.top + at[1];
+    const doc = $canvas[0]!.ownerDocument;
+    const target = doc.elementFromPoint(clientX, clientY) ?? $canvas[0]!;
+    target.dispatchEvent(new doc.defaultView!.MouseEvent('dblclick', { bubbles: true, cancelable: true, clientX, clientY, detail: 2 }));
   });
 });
 
