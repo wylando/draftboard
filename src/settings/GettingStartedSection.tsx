@@ -112,6 +112,8 @@ export function GettingStartedSection() {
             ['Position & size', 'X and Y (top-left corner), W and H, rotation in degrees (°), and corner radius (R) for rectangles and frames.'],
             ['Text', 'For text layers: the content and font size.'],
             ['Polygon / Star', 'Number of sides for a polygon; number of points and inner radius (%) for a star.'],
+            ['Label', 'Text centered inside a rectangle, ellipse, diamond, polygon, star or sticky note. You can also double-click a selected shape to type it.'],
+            ['Align', 'With 2 or more layers selected: line them up on an edge or center. With 3 or more, distribute them so the gaps are equal.'],
             ['Fill', 'Fill color. Click the swatch for a picker or type a 6-digit hex value.'],
             ['Stroke', 'Outline color and width. Width 0 means no outline (lines always have one).'],
             ['Layer opacity', '0–100% transparency for the whole layer.'],
