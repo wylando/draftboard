@@ -168,3 +168,29 @@ export function gridSpacing(zoom: number, base = 16): number {
   while (s >= MIN_GRID_SPACING * 2) s /= 2;
   return s;
 }
+
+/** SVG `points` for `count` vertices on an ellipse filling a w×h box, starting at the top. */
+function radialPoints(w: number, h: number, count: number, radiusAt: (i: number) => number): string {
+  return Array.from({ length: count }, (_, i) => {
+    const a = -Math.PI / 2 + (i * 2 * Math.PI) / count;
+    const r = radiusAt(i);
+    return `${(w / 2) * (1 + r * Math.cos(a))},${(h / 2) * (1 + r * Math.sin(a))}`;
+  }).join(' ');
+}
+
+export const polygonPoints = (w: number, h: number, sides: number) => radialPoints(w, h, sides, () => 1);
+
+/** Alternates outer and inner vertices, so a 5-point star has 10. */
+export const starPoints = (w: number, h: number, points: number, innerRatio: number) =>
+  radialPoints(w, h, points * 2, (i) => (i % 2 === 0 ? 1 : innerRatio));
+
+/** A filled triangle whose tip is at `to`, pointing away from `from`. Size grows with the stroke. */
+export function arrowheadPoints(from: Point, to: Point, strokeWidth: number): string {
+  const length = Math.max(8, strokeWidth * 4);
+  const angle = Math.atan2(to.y - from.y, to.x - from.x);
+  const back = { x: to.x - length * Math.cos(angle), y: to.y - length * Math.sin(angle) };
+  const half = length / 2;
+  const nx = -Math.sin(angle) * half;
+  const ny = Math.cos(angle) * half;
+  return `${to.x},${to.y} ${back.x + nx},${back.y + ny} ${back.x - nx},${back.y - ny}`;
+}

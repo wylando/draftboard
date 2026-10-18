@@ -17,6 +17,7 @@ interface Options {
   zoomTo100: () => void;
   zoomToFit: () => void;
   openSettings: () => void;
+  placeImage: () => void;
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -39,6 +40,16 @@ function runCommand(id: CommandId, o: Options): void {
       return dispatch({ type: 'setTool', tool: 'ellipse' });
     case 'tool.line':
       return dispatch({ type: 'setTool', tool: 'line' });
+    case 'tool.arrow':
+      return dispatch({ type: 'setTool', tool: 'arrow' });
+    case 'tool.polygon':
+      return dispatch({ type: 'setTool', tool: 'polygon' });
+    case 'tool.star':
+      return dispatch({ type: 'setTool', tool: 'star' });
+    case 'tool.pencil':
+      return dispatch({ type: 'setTool', tool: 'pencil' });
+    case 'tool.image':
+      return o.placeImage();
     case 'tool.text':
       return dispatch({ type: 'setTool', tool: 'text' });
     case 'tool.hand':

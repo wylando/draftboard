@@ -1,7 +1,42 @@
-import type { DesignNode, NodeType } from './model/types';
+import type { DesignNode, NodeType, Point } from './model/types';
 
 const STORAGE_KEY = 'draftboard:document:v1';
-const NODE_TYPES: ReadonlySet<NodeType> = new Set(['frame', 'rect', 'ellipse', 'line', 'text', 'group']);
+const NODE_TYPES: ReadonlySet<NodeType> = new Set([
+  'frame',
+  'rect',
+  'ellipse',
+  'line',
+  'arrow',
+  'polygon',
+  'star',
+  'path',
+  'image',
+  'text',
+  'group',
+]);
+/** Only raster data URLs: no remote images (offline), and no SVG documents. */
+const IMAGE_SRC = /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/;
+
+const isFiniteNumber = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+
+/** Fields the renderer reads for types that carry more than a box. */
+function hasTypeFields(n: Record<string, unknown>): boolean {
+  switch (n.type) {
+    case 'polygon':
+      return isFiniteNumber(n.sides);
+    case 'star':
+      return isFiniteNumber(n.points) && isFiniteNumber(n.innerRatio);
+    case 'path':
+      return (
+        Array.isArray(n.path) &&
+        n.path.every((p: unknown) => typeof p === 'object' && p !== null && isFiniteNumber((p as Point).x) && isFiniteNumber((p as Point).y))
+      );
+    case 'image':
+      return typeof n.src === 'string' && IMAGE_SRC.test(n.src);
+    default:
+      return true;
+  }
+}
 
 interface SavedDocument {
   version: 1;
@@ -18,7 +53,8 @@ function isNode(value: unknown): value is DesignNode {
     NODE_TYPES.has(n.type as NodeType) &&
     // Optional: documents saved before nesting have no parentId. normalizeTree repairs bad references.
     (n.parentId === undefined || n.parentId === null || typeof n.parentId === 'string') &&
-    ['x', 'y', 'width', 'height'].every((k) => typeof n[k] === 'number' && Number.isFinite(n[k]))
+    ['x', 'y', 'width', 'height'].every((k) => isFiniteNumber(n[k])) &&
+    hasTypeFields(n)
   );
 }
 
@@ -46,11 +82,13 @@ export function loadFromStorage(): DesignNode[] {
   }
 }
 
-export function saveToStorage(nodes: DesignNode[]): void {
+/** False when storage is full or blocked (private mode); the in-memory document still works. */
+export function saveToStorage(nodes: DesignNode[]): boolean {
   try {
     localStorage.setItem(STORAGE_KEY, serializeDocument(nodes));
+    return true;
   } catch {
-    // Storage full or blocked (private mode); the in-memory document still works.
+    return false;
   }
 }
 

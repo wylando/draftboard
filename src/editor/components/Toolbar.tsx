@@ -1,8 +1,11 @@
-import { useRef, type ReactElement } from 'react';
+import { useRef, type ReactElement, type RefObject } from 'react';
 import { Button, IconButton, icons } from '../../design-system';
 import { useEditor } from '../EditorContext';
 import { useViewportControls } from '../hooks/useViewportControls';
 import type { ToolId } from '../model/types';
+import { screenToWorld } from '../geometry';
+import { importImage } from '../imageImport';
+import { createImage } from '../model/nodes';
 import { downloadDocument, parseDocument } from '../persistence';
 import { COMMANDS, type CommandId } from '../../settings/keybindings/commands';
 import { formatBindingText } from '../../settings/keybindings/keys';
@@ -22,6 +25,7 @@ const toolbarClass = css({
 const groupClass = css({ display: 'flex', alignItems: 'center', gap: '1' });
 const brandClass = css({ paddingInlineStart: '2', paddingInlineEnd: '3', textStyle: 'body.largeStrong' });
 const zoomClass = css({ minWidth: 'zoomLabel' });
+const saveErrorClass = css({ color: 'text.danger', textStyle: 'body.medium', paddingInline: '2' });
 
 const TOOLS: Array<{ id: ToolId; command: CommandId; icon: () => ReactElement }> = [
   { id: 'select', command: 'tool.select', icon: icons.select },
@@ -29,6 +33,10 @@ const TOOLS: Array<{ id: ToolId; command: CommandId; icon: () => ReactElement }>
   { id: 'rect', command: 'tool.rect', icon: icons.rect },
   { id: 'ellipse', command: 'tool.ellipse', icon: icons.ellipse },
   { id: 'line', command: 'tool.line', icon: icons.line },
+  { id: 'arrow', command: 'tool.arrow', icon: icons.arrow },
+  { id: 'polygon', command: 'tool.polygon', icon: icons.polygon },
+  { id: 'star', command: 'tool.star', icon: icons.star },
+  { id: 'pencil', command: 'tool.pencil', icon: icons.pencil },
   { id: 'text', command: 'tool.text', icon: icons.text },
   { id: 'hand', command: 'tool.hand', icon: icons.hand },
 ];
@@ -42,8 +50,13 @@ function useCommandTitle() {
   };
 }
 
-export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
-  const { state, dispatch } = useEditor();
+interface ToolbarProps {
+  onOpenSettings: () => void;
+  imageInput: RefObject<HTMLInputElement | null>;
+}
+
+export function Toolbar({ onOpenSettings, imageInput }: ToolbarProps) {
+  const { state, dispatch, saveFailed } = useEditor();
   const { zoom, zoomIn, zoomOut, zoomToFit } = useViewportControls();
   const fileInput = useRef<HTMLInputElement>(null);
   const title = useCommandTitle();
@@ -53,6 +66,24 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
     const nodes = parseDocument(await file.text());
     if (nodes) dispatch({ type: 'loadDocument', nodes });
     else window.alert('That file is not a valid Draftboard document.');
+  };
+
+  // Placed centered in the visible canvas, and inside a frame if one is under the center.
+  const onPlaceImage = async (file: File | undefined) => {
+    if (!file) return;
+    const image = await importImage(file);
+    if (!image) {
+      window.alert('That file could not be read as an image.');
+      return;
+    }
+    const center = screenToWorld({ x: state.canvasSize.width / 2, y: state.canvasSize.height / 2 }, state.viewport);
+    const box = {
+      x: Math.round(center.x - image.width / 2),
+      y: Math.round(center.y - image.height / 2),
+      width: image.width,
+      height: image.height,
+    };
+    dispatch({ type: 'addNode', node: createImage(image.src, box, state.nodes), parentAt: center });
   };
 
   return (
@@ -70,9 +101,32 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
             onClick={() => dispatch({ type: 'setTool', tool: t.id })}
           />
         ))}
+        <IconButton
+          tone="dark"
+          label={title('tool.image')}
+          data-testid="tool-image"
+          icon={<icons.image />}
+          onClick={() => imageInput.current?.click()}
+        />
+        <input
+          ref={imageInput}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          hidden
+          data-testid="image-input"
+          onChange={(e) => {
+            void onPlaceImage(e.target.files?.[0]);
+            e.target.value = '';
+          }}
+        />
       </div>
 
       <div className={groupClass}>
+        {saveFailed && (
+          <span role="alert" className={saveErrorClass} data-testid="save-error">
+            Not saved: browser storage is full. Export to keep your work.
+          </span>
+        )}
         <IconButton
           tone="dark"
           label={title('edit.undo')}

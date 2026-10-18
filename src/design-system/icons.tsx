@@ -54,6 +54,44 @@ export const icons = {
       <path d="M2.5 13.5l11-11" />
     </Icon>
   ),
+  // arrow, polygon, star, pencil, image: lucide (via better-icons), 24px geometry scaled to 16px.
+  arrow: () => (
+    <Icon>
+      <g transform="scale(0.6667)" strokeWidth="1.875">
+        <path d="M13 5h6v6m0-6L5 19" />
+      </g>
+    </Icon>
+  ),
+  polygon: () => (
+    <Icon>
+      <g transform="scale(0.6667)" strokeWidth="1.875">
+        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16" />
+      </g>
+    </Icon>
+  ),
+  star: () => (
+    <Icon>
+      <g transform="scale(0.6667)" strokeWidth="1.875">
+        <path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.12 2.12 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.12 2.12 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.12 2.12 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.12 2.12 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.12 2.12 0 0 0 1.597-1.16z" />
+      </g>
+    </Icon>
+  ),
+  pencil: () => (
+    <Icon>
+      <g transform="scale(0.6667)" strokeWidth="1.875">
+        <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497zM15 5l4 4" />
+      </g>
+    </Icon>
+  ),
+  image: () => (
+    <Icon>
+      <g transform="scale(0.6667)" strokeWidth="1.875">
+        <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+        <circle cx="9" cy="9" r="2" />
+        <path d="m21 15l-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+      </g>
+    </Icon>
+  ),
   text: () => (
     <Icon>
       <path d="M3 3.5h10M8 3.5v10M6 13.5h4" />

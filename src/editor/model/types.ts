@@ -1,13 +1,16 @@
-/** Node types the user can draw with a tool. */
-export type DrawableType = 'frame' | 'rect' | 'ellipse' | 'line' | 'text';
+/** Node types the user draws by dragging out a box (or clicking for a default size). */
+export type DrawableType = 'frame' | 'rect' | 'ellipse' | 'line' | 'arrow' | 'polygon' | 'star' | 'text';
 
-/** Groups are made from a selection (Group command), never drawn. */
-export type NodeType = DrawableType | 'group';
+/**
+ * Groups are made from a selection (Group command), paths by the pencil tool,
+ * and images by placing a file; none of them is drawn as a box.
+ */
+export type NodeType = DrawableType | 'group' | 'path' | 'image';
 
 /** Frames and groups can hold children. */
 export type ContainerType = 'frame' | 'group';
 
-export type ToolId = 'select' | 'hand' | DrawableType;
+export type ToolId = 'select' | 'hand' | 'pencil' | DrawableType;
 
 export interface Point {
   x: number;
@@ -61,6 +64,38 @@ export interface LineNode extends BaseNode {
   flipped: boolean;
 }
 
+/** A line with an arrowhead at its end point. */
+export interface ArrowNode extends BaseNode {
+  type: 'arrow';
+  flipped: boolean;
+}
+
+/** A regular polygon inscribed in the node's box, first vertex at the top. */
+export interface PolygonNode extends BaseNode {
+  type: 'polygon';
+  sides: number;
+}
+
+export interface StarNode extends BaseNode {
+  type: 'star';
+  /** Number of outer points. */
+  points: number;
+  /** Inner radius as a fraction of the outer radius, 0–1. */
+  innerRatio: number;
+}
+
+/** A freehand stroke. Points are fractions (0–1) of the box, so moving and resizing just work. */
+export interface PathNode extends BaseNode {
+  type: 'path';
+  path: Point[];
+}
+
+export interface ImageNode extends BaseNode {
+  type: 'image';
+  /** A `data:image/…` URL; the document stays self-contained and offline. */
+  src: string;
+}
+
 export interface TextNode extends BaseNode {
   type: 'text';
   text: string;
@@ -75,12 +110,26 @@ export interface GroupNode extends BaseNode {
   type: 'group';
 }
 
-export type DesignNode = FrameNode | RectNode | EllipseNode | LineNode | TextNode | GroupNode;
+export type DesignNode =
+  | FrameNode
+  | RectNode
+  | EllipseNode
+  | LineNode
+  | ArrowNode
+  | PolygonNode
+  | StarNode
+  | PathNode
+  | ImageNode
+  | TextNode
+  | GroupNode;
 
 /** Fields any node type may carry; used for partial, type-agnostic updates. */
 export type NodePatch = Partial<
   Omit<FrameNode, 'id' | 'type'> &
     Omit<LineNode, 'id' | 'type'> &
+    Omit<PolygonNode, 'id' | 'type'> &
+    Omit<StarNode, 'id' | 'type'> &
+    Omit<PathNode, 'id' | 'type'> &
     Omit<TextNode, 'id' | 'type'>
 >;
 

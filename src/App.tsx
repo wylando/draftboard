@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { css } from 'styled-system/css';
 import { useHashRoute } from './app/useHashRoute';
 import { EditorProvider, useEditor } from './editor/EditorContext';
@@ -17,11 +18,19 @@ const bodyClass = css({ flex: '1', display: 'flex', minHeight: '0' });
 function Editor({ onOpenSettings }: { onOpenSettings: () => void }) {
   const { state, dispatch } = useEditor();
   const controls = useViewportControls();
-  useKeyboardShortcuts({ state, dispatch, ...controls, openSettings: onOpenSettings });
+  // The Place image command and the toolbar button both open this file picker.
+  const imageInput = useRef<HTMLInputElement>(null);
+  useKeyboardShortcuts({
+    state,
+    dispatch,
+    ...controls,
+    openSettings: onOpenSettings,
+    placeImage: () => imageInput.current?.click(),
+  });
 
   return (
     <div className={editorClass}>
-      <Toolbar onOpenSettings={onOpenSettings} />
+      <Toolbar onOpenSettings={onOpenSettings} imageInput={imageInput} />
       <div className={bodyClass}>
         <LayersPanel />
         <Canvas />

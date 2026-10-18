@@ -93,6 +93,11 @@ const TYPE_ICONS: Record<NodeType, () => ReactElement> = {
   rect: icons.rect,
   ellipse: icons.ellipse,
   line: icons.line,
+  arrow: icons.arrow,
+  polygon: icons.polygon,
+  star: icons.star,
+  path: icons.pencil,
+  image: icons.image,
   text: icons.text,
 };
 

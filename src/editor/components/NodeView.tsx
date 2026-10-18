@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { arrowheadPoints, polygonPoints, starPoints } from '../geometry';
 import type { DesignNode } from '../model/types';
 import { CANVAS_FONT_FAMILY, TEXT_LINE_HEIGHT } from '../textMetrics';
 import { css } from 'styled-system/css';
@@ -34,15 +35,47 @@ function Shape({ node }: { node: DesignNode }) {
       return (
         <ellipse cx={w / 2} cy={h / 2} rx={w / 2} ry={h / 2} fill={node.fill} stroke={stroke} strokeWidth={node.strokeWidth} />
       );
-    case 'line': {
+    case 'line':
+    case 'arrow': {
       const [y1, y2] = node.flipped ? [h, 0] : [0, h];
       return (
         <>
           <line x1={0} y1={y1} x2={w} y2={y2} stroke="transparent" strokeWidth={LINE_HIT_WIDTH} />
           <line x1={0} y1={y1} x2={w} y2={y2} stroke={node.stroke} strokeWidth={node.strokeWidth} />
+          {node.type === 'arrow' && (
+            <polygon
+              data-testid="arrowhead"
+              points={arrowheadPoints({ x: 0, y: y1 }, { x: w, y: y2 }, node.strokeWidth)}
+              fill={node.stroke}
+            />
+          )}
         </>
       );
     }
+    case 'polygon':
+      return (
+        <polygon points={polygonPoints(w, h, node.sides)} fill={node.fill} stroke={stroke} strokeWidth={node.strokeWidth} />
+      );
+    case 'star':
+      return (
+        <polygon
+          points={starPoints(w, h, node.points, node.innerRatio)}
+          fill={node.fill}
+          stroke={stroke}
+          strokeWidth={node.strokeWidth}
+        />
+      );
+    case 'path': {
+      const d = node.path.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x * w} ${p.y * h}`).join(' ');
+      return (
+        <>
+          <path d={d} fill="none" stroke="transparent" strokeWidth={Math.max(LINE_HIT_WIDTH, node.strokeWidth)} />
+          <path d={d} fill="none" stroke={node.stroke} strokeWidth={node.strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+        </>
+      );
+    }
+    case 'image':
+      return <image href={node.src} width={w} height={h} preserveAspectRatio="none" />;
     case 'text':
       return (
         <>

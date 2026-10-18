@@ -1,6 +1,7 @@
 import { Button, ColorInput, NumberInput, Panel, Section, TextInput } from '../../design-system';
 import { useEditor, useSelectedNodes } from '../EditorContext';
 import { useViewportControls } from '../hooks/useViewportControls';
+import { minSizeFor } from '../model/nodes';
 import type { Box, DesignNode, NodePatch } from '../model/types';
 import { emptyHint, sidebarRight, twoColumnGrid } from '../styles';
 import { CANVAS_FONT_FAMILY, measureText } from '../textMetrics';
@@ -26,8 +27,11 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
   const update = useUpdate(node);
   const updateBox = useUpdateBox(node);
   const isGroup = node.type === 'group';
-  const hasFill = node.type !== 'line' && !isGroup;
+  // Lines, arrows and strokes are drawn with their stroke color only.
+  const hasFill = !['line', 'arrow', 'path', 'image', 'group'].includes(node.type);
+  const hasStroke = node.type !== 'group' && node.type !== 'image';
   const hasRadius = node.type === 'rect' || node.type === 'frame';
+  const minSize = minSizeFor(node.type);
 
   return (
     <>
@@ -39,8 +43,8 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
         <div className={twoColumnGrid}>
           <NumberInput label="X" value={node.x} onCommit={(x) => updateBox({ x })} testId="prop-x" />
           <NumberInput label="Y" value={node.y} onCommit={(y) => updateBox({ y })} testId="prop-y" />
-          <NumberInput label="W" value={node.width} min={node.type === 'line' ? 0 : 1} onCommit={(width) => updateBox({ width })} testId="prop-w" />
-          <NumberInput label="H" value={node.height} min={node.type === 'line' ? 0 : 1} onCommit={(height) => updateBox({ height })} testId="prop-h" />
+          <NumberInput label="W" value={node.width} min={minSize} onCommit={(width) => updateBox({ width })} testId="prop-w" />
+          <NumberInput label="H" value={node.height} min={minSize} onCommit={(height) => updateBox({ height })} testId="prop-h" />
           {/* A group's box is derived from its children, so it has no rotation of its own. */}
           {!isGroup && (
             <NumberInput label="°" value={node.rotation} onCommit={(rotation) => updateBox({ rotation })} testId="prop-rotation" />
@@ -50,6 +54,28 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
           )}
         </div>
       </Section>
+
+      {node.type === 'polygon' && (
+        <Section title="Polygon">
+          <NumberInput label="Sides" value={node.sides} min={3} max={60} onCommit={(sides) => update({ sides: Math.round(sides) })} testId="prop-sides" />
+        </Section>
+      )}
+
+      {node.type === 'star' && (
+        <Section title="Star">
+          <div className={twoColumnGrid}>
+            <NumberInput label="Points" value={node.points} min={3} max={60} onCommit={(points) => update({ points: Math.round(points) })} testId="prop-points" />
+            <NumberInput
+              label="Inner %"
+              value={Math.round(node.innerRatio * 100)}
+              min={1}
+              max={99}
+              onCommit={(pct) => update({ innerRatio: pct / 100 })}
+              testId="prop-inner"
+            />
+          </div>
+        </Section>
+      )}
 
       {node.type === 'text' && (
         <Section title="Text">
@@ -74,7 +100,7 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
         </Section>
       )}
 
-      {!isGroup && (
+      {hasStroke && (
         <Section title="Stroke">
           <div className={twoColumnGrid}>
             <ColorInput value={node.stroke} onCommit={(stroke) => update({ stroke })} testId="prop-stroke" />

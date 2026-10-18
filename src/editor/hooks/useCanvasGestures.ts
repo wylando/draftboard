@@ -18,7 +18,7 @@ import {
 } from '../geometry';
 import { useLatest } from '../../shared/useLatest';
 import type { EditorAction, EditorState } from '../model/editorReducer';
-import { createNode, DEFAULT_SIZE, minSizeFor } from '../model/nodes';
+import { createNode, createPath, DEFAULT_SIZE, minSizeFor } from '../model/nodes';
 import { byIdOf, descendantIds, enteredScopes, isEffectivelyVisible, selectTarget, topLevelIds } from '../model/tree';
 import type { Box, DesignNode, DrawableType, NodePatch, Point, Viewport } from '../model/types';
 
@@ -29,6 +29,7 @@ const WHEEL_ZOOM_SPEED = 0.01;
 type Gesture =
   | { kind: 'pan'; start: Point; startViewport: Viewport }
   | { kind: 'create'; nodeType: DrawableType; start: Point; startWorld: Point; nodeId: string | null }
+  | { kind: 'draw'; start: Point; points: Point[]; nodeId: string | null }
   | { kind: 'move'; start: Point; startWorld: Point; origins: Map<string, Point>; moved: boolean }
   | { kind: 'resize'; start: Point; startWorld: Point; node: DesignNode; handle: HandleDir; moved: boolean }
   | { kind: 'marquee'; start: Point; startWorld: Point; base: string[]; moved: boolean };
@@ -46,8 +47,9 @@ interface Options {
   onEditText: (id: string) => void;
 }
 
-const isShapeTool = (tool: string): tool is DrawableType =>
-  tool === 'frame' || tool === 'rect' || tool === 'ellipse' || tool === 'line' || tool === 'text';
+const SHAPE_TOOLS: ReadonlySet<string> = new Set<DrawableType>(['frame', 'rect', 'ellipse', 'line', 'arrow', 'polygon', 'star', 'text']);
+const isShapeTool = (tool: string): tool is DrawableType => SHAPE_TOOLS.has(tool);
+const hasDirection = (type: DrawableType) => type === 'line' || type === 'arrow';
 
 /**
  * Pointer state machine for the canvas. Listens on window during a drag so
@@ -103,12 +105,25 @@ export function useCanvasGestures({ containerRef, state, dispatch, spacePressed,
           const flipped = end.x - g.startWorld.x >= 0 !== end.y - g.startWorld.y >= 0;
           if (!g.nodeId) {
             const node = createNode(g.nodeType, box, nodes);
-            if (node.type === 'line') node.flipped = flipped;
+            if (node.type === 'line' || node.type === 'arrow') node.flipped = flipped;
             g.nodeId = node.id;
             dispatch({ type: 'addNode', node, parentAt: g.startWorld });
           } else {
-            const patch: NodePatch = g.nodeType === 'line' ? { ...box, flipped } : box;
+            const patch: NodePatch = hasDirection(g.nodeType) ? { ...box, flipped } : box;
             dispatch({ type: 'updateNodes', patches: { [g.nodeId]: patch } });
+          }
+          return;
+        }
+        case 'draw': {
+          if (!g.nodeId && dist < DRAG_THRESHOLD) return;
+          g.points.push(world);
+          const path = createPath(g.points, nodes);
+          if (!g.nodeId) {
+            g.nodeId = path.id;
+            dispatch({ type: 'addNode', node: path, parentAt: g.points[0] });
+          } else {
+            const { x, y, width, height } = path;
+            dispatch({ type: 'updateNodes', patches: { [g.nodeId]: { x, y, width, height, path: path.path } } });
           }
           return;
         }
@@ -181,6 +196,8 @@ export function useCanvasGestures({ containerRef, state, dispatch, spacePressed,
       }
       dispatch({ type: 'setTool', tool: 'select' });
     }
+    // A pencil click without a drag draws nothing.
+    if (g.kind === 'draw') dispatch({ type: 'setTool', tool: 'select' });
     if (g.kind === 'marquee') onMarquee(null);
   }, [dispatch, onEditText, onMarquee, stateRef, toLocal]);
 
@@ -214,6 +231,8 @@ export function useCanvasGestures({ containerRef, state, dispatch, spacePressed,
         gesture = { kind: 'pan', start: screen, startViewport: viewport };
       } else if (e.button !== 0) {
         return;
+      } else if (tool === 'pencil') {
+        gesture = { kind: 'draw', start: screen, points: [world], nodeId: null };
       } else if (isShapeTool(tool)) {
         gesture = { kind: 'create', nodeType: tool, start: screen, startWorld: world, nodeId: null };
       } else if (handleEl && selection.length === 1) {

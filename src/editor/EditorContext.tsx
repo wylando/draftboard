@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useReducer, type Dispatch, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useReducer, useState, type Dispatch, type ReactNode } from 'react';
 import { editorReducer, initialEditorState, type EditorAction, type EditorState } from './model/editorReducer';
 import { loadFromStorage, saveToStorage } from './persistence';
 
@@ -7,6 +7,8 @@ const SAVE_DEBOUNCE_MS = 300;
 interface EditorContextValue {
   state: EditorState;
   dispatch: Dispatch<EditorAction>;
+  /** The last autosave failed (storage full or blocked); the in-memory document is fine. */
+  saveFailed: boolean;
 }
 
 const EditorContext = createContext<EditorContextValue | null>(null);
@@ -14,12 +16,14 @@ const EditorContext = createContext<EditorContextValue | null>(null);
 export function EditorProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(editorReducer, undefined, () => initialEditorState(loadFromStorage()));
 
+  const [saveFailed, setSaveFailed] = useState(false);
+
   useEffect(() => {
-    const handle = window.setTimeout(() => saveToStorage(state.nodes), SAVE_DEBOUNCE_MS);
+    const handle = window.setTimeout(() => setSaveFailed(!saveToStorage(state.nodes)), SAVE_DEBOUNCE_MS);
     return () => window.clearTimeout(handle);
   }, [state.nodes]);
 
-  return <EditorContext.Provider value={{ state, dispatch }}>{children}</EditorContext.Provider>;
+  return <EditorContext.Provider value={{ state, dispatch, saveFailed }}>{children}</EditorContext.Provider>;
 }
 
 export function useEditor(): EditorContextValue {

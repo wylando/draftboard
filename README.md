@@ -26,7 +26,7 @@ Draw, arrange and fine-tune shapes on an infinite canvas: no account, no cloud, 
 
 ## ✨ Features
 
-- 🎨 **Drawing tools**: frames, rectangles, ellipses, lines and text. Drag to draw, or click to drop a default-size shape.
+- 🎨 **Drawing tools**: frames, rectangles, ellipses, lines, arrows, polygons, stars, text, freehand pencil strokes and images. Drag to draw, or click to drop a default-size shape.
 - 🖱️ **Direct manipulation**: click, Shift-click or marquee-select. Move, resize with eight handles (rotated shapes too), and constrain with Shift.
 - 🎛️ **Properties panel**: position, size, rotation, corner radius, fill, stroke, opacity, and text content and size.
 - 🗂️ **Layers tree**: a code-editor-style tree with collapsible frames and groups and indent guides. Select, rename, show or hide any layer, and drag to reorder or nest.
@@ -63,6 +63,11 @@ Then open **http://localhost:5173**. That's it.
 | Rectangle | `R` | Draw a rectangle. Hold Shift for a square. |
 | Ellipse   | `O` | Draw an ellipse. Hold Shift for a circle. |
 | Line      | `L` | Draw a straight line. Hold Shift to snap to 45°. |
+| Arrow     | `⇧L` | Draw a line with an arrowhead at the end. Hold Shift to snap to 45°. |
+| Polygon   | `P` | Draw a regular polygon. Set the number of sides in Properties. |
+| Star      | `⇧S` | Draw a star. Set the points and inner radius in Properties. |
+| Pencil    | `⇧P` | Drag to draw a freehand stroke. |
+| Place image | `⇧⌘K` | Pick a PNG, JPEG, WebP or GIF. It's scaled to at most 1024px on a side and placed in the middle of the view. |
 | Text      | `T` | Click to place text and start typing. Enter finishes; Shift+Enter adds a line. |
 | Hand      | `H` | Drag to pan without selecting anything. |
 
@@ -88,7 +93,7 @@ Then open **http://localhost:5173**. That's it.
 
 ### Saving your work
 
-Documents autosave to `localStorage`. Use the toolbar to **export** a document as JSON or **import** one back. Storage is scoped to the browser and the address, which is why the dev server always runs on port `5173`.
+Documents autosave to `localStorage`. Browsers cap it at about 5MB, so placed images are scaled down; if a save still fails, the toolbar says so, and exporting keeps your work. Use the toolbar to **export** a document as JSON or **import** one back. Storage is scoped to the browser and the address, which is why the dev server always runs on port `5173`.
 
 ## 🛠 Development
 

@@ -29,6 +29,11 @@ export const COMMANDS = {
   'tool.rect': { label: 'Rectangle', category: 'tools', defaults: ['R'], description: 'Draw a rectangle. Hold Shift for a square; click once for a 100×100 default.' },
   'tool.ellipse': { label: 'Ellipse', category: 'tools', defaults: ['O'], description: 'Draw an ellipse. Hold Shift for a circle.' },
   'tool.line': { label: 'Line', category: 'tools', defaults: ['L'], description: 'Draw a straight line. Hold Shift to snap to 45°.' },
+  'tool.arrow': { label: 'Arrow', category: 'tools', defaults: ['Shift+L'], description: 'Draw a line with an arrowhead at the end. Hold Shift to snap to 45°.' },
+  'tool.polygon': { label: 'Polygon', category: 'tools', defaults: ['P'], description: 'Draw a regular polygon (a triangle at first). Change its sides in Properties. Hold Shift to keep it even.' },
+  'tool.star': { label: 'Star', category: 'tools', defaults: ['Shift+S'], description: 'Draw a star. Change its points and inner radius in Properties. Hold Shift to keep it even.' },
+  'tool.pencil': { label: 'Pencil', category: 'tools', defaults: ['Shift+P'], description: 'Drag to draw a freehand stroke.' },
+  'tool.image': { label: 'Place image', category: 'tools', defaults: ['Mod+Shift+K'], description: 'Choose a PNG, JPEG, WebP or GIF file. Images larger than 1024px on a side are scaled down, so documents fit in browser storage.' },
   'tool.text': { label: 'Text', category: 'tools', defaults: ['T'], description: 'Click to place a text layer and start typing. Enter finishes; Shift+Enter adds a line.' },
   'tool.hand': { label: 'Hand', category: 'tools', defaults: ['H'], description: 'Drag to pan the canvas without selecting anything.' },
 
