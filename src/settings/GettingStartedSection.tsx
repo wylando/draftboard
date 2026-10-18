@@ -1,0 +1,141 @@
+import type { ReactNode } from 'react';
+import { css } from 'styled-system/css';
+import { Kbd } from '../design-system';
+import { COMMAND_IDS, COMMANDS } from './keybindings/commands';
+import { formatBinding } from './keybindings/keys';
+import { useKeybindings } from './keybindings/KeybindingsContext';
+
+const blockClass = css({ marginTop: '6' });
+const headingClass = css({ margin: '0', marginBottom: '2', textStyle: 'body.largeStrong' });
+const mutedClass = css({ margin: '0', color: 'text.secondary' });
+const listClass = css({ margin: '0', paddingInlineStart: '4', display: 'grid', gap: '1' });
+const termGridClass = css({
+  display: 'grid',
+  gridTemplateColumns: 'auto 1fr',
+  columnGap: '4',
+  rowGap: '2',
+  alignItems: 'baseline',
+  margin: '0',
+});
+const termClass = css({ textStyle: 'body.largeStrong' });
+const descClass = css({ margin: '0' });
+const pairClass = css({ display: 'contents' });
+
+function Block({ title, children, testId }: { title: string; children: ReactNode; testId?: string }) {
+  return (
+    <div className={blockClass} data-testid={testId}>
+      <h2 className={headingClass}>{title}</h2>
+      {children}
+    </div>
+  );
+}
+
+function Terms({ items }: { items: Array<[ReactNode, ReactNode]> }) {
+  return (
+    <dl className={termGridClass}>
+      {items.map(([term, desc], i) => (
+        <div key={i} className={pairClass}>
+          <dt className={termClass}>{term}</dt>
+          <dd className={descClass}>{desc}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/** Current shortcut for a command, reflecting the user's own bindings. */
+function Shortcut({ binding }: { binding: string | undefined }) {
+  if (!binding) return <span className={mutedClass}>no shortcut</span>;
+  return (
+    <Kbd>
+      {formatBinding(binding).map((p, i) => (
+        <span key={i}>{p}</span>
+      ))}
+    </Kbd>
+  );
+}
+
+export function GettingStartedSection() {
+  const { bindings } = useKeybindings();
+  const toolIds = COMMAND_IDS.filter((id) => COMMANDS[id].category === 'tools');
+
+  return (
+    <section data-testid="getting-started-section">
+      <h1>Getting started</h1>
+      <p className={mutedClass}>
+        Draftboard is a small design canvas that runs entirely on your computer. If you have used another design
+        tool, most things will feel familiar; if not, start here.
+      </p>
+
+      <Block title="The screen" testId="guide-screen">
+        <Terms
+          items={[
+            ['Toolbar (top)', 'Tools on the left, undo/redo in the middle, then Import, Export, zoom and Settings.'],
+            ['Layers (left)', 'Everything on the canvas, top layer first. Click to select, Shift-click to add, double-click to rename, eye icon to hide.'],
+            ['Canvas (center)', 'Where you draw. Scroll to pan, ⌘/Ctrl + scroll to zoom.'],
+            ['Design panel (right)', 'Properties of the selected layer. Shows a hint when nothing is selected.'],
+          ]}
+        />
+      </Block>
+
+      <Block title="Your first design">
+        <ol className={listClass}>
+          <li>
+            Press <Shortcut binding={bindings['tool.rect'][0]} /> (Rectangle) and drag on the canvas.
+          </li>
+          <li>The new layer is selected: drag it to move it, or drag a corner handle to resize.</li>
+          <li>Change its color under Fill in the Design panel; type a hex value and press Enter.</li>
+          <li>
+            Press <Shortcut binding={bindings['tool.text'][0]} /> and click to add text. Type, then press Enter.
+          </li>
+          <li>
+            Made a mistake? <Shortcut binding={bindings['edit.undo'][0]} /> undoes it.
+          </li>
+        </ol>
+      </Block>
+
+      <Block title="Tools" testId="guide-tools">
+        <Terms
+          items={toolIds.map((id) => [
+            <>
+              {COMMANDS[id].label} <Shortcut binding={bindings[id][0]} />
+            </>,
+            COMMANDS[id].description,
+          ])}
+        />
+      </Block>
+
+      <Block title="Design panel options" testId="guide-options">
+        <Terms
+          items={[
+            ['Layer', 'The layer name, as shown in the Layers panel.'],
+            ['Position & size', 'X and Y (top-left corner), W and H, rotation in degrees (°), and corner radius (R) for rectangles and frames.'],
+            ['Text', 'For text layers: the content and font size.'],
+            ['Fill', 'Fill color. Click the swatch for a picker or type a 6-digit hex value.'],
+            ['Stroke', 'Outline color and width. Width 0 means no outline (lines always have one).'],
+            ['Layer opacity', '0–100% transparency for the whole layer.'],
+            ['Arrange', 'Bring to front, send to back, duplicate, zoom to the selection, or delete.'],
+          ]}
+        />
+      </Block>
+
+      <Block title="Saving your work" testId="guide-saving">
+        <Terms
+          items={[
+            ['Autosave', 'Your design saves in this browser as you work and reopens next time.'],
+            ['Export', 'Downloads the design as a .json file, for backups or moving to another computer.'],
+            ['Import', 'Opens a previously exported .json file, replacing the current design.'],
+          ]}
+        />
+      </Block>
+
+      <Block title="Coming from another design tool?">
+        <p className={mutedClass}>
+          Tool shortcuts follow common design-tool conventions, and you can change any of them under Keyboard
+          shortcuts. Draftboard is intentionally small: there are no components, auto layout, prototyping,
+          comments or multiplayer, and frames don't contain or clip other layers yet.
+        </p>
+      </Block>
+    </section>
+  );
+}

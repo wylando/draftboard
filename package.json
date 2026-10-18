@@ -1,0 +1,46 @@
+{
+  "name": "draftboard",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "An offline design canvas built with React + TypeScript.",
+  "scripts": {
+    "dev": "panda codegen && vite",
+    "build": "panda codegen && tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "codegen": "panda codegen",
+    "lint": "eslint .",
+    "typecheck": "panda codegen && tsc --noEmit && tsc --noEmit -p cypress/tsconfig.json",
+    "cy:open": "env -u ELECTRON_RUN_AS_NODE cypress open",
+    "cy:run": "env -u ELECTRON_RUN_AS_NODE cypress run",
+    "test:e2e": "start-server-and-test 'vite --port 5199 --strictPort' http://localhost:5199 'env -u ELECTRON_RUN_AS_NODE cypress run'",
+    "test:e2e:dist": "start-server-and-test 'vite preview --port 5199 --strictPort' http://localhost:5199 'env -u ELECTRON_RUN_AS_NODE cypress run'",
+    "verify": "npm run lint && npm run typecheck && npm run build && npm run test:e2e:dist",
+    "prepare": "panda codegen && { git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true; }"
+  },
+  "dependencies": {
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@pandacss/dev": "2.2.0",
+    "@pandacss/mcp": "2.2.0",
+    "@pandacss/preset-base": "2.2.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "5.2.0",
+    "cypress": "15.21.1",
+    "eslint": "10.12.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.13.0",
+    "start-server-and-test": "2.1.5",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.70.1",
+    "vite": "7.3.7"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "cypress@15.21.1": true
+  }
+}

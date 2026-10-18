@@ -1,0 +1,75 @@
+name: CI
+
+# Pre-merge gate. Pull requests into main must pass both jobs.
+# Pushes to main also run, so main's status stays accurate and the
+# npm/Cypress caches are saved where every PR can reuse them.
+on:
+  pull_request:
+    branches: [main]
+  merge_group:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# A new push to the same PR cancels the now-outdated run.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Lint & typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+        env:
+          # This job never runs Cypress; skip the ~500 MB binary download.
+          CYPRESS_INSTALL_BINARY: 0
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        # Run even if lint failed, so one CI run reports every problem.
+        if: ${{ !cancelled() }}
+        run: npm run typecheck
+
+  e2e:
+    name: Build & E2E
+    # Cheap checks gate the expensive ones: no Cypress minutes spent on PRs
+    # that don't lint or compile.
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Cache Cypress binary
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/Cypress
+          key: cypress-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - name: Install dependencies
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: E2E tests (against the production build)
+        run: npm run test:e2e:dist
+      - name: Upload failure screenshots
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: cypress-screenshots
+          path: cypress/screenshots
+          if-no-files-found: ignore
+          retention-days: 7

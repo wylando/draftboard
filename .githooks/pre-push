@@ -1,0 +1,15 @@
+#!/bin/sh
+# Fast local gate before code reaches GitHub. Full e2e runs in CI (pre-merge).
+# Bypass in an emergency with: git push --no-verify
+
+echo "pre-push: running lint and typecheck…"
+status=0
+
+# Run both even if the first fails, so every problem is reported in one pass.
+npm run --silent lint || status=1
+npm run --silent typecheck || status=1
+
+if [ "$status" -ne 0 ]; then
+  echo "pre-push: failed. Fix the errors above, or push with --no-verify to skip." >&2
+fi
+exit "$status"
