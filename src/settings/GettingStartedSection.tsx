@@ -111,6 +111,7 @@ export function GettingStartedSection() {
             ['Layer', 'The layer name, as shown in the Layers panel.'],
             ['Position & size', 'X and Y (top-left corner), W and H, rotation in degrees (°), and corner radius (R) for rectangles and frames.'],
             ['Text', 'For text layers: the content and font size.'],
+            ['Polygon / Star', 'Number of sides for a polygon; number of points and inner radius (%) for a star.'],
             ['Fill', 'Fill color. Click the swatch for a picker or type a 6-digit hex value.'],
             ['Stroke', 'Outline color and width. Width 0 means no outline (lines always have one).'],
             ['Layer opacity', '0–100% transparency for the whole layer.'],
@@ -142,7 +143,7 @@ export function GettingStartedSection() {
       <Block title="Saving your work" testId="guide-saving">
         <Terms
           items={[
-            ['Autosave', 'Your design saves in this browser as you work and reopens next time.'],
+            ['Autosave', 'Your design saves in this browser as you work and reopens next time. Browser storage holds about 5MB, so placed images are scaled down; if a save fails, the toolbar says so. Export to keep your work.'],
             ['Export', 'Downloads the design as a .json file, for backups or moving to another computer.'],
             ['Import', 'Opens a previously exported .json file, replacing the current design.'],
           ]}
