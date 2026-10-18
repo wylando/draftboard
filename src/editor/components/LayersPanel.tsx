@@ -100,6 +100,7 @@ const TYPE_ICONS: Record<NodeType, () => ReactElement> = {
   star: icons.star,
   path: icons.pencil,
   image: icons.image,
+  connector: icons.connector,
   text: icons.text,
 };
 

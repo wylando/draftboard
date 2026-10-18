@@ -1,5 +1,5 @@
-import { pointInRotatedBox, rotatedBounds, unionBoxes } from '../geometry';
-import type { DesignNode, Point } from './types';
+import { boxCenter, boxThrough, edgePointToward, pointInRotatedBox, rotatedBounds, unionBoxes } from '../geometry';
+import type { ConnectorNode, DesignNode, Point } from './types';
 
 /**
  * Pure helpers for the layer tree. The document stays a flat list in preorder
@@ -133,15 +133,70 @@ export function mapSiblings(
   return out;
 }
 
+/** Connectors attach to drawn layers only: never to groups (no body) or other connectors. */
+const isAttachable = (n: DesignNode | undefined): n is DesignNode =>
+  n !== undefined && n.type !== 'group' && n.type !== 'connector';
+
+/** The topmost visible attachable layer under a world point, for starting or ending a connector. */
+export function attachTargetAt(nodes: readonly DesignNode[], point: Point): string | null {
+  const byId = byIdOf(nodes);
+  for (let i = nodes.length - 1; i >= 0; i--) {
+    const n = nodes[i] as DesignNode;
+    if (isAttachable(n) && isEffectivelyVisible(byId, n) && pointInRotatedBox(n, n.rotation, point)) return n.id;
+  }
+  return null;
+}
+
+/** World positions of a connector's two ends. */
+export function connectorEnds(c: ConnectorNode): [Point, Point] {
+  return c.ends.map((e) => ({ x: c.x + e.x * c.width, y: c.y + e.y * c.height })) as [Point, Point];
+}
+
+/**
+ * Moves each attached connector end to the edge of its layer (on its rotated
+ * bounds), facing the other end. A missing target, or a second end on the same
+ * layer, becomes a free end where it was. Unchanged connectors keep their identity.
+ */
+function routeConnectors(nodes: readonly DesignNode[]): DesignNode[] {
+  if (!nodes.some((n) => n.type === 'connector')) return nodes as DesignNode[];
+  const byId = byIdOf(nodes);
+  return nodes.map((n) => {
+    if (n.type !== 'connector') return n;
+    const fromNode = n.fromId === null ? undefined : byId.get(n.fromId);
+    const from = isAttachable(fromNode) ? fromNode : undefined;
+    const toNode = n.toId === null || n.toId === n.fromId ? undefined : byId.get(n.toId);
+    const to = isAttachable(toNode) ? toNode : undefined;
+    let [start, end] = connectorEnds(n);
+    const fromBox = from && rotatedBounds(from, from.rotation);
+    const toBox = to && rotatedBounds(to, to.rotation);
+    if (fromBox) start = edgePointToward(fromBox, toBox ? boxCenter(toBox) : end);
+    if (toBox) end = edgePointToward(toBox, fromBox ? boxCenter(fromBox) : start);
+    const next = { ...n, ...boxThrough(start, end), fromId: from?.id ?? null, toId: to?.id ?? null, rotation: 0 };
+    const same =
+      next.x === n.x &&
+      next.y === n.y &&
+      next.width === n.width &&
+      next.height === n.height &&
+      next.fromId === n.fromId &&
+      next.toId === n.toId &&
+      n.rotation === 0 &&
+      next.ends.every((e, i) => e.x === n.ends[i]?.x && e.y === n.ends[i]?.y);
+    return same ? n : next;
+  });
+}
+
 /**
  * Restores the tree invariants after any structural change:
+ * - connector ends attached to a layer are re-routed to its edge;
  * - parents that are missing, not containers, or part of a cycle become null;
  * - the list is rewritten in preorder, keeping sibling order;
  * - empty groups are removed;
  * - each group's box is the union of its children, with rotation 0.
  * Nodes that need no change keep their identity, so memoized views skip them.
  */
-export function normalizeTree(input: readonly DesignNode[]): DesignNode[] {
+export function normalizeTree(raw: readonly DesignNode[]): DesignNode[] {
+  // Before group bounds, so a group holding a connector is sized from its routed box.
+  const input = routeConnectors(raw);
   const byId = byIdOf(input);
   const parentOf = new Map<string, string | null>();
   for (const n of input) {

@@ -196,3 +196,23 @@ export function arrowheadPoints(from: Point, to: Point, strokeWidth: number): st
   const ny = Math.cos(angle) * half;
   return `${to.x},${to.y} ${back.x + nx},${back.y + ny} ${back.x - nx},${back.y - ny}`;
 }
+
+/** A box spanning two points, with each point as a 0–1 fraction of it (0.5 on a flat axis). */
+export function boxThrough(a: Point, b: Point): Box & { ends: [Point, Point] } {
+  const box = boxFromPoints(a, b);
+  const frac = (p: Point) => ({
+    x: box.width ? (p.x - box.x) / box.width : 0.5,
+    y: box.height ? (p.y - box.y) / box.height : 0.5,
+  });
+  return { ...box, ends: [frac(a), frac(b)] };
+}
+
+/** Where a ray from the center of `b` toward `toward` leaves `b`. */
+export function edgePointToward(b: Box, toward: Point): Point {
+  const c = boxCenter(b);
+  const dx = toward.x - c.x;
+  const dy = toward.y - c.y;
+  if (dx === 0 && dy === 0) return c;
+  const t = Math.min(dx ? b.width / 2 / Math.abs(dx) : Infinity, dy ? b.height / 2 / Math.abs(dy) : Infinity);
+  return { x: c.x + dx * t, y: c.y + dy * t };
+}

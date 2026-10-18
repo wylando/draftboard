@@ -13,6 +13,7 @@ const NODE_TYPES: ReadonlySet<NodeType> = new Set([
   'star',
   'path',
   'image',
+  'connector',
   'text',
   'group',
 ]);
@@ -20,6 +21,9 @@ const NODE_TYPES: ReadonlySet<NodeType> = new Set([
 const IMAGE_SRC = /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/;
 
 const isFiniteNumber = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+
+const isPoint = (p: unknown): p is Point =>
+  typeof p === 'object' && p !== null && isFiniteNumber((p as Point).x) && isFiniteNumber((p as Point).y);
 
 /** Fields the renderer reads for types that carry more than a box. */
 function hasTypeFields(n: Record<string, unknown>): boolean {
@@ -30,12 +34,17 @@ function hasTypeFields(n: Record<string, unknown>): boolean {
     case 'star':
       return isFiniteNumber(n.points) && isFiniteNumber(n.innerRatio);
     case 'path':
-      return (
-        Array.isArray(n.path) &&
-        n.path.every((p: unknown) => typeof p === 'object' && p !== null && isFiniteNumber((p as Point).x) && isFiniteNumber((p as Point).y))
-      );
+      return Array.isArray(n.path) && n.path.every(isPoint);
     case 'image':
       return typeof n.src === 'string' && IMAGE_SRC.test(n.src);
+    case 'connector':
+      return (
+        (n.fromId === null || typeof n.fromId === 'string') &&
+        (n.toId === null || typeof n.toId === 'string') &&
+        Array.isArray(n.ends) &&
+        n.ends.length === 2 &&
+        n.ends.every(isPoint)
+      );
     default:
       return true;
   }

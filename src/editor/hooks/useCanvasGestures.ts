@@ -8,6 +8,7 @@ import {
 } from 'react';
 import {
   boxFromPoints,
+  boxThrough,
   boxesIntersect,
   HANDLES,
   resizeBox,
@@ -18,8 +19,8 @@ import {
 } from '../geometry';
 import { useLatest } from '../../shared/useLatest';
 import type { EditorAction, EditorState } from '../model/editorReducer';
-import { createNode, createPath, DEFAULT_SIZE, isLabeled, minSizeFor } from '../model/nodes';
-import { byIdOf, descendantIds, enteredScopes, isEffectivelyVisible, selectTarget, topLevelIds } from '../model/tree';
+import { createConnector, createNode, createPath, DEFAULT_SIZE, isLabeled, minSizeFor } from '../model/nodes';
+import { attachTargetAt, byIdOf, descendantIds, enteredScopes, isEffectivelyVisible, selectTarget, topLevelIds } from '../model/tree';
 import type { Box, DesignNode, DrawableType, NodePatch, Point, Viewport } from '../model/types';
 
 /** Screen-pixel distance before a press becomes a drag. */
@@ -30,6 +31,7 @@ type Gesture =
   | { kind: 'pan'; start: Point; startViewport: Viewport }
   | { kind: 'create'; nodeType: DrawableType; start: Point; startWorld: Point; nodeId: string | null }
   | { kind: 'draw'; start: Point; points: Point[]; nodeId: string | null }
+  | { kind: 'connect'; start: Point; startWorld: Point; fromId: string | null; nodeId: string | null }
   | { kind: 'move'; start: Point; startWorld: Point; origins: Map<string, Point>; moved: boolean }
   | { kind: 'resize'; start: Point; startWorld: Point; node: DesignNode; handle: HandleDir; moved: boolean }
   | { kind: 'marquee'; start: Point; startWorld: Point; base: string[]; moved: boolean };
@@ -138,6 +140,19 @@ export function useCanvasGestures({ containerRef, state, dispatch, spacePressed,
           }
           return;
         }
+        case 'connect': {
+          if (!g.nodeId && dist < DRAG_THRESHOLD) return;
+          // Hit-test by geometry: the connector's own end is under the pointer.
+          const patch: NodePatch = { ...boxThrough(g.startWorld, world), fromId: g.fromId, toId: attachTargetAt(nodes, world) };
+          if (!g.nodeId) {
+            const node = createConnector(g.startWorld, world, nodes);
+            g.nodeId = node.id;
+            dispatch({ type: 'addNode', node: { ...node, ...patch } });
+          } else {
+            dispatch({ type: 'updateNodes', patches: { [g.nodeId]: patch } });
+          }
+          return;
+        }
         case 'move': {
           if (!g.moved && dist < DRAG_THRESHOLD) return;
           if (!g.moved) {
@@ -208,8 +223,8 @@ export function useCanvasGestures({ containerRef, state, dispatch, spacePressed,
       }
       dispatch({ type: 'setTool', tool: 'select' });
     }
-    // A pencil click without a drag draws nothing.
-    if (g.kind === 'draw') dispatch({ type: 'setTool', tool: 'select' });
+    // A pencil or connector click without a drag draws nothing.
+    if (g.kind === 'draw' || g.kind === 'connect') dispatch({ type: 'setTool', tool: 'select' });
     if (g.kind === 'marquee') onMarquee(null);
   }, [dispatch, onEditText, onMarquee, stateRef, toLocal]);
 
@@ -243,6 +258,8 @@ export function useCanvasGestures({ containerRef, state, dispatch, spacePressed,
         gesture = { kind: 'pan', start: screen, startViewport: viewport };
       } else if (e.button !== 0) {
         return;
+      } else if (tool === 'connector') {
+        gesture = { kind: 'connect', start: screen, startWorld: world, fromId: attachTargetAt(nodes, world), nodeId: null };
       } else if (tool === 'pencil') {
         gesture = { kind: 'draw', start: screen, points: [world], nodeId: null };
       } else if (isShapeTool(tool)) {

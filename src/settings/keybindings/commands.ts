@@ -36,6 +36,7 @@ export const COMMANDS = {
   'tool.star': { label: 'Star', category: 'tools', defaults: ['Shift+S'], description: 'Draw a star. Change its points and inner radius in Properties. Hold Shift to keep it even.' },
   'tool.pencil': { label: 'Pencil', category: 'tools', defaults: ['Shift+P'], description: 'Drag to draw a freehand stroke.' },
   'tool.image': { label: 'Place image', category: 'tools', defaults: ['Mod+Shift+K'], description: 'Choose a PNG, JPEG, WebP or GIF file. Images larger than 1024px on a side are scaled down, so documents fit in browser storage.' },
+  'tool.connector': { label: 'Connector', category: 'tools', defaults: ['C'], description: 'Drag from one layer to another to join them with an arrow that follows when either moves.' },
   'tool.text': { label: 'Text', category: 'tools', defaults: ['T'], description: 'Click to place a text layer and start typing. Enter finishes; Shift+Enter adds a line.' },
   'tool.hand': { label: 'Hand', category: 'tools', defaults: ['H'], description: 'Drag to pan the canvas without selecting anything.' },
 

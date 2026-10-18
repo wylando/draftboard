@@ -15,12 +15,12 @@ export type DrawableType =
  * Groups are made from a selection (Group command), paths by the pencil tool,
  * and images by placing a file; none of them is drawn as a box.
  */
-export type NodeType = DrawableType | 'group' | 'path' | 'image';
+export type NodeType = DrawableType | 'group' | 'path' | 'image' | 'connector';
 
 /** Frames and groups can hold children. */
 export type ContainerType = 'frame' | 'group';
 
-export type ToolId = 'select' | 'hand' | 'pencil' | DrawableType;
+export type ToolId = 'select' | 'hand' | 'pencil' | 'connector' | DrawableType;
 
 export interface Point {
   x: number;
@@ -121,6 +121,18 @@ export interface ImageNode extends BaseNode {
   src: string;
 }
 
+/**
+ * A straight arrow between two layers (or free points). Its ends are 0–1
+ * fractions of its box, like a path, so moving it needs no special case;
+ * `normalizeTree` re-routes an attached end to the edge of its layer.
+ */
+export interface ConnectorNode extends BaseNode {
+  type: 'connector';
+  fromId: string | null;
+  toId: string | null;
+  ends: [Point, Point];
+}
+
 export interface TextNode extends BaseNode {
   type: 'text';
   text: string;
@@ -147,6 +159,7 @@ export type DesignNode =
   | StarNode
   | PathNode
   | ImageNode
+  | ConnectorNode
   | TextNode
   | GroupNode;
 
@@ -158,6 +171,7 @@ export type NodePatch = Partial<
     Omit<PolygonNode, 'id' | 'type'> &
     Omit<StarNode, 'id' | 'type'> &
     Omit<PathNode, 'id' | 'type'> &
+    Omit<ConnectorNode, 'id' | 'type'> &
     Omit<TextNode, 'id' | 'type'>
 >;
 

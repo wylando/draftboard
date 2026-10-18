@@ -52,6 +52,8 @@ function runCommand(id: CommandId, o: Options): void {
       return dispatch({ type: 'setTool', tool: 'star' });
     case 'tool.pencil':
       return dispatch({ type: 'setTool', tool: 'pencil' });
+    case 'tool.connector':
+      return dispatch({ type: 'setTool', tool: 'connector' });
     case 'tool.image':
       return o.placeImage();
     case 'tool.text':

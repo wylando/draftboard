@@ -1,4 +1,5 @@
-import type { Box, DesignNode, DrawableType, GroupNode, ImageNode, NodeType, PathNode, Point } from './types';
+import { boxThrough } from '../geometry';
+import type { Box, ConnectorNode, DesignNode, DrawableType, GroupNode, ImageNode, NodeType, PathNode, Point } from './types';
 
 let counter = 0;
 export function createId(): string {
@@ -18,6 +19,7 @@ const LABELS: Record<NodeType, string> = {
   star: 'Star',
   path: 'Path',
   image: 'Image',
+  connector: 'Connector',
   text: 'Text',
   group: 'Group',
 };
@@ -141,6 +143,24 @@ export function createImage(src: string, box: Box, existing: DesignNode[]): Imag
   };
 }
 
+export function createConnector(from: Point, to: Point, existing: DesignNode[]): ConnectorNode {
+  return {
+    id: createId(),
+    type: 'connector',
+    name: nextName('connector', existing),
+    parentId: null,
+    ...boxThrough(from, to),
+    rotation: 0,
+    fill: '#000000',
+    stroke: '#1e1e1e',
+    strokeWidth: 1.5,
+    opacity: 1,
+    visible: true,
+    fromId: null,
+    toId: null,
+  };
+}
+
 /** Label text color and size. Document data, like the shape defaults above. */
 export const LABEL_COLOR = '#1e1e1e';
 export const LABEL_FONT_SIZE = 14;
@@ -149,5 +169,6 @@ const LABELED: ReadonlySet<NodeType> = new Set(['rect', 'ellipse', 'diamond', 'p
 export const isLabeled = (type: NodeType) => LABELED.has(type);
 export const labelOf = (node: DesignNode): string => ('label' in node ? (node.label ?? '') : '');
 
-/** Smallest dimension a node may be resized to. Lines, arrows and strokes may be flat. */
-export const minSizeFor = (type: NodeType) => (type === 'line' || type === 'arrow' || type === 'path' ? 0 : 1);
+/** Smallest dimension a node may be resized to. Lines, arrows, strokes and connectors may be flat. */
+export const minSizeFor = (type: NodeType) =>
+  type === 'line' || type === 'arrow' || type === 'path' || type === 'connector' ? 0 : 1;

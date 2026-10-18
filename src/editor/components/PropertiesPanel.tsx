@@ -46,8 +46,10 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
   const update = useUpdate(node);
   const updateBox = useUpdateBox(node);
   const isGroup = node.type === 'group';
+  // Groups take their box from their children and connectors from their ends: no rotation of their own.
+  const hasRotation = !isGroup && node.type !== 'connector';
   // Lines, arrows and strokes are drawn with their stroke color only.
-  const hasFill = !['line', 'arrow', 'path', 'image', 'group'].includes(node.type);
+  const hasFill = !['line', 'arrow', 'path', 'image', 'group', 'connector'].includes(node.type);
   const hasStroke = node.type !== 'group' && node.type !== 'image';
   const hasRadius = node.type === 'rect' || node.type === 'frame';
   const minSize = minSizeFor(node.type);
@@ -64,8 +66,7 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
           <NumberInput label="Y" value={node.y} onCommit={(y) => updateBox({ y })} testId="prop-y" />
           <NumberInput label="W" value={node.width} min={minSize} onCommit={(width) => updateBox({ width })} testId="prop-w" />
           <NumberInput label="H" value={node.height} min={minSize} onCommit={(height) => updateBox({ height })} testId="prop-h" />
-          {/* A group's box is derived from its children, so it has no rotation of its own. */}
-          {!isGroup && (
+          {hasRotation && (
             <NumberInput label="°" value={node.rotation} onCommit={(rotation) => updateBox({ rotation })} testId="prop-rotation" />
           )}
           {hasRadius && (

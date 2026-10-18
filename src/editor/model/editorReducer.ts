@@ -133,20 +133,24 @@ function selectionWithDescendants(nodes: DesignNode[], selection: string[]): Set
 /**
  * Copies of `nodes` (a subtree list in preorder) with fresh ids, offset by
  * PASTE_OFFSET. Parents inside the list are remapped; a parent outside it is
- * kept only if it is in `existing`.
+ * kept only if it is in `existing`. Connector targets are remapped too.
  */
 function cloneOffset(nodes: DesignNode[], existing: ById): { copies: DesignNode[]; newIds: Map<string, string> } {
   const newIds = new Map<string, string>();
   for (const n of nodes) newIds.set(n.id, createId());
-  const copies = nodes.map((n) => {
+  const copies = nodes.map((n): DesignNode => {
     const inner = n.parentId === null ? undefined : newIds.get(n.parentId);
-    return {
+    const copy = {
       ...n,
       id: newIds.get(n.id) as string,
       parentId: inner ?? (n.parentId !== null && existing.has(n.parentId) ? n.parentId : null),
       x: n.x + PASTE_OFFSET,
       y: n.y + PASTE_OFFSET,
     };
+    if (copy.type !== 'connector') return copy;
+    // A copied connector attaches to copies of its layers; ends whose layer wasn't copied come loose.
+    const remap = (id: string | null) => (id === null ? null : (newIds.get(id) ?? null));
+    return { ...copy, fromId: remap(copy.fromId), toId: remap(copy.toId) };
   });
   return { copies, newIds };
 }
@@ -323,7 +327,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         top.filter((id) => {
           const n = byId.get(id) as DesignNode;
           const parent = n.parentId === null ? undefined : byId.get(n.parentId);
-          return parent?.type !== 'group' && n.parentId !== target;
+          // Connectors stay where they are, so a frame's clip never cuts them off.
+          return n.type !== 'connector' && parent?.type !== 'group' && n.parentId !== target;
         }),
       );
       if (moving.size === 0) return state;

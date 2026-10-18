@@ -30,6 +30,7 @@ Draw, arrange and fine-tune shapes on an infinite canvas: no account, no cloud, 
 - 🖱️ **Direct manipulation**: click, Shift-click or marquee-select. Move, resize with eight handles (rotated shapes too), and constrain with Shift.
 - 🎛️ **Properties panel**: position, size, rotation, corner radius, fill, stroke, opacity, and text content and size.
 - 🗂️ **Layers tree**: a code-editor-style tree with collapsible frames and groups and indent guides. Select, rename, show or hide any layer, and drag to reorder or nest.
+- 🧭 **Diagramming**: connectors that stay attached to shapes, sticky notes, labels inside rectangles, ellipses, diamonds, polygons and stars (double-click a selected shape), and align / distribute for the selection.
 - 🪆 **Frames and groups**: shapes drawn or dropped on a frame go inside it and move with it. Group the selection (`⌘G`) to move and scale it as one; double-click to select inside a group.
 - 🔲 **Canvas grid**: dots, lines or none, chosen under Settings → Canvas.
 - 📋 **Copy, cut and paste** layers with their children (`⌘C` / `⌘X` / `⌘V`). Each paste lands 10px from the last. The clipboard lives in memory, so it's cleared on reload.
@@ -62,11 +63,14 @@ Then open **http://localhost:5173**. That's it.
 | Frame     | `F` | Draw a white artboard. Layers drawn or dropped on it go inside it. |
 | Rectangle | `R` | Draw a rectangle. Hold Shift for a square. |
 | Ellipse   | `O` | Draw an ellipse. Hold Shift for a circle. |
+| Diamond   | `D` | Draw a diamond, e.g. a flowchart decision. |
 | Line      | `L` | Draw a straight line. Hold Shift to snap to 45°. |
 | Arrow     | `⇧L` | Draw a line with an arrowhead at the end. Hold Shift to snap to 45°. |
 | Polygon   | `P` | Draw a regular polygon. Set the number of sides in Properties. |
 | Star      | `⇧S` | Draw a star. Set the points and inner radius in Properties. |
 | Pencil    | `⇧P` | Drag to draw a freehand stroke. |
+| Sticky note | `N` | Click to place a note and start typing, or drag to size it. |
+| Connector | `C` | Drag from one layer to another. The arrow stays attached when either moves. |
 | Place image | `⇧⌘K` | Pick a PNG, JPEG, WebP or GIF. It's scaled to at most 1024px on a side and placed in the middle of the view. |
 | Text      | `T` | Click to place text and start typing. Enter finishes; Shift+Enter adds a line. |
 | Hand      | `H` | Drag to pan without selecting anything. |
@@ -83,6 +87,9 @@ Then open **http://localhost:5173**. That's it.
 | Bring forward / Send backward | `⌘]` / `⌘[`   | `Ctrl+]` / `Ctrl+[`  |
 | Bring to front / Send to back | `⌥⌘]` / `⌥⌘[` | `Ctrl+Alt+]` / `Ctrl+Alt+[` |
 | Group / Ungroup            | `⌘G` / `⇧⌘G`     | `Ctrl+G` / `Ctrl+Shift+G` |
+| Align left / h-center / right | `⌥A` / `⌥H` / `⌥D` | `Alt+A` / `Alt+H` / `Alt+D` |
+| Align top / v-center / bottom | `⌥W` / `⌥V` / `⌥S` | `Alt+W` / `Alt+V` / `Alt+S` |
+| Distribute horizontally / vertically | `⌥⇧H` / `⌥⇧V` | `Alt+Shift+H` / `Alt+Shift+V` |
 | Nudge (1px / 10px)         | `←↑→↓` / `⇧` + arrows | same             |
 | Zoom in / out              | `⌘=` / `⌘-`      | `Ctrl+=` / `Ctrl+-`  |
 | Zoom to 100% / to fit      | `⇧0` / `⇧1`      | `Shift+0` / `Shift+1` |

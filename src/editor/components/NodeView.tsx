@@ -116,6 +116,16 @@ function Shape({ node }: { node: DesignNode }) {
         </>
       );
     }
+    case 'connector': {
+      const [a, b] = node.ends.map((e) => ({ x: e.x * w, y: e.y * h })) as [{ x: number; y: number }, { x: number; y: number }];
+      return (
+        <>
+          <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={LINE_HIT_WIDTH} />
+          <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={node.stroke} strokeWidth={node.strokeWidth} />
+          <polygon points={arrowheadPoints(a, b, node.strokeWidth)} fill={node.stroke} />
+        </>
+      );
+    }
     case 'image':
       return <image href={node.src} width={w} height={h} preserveAspectRatio="none" />;
     case 'text':
