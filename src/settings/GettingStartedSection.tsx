@@ -71,8 +71,8 @@ export function GettingStartedSection() {
         <Terms
           items={[
             ['Toolbar (top)', 'Tools on the left, undo/redo in the middle, then Import, Export, zoom and Settings.'],
-            ['Layers (left)', 'Everything on the canvas, top layer first. Click to select, Shift-click to add, double-click to rename, eye icon to hide.'],
-            ['Canvas (center)', 'Where you draw. Scroll to pan, ⌘/Ctrl + scroll to zoom.'],
+            ['Layers (left)', 'Everything on the canvas as a tree, top layer first. Layers inside a frame or group are indented under it; click the arrow to fold them away. Click to select, Shift-click to add, double-click to rename, eye icon to hide, drag to reorder or move into a frame or group.'],
+            ['Canvas (center)', 'Where you draw. Scroll to pan, ⌘/Ctrl + scroll to zoom. Change the background grid (dots, lines or none) under Settings → Canvas.'],
             ['Design panel (right)', 'Properties of the selected layer. Shows a hint when nothing is selected.'],
           ]}
         />
@@ -114,7 +114,27 @@ export function GettingStartedSection() {
             ['Fill', 'Fill color. Click the swatch for a picker or type a 6-digit hex value.'],
             ['Stroke', 'Outline color and width. Width 0 means no outline (lines always have one).'],
             ['Layer opacity', '0–100% transparency for the whole layer.'],
-            ['Arrange', 'Bring to front, send to back, duplicate, zoom to the selection, or delete.'],
+            ['Arrange', 'Bring to front, send to back, duplicate, zoom to the selection, group, ungroup, or delete. Ordering applies among layers in the same frame or group.'],
+          ]}
+        />
+      </Block>
+
+      <Block title="Frames and groups" testId="guide-nesting">
+        <Terms
+          items={[
+            ['Frames', 'Shapes you draw or drop on a frame go inside it, and the frame hides anything outside its edges. Moving a frame moves its contents; resizing it does not.'],
+            [
+              <>
+                Groups <Shortcut binding={bindings['arrange.group'][0]} />
+              </>,
+              'Group the selection to move and resize it as one. Clicking a grouped layer selects the whole group; double-click to select inside it, or ⌘/Ctrl-click to go straight to the layer.',
+            ],
+            [
+              <>
+                Ungroup <Shortcut binding={bindings['arrange.ungroup'][0]} />
+              </>,
+              'Removes the group and keeps its layers in place. A group with no layers left is removed automatically.',
+            ],
           ]}
         />
       </Block>
@@ -132,8 +152,8 @@ export function GettingStartedSection() {
       <Block title="Coming from another design tool?">
         <p className={mutedClass}>
           Tool shortcuts follow common design-tool conventions, and you can change any of them under Keyboard
-          shortcuts. Draftboard is intentionally small: there are no components, auto layout, prototyping,
-          comments or multiplayer, and frames don't contain or clip other layers yet.
+          shortcuts. Draftboard is intentionally small: there are no components, auto layout, constraints,
+          prototyping, comments or multiplayer.
         </p>
       </Block>
     </section>

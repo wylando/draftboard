@@ -15,6 +15,9 @@ function Shape({ node }: { node: DesignNode }) {
   const { width: w, height: h } = node;
 
   switch (node.type) {
+    case 'group':
+      // No body: a group is drawn by its children and hit through them.
+      return null;
     case 'frame':
     case 'rect':
       return (
@@ -62,27 +65,63 @@ function Shape({ node }: { node: DesignNode }) {
   }
 }
 
-export const NodeView = memo(function NodeView({ node, hidden }: { node: DesignNode; hidden?: boolean }) {
+const nodeTransform = (node: DesignNode) =>
+  `translate(${node.x} ${node.y}) rotate(${node.rotation} ${node.width / 2} ${node.height / 2})`;
+
+interface NodeViewProps {
+  node: DesignNode;
+  childrenOf: ReadonlyMap<string | null, DesignNode[]>;
+  /** Text node being edited in place; drawn by the editor instead. */
+  editingId: string | null;
+}
+
+/**
+ * A container renders as a wrapper holding its own shape and then its children.
+ * The shape's `<g>` carries the node's data attributes; the wrapper has none,
+ * so hit-testing always finds the innermost layer under the pointer.
+ */
+export const NodeView = memo(function NodeView({ node, childrenOf, editingId }: NodeViewProps) {
   if (!node.visible) return null;
-  const cx = node.width / 2;
-  const cy = node.height / 2;
-  return (
+  const children = childrenOf.get(node.id) ?? [];
+  const own = (
     <g
       data-node-id={node.id}
       data-testid={`node-${node.id}`}
       data-node-type={node.type}
-      transform={`translate(${node.x} ${node.y}) rotate(${node.rotation} ${cx} ${cy})`}
-      opacity={node.opacity}
-      visibility={hidden ? 'hidden' : undefined}
+      transform={nodeTransform(node)}
+      opacity={children.length === 0 ? node.opacity : undefined}
+      visibility={node.id === editingId ? 'hidden' : undefined}
     >
       <Shape node={node} />
     </g>
   );
+  if (children.length === 0) return own;
+
+  // Design choice: frames clip their content; groups don't.
+  const clipId = node.type === 'frame' ? `clip-${node.id}` : undefined;
+  return (
+    <g opacity={node.opacity} data-subtree={node.id}>
+      {own}
+      {clipId && (
+        <clipPath id={clipId}>
+          <rect width={node.width} height={node.height} rx={node.type === 'frame' ? node.cornerRadius : 0} transform={nodeTransform(node)} />
+        </clipPath>
+      )}
+      <g clipPath={clipId ? `url(#${clipId})` : undefined}>
+        {children.map((c) => (
+          <NodeView key={c.id} node={c} childrenOf={childrenOf} editingId={editingId} />
+        ))}
+      </g>
+    </g>
+  );
 });
 
-/** Frame names render above the frame in screen space, like design-tool canvas labels. */
+/**
+ * Frame names render above the frame in screen space, like design-tool canvas
+ * labels. Only top-level frames get one; nested frames would be clipped.
+ */
 export function FrameLabel({ node, zoom }: { node: DesignNode; zoom: number }) {
-  if (node.type !== 'frame' || !node.visible) return null;
+  if (node.type !== 'frame' || node.parentId !== null || !node.visible) return null;
   return (
     <text
       data-node-id={node.id}

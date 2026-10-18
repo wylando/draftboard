@@ -25,7 +25,7 @@ export interface CommandDef {
  */
 export const COMMANDS = {
   'tool.select': { label: 'Move', category: 'tools', defaults: ['V'], description: 'Select, move and resize layers. Drag on empty canvas to box-select.' },
-  'tool.frame': { label: 'Frame', category: 'tools', defaults: ['F'], description: 'Draw a frame: a white artboard that groups a design visually.' },
+  'tool.frame': { label: 'Frame', category: 'tools', defaults: ['F'], description: 'Draw a frame: a white artboard. Layers drawn or dropped on it go inside it and are clipped to its edges.' },
   'tool.rect': { label: 'Rectangle', category: 'tools', defaults: ['R'], description: 'Draw a rectangle. Hold Shift for a square; click once for a 100×100 default.' },
   'tool.ellipse': { label: 'Ellipse', category: 'tools', defaults: ['O'], description: 'Draw an ellipse. Hold Shift for a circle.' },
   'tool.line': { label: 'Line', category: 'tools', defaults: ['L'], description: 'Draw a straight line. Hold Shift to snap to 45°.' },
@@ -36,12 +36,14 @@ export const COMMANDS = {
   'edit.redo': { label: 'Redo', category: 'edit', defaults: ['Mod+Shift+Z', 'Mod+Y'], description: 'Redo the last undone change.' },
   'edit.duplicate': { label: 'Duplicate', category: 'edit', defaults: ['Mod+D'], description: 'Copy the selection, offset by 10px.' },
   'edit.delete': { label: 'Delete', category: 'edit', defaults: ['Backspace', 'Delete'], description: 'Remove the selected layers.' },
-  'edit.selectAll': { label: 'Select all', category: 'edit', defaults: ['Mod+A'], description: 'Select every visible layer.' },
+  'edit.selectAll': { label: 'Select all', category: 'edit', defaults: ['Mod+A'], description: 'Select every visible top-level layer, or every layer beside the current selection inside a frame or group.' },
   'edit.escape': { label: 'Deselect / exit tool', category: 'edit', defaults: ['Escape'], description: 'Return to the Move tool, or clear the selection if already on it.' },
 
   'arrange.forward': { label: 'Bring forward', category: 'arrange', defaults: ['Mod+]'], description: 'Move the selection one step up in the layer order.' },
   'arrange.backward': { label: 'Send backward', category: 'arrange', defaults: ['Mod+['], description: 'Move the selection one step down in the layer order.' },
   'arrange.front': { label: 'Bring to front', category: 'arrange', defaults: ['Mod+Alt+]'], description: 'Move the selection to the top of the layer order.' },
+  'arrange.group': { label: 'Group selection', category: 'arrange', defaults: ['Mod+G'], description: 'Put the selected layers in a new group, which moves and resizes them together.' },
+  'arrange.ungroup': { label: 'Ungroup', category: 'arrange', defaults: ['Mod+Shift+G'], description: 'Remove the selected groups and keep their layers where they are.' },
   'arrange.back': { label: 'Send to back', category: 'arrange', defaults: ['Mod+Alt+['], description: 'Move the selection to the bottom of the layer order.' },
 
   'view.zoomIn': { label: 'Zoom in', category: 'view', defaults: ['Mod+='], description: 'Double the zoom around the canvas center.' },
@@ -75,6 +77,10 @@ export const FIXED_INTERACTIONS: Array<{ label: string; input: string; descripti
   { label: 'Scroll canvas', input: 'Mouse wheel / trackpad', description: 'Pan vertically and horizontally.' },
   { label: 'Zoom', input: '⌘/Ctrl + wheel', description: 'Zoom around the pointer.' },
   { label: 'Add to selection', input: 'Shift + click', description: 'Toggle a layer in or out of the selection.' },
+  { label: 'Select inside a group', input: 'Double-click a group', description: 'Clicking a grouped layer selects its group; double-click to go one level in.' },
+  { label: 'Deep select', input: '⌘/Ctrl + click', description: 'Select the innermost layer under the pointer, even inside groups.' },
+  { label: 'Move into a frame', input: 'Drag a layer onto a frame', description: 'Dropping a layer over a frame puts it inside; dropping it outside takes it out.' },
+  { label: 'Nest or reorder layers', input: 'Drag in Layers panel', description: 'Drop above or below a layer to reorder, or onto a frame or group to put it inside.' },
   { label: 'Constrain', input: 'Shift while drawing / dragging', description: 'Squares, circles, 45° lines, or lock a move to one axis.' },
   { label: 'Edit text', input: 'Double-click a text layer', description: 'Edit its content in place.' },
   { label: 'Rename layer', input: 'Double-click in Layers panel', description: 'Edit the layer name.' },

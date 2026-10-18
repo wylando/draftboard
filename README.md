@@ -29,7 +29,9 @@ Draw, arrange and fine-tune shapes on an infinite canvas: no account, no cloud, 
 - 🎨 **Drawing tools**: frames, rectangles, ellipses, lines and text. Drag to draw, or click to drop a default-size shape.
 - 🖱️ **Direct manipulation**: click, Shift-click or marquee-select. Move, resize with eight handles (rotated shapes too), and constrain with Shift.
 - 🎛️ **Properties panel**: position, size, rotation, corner radius, fill, stroke, opacity, and text content and size.
-- 🗂️ **Layers panel**: select, rename, and show or hide any layer.
+- 🗂️ **Layers tree**: a code-editor-style tree with collapsible frames and groups and indent guides. Select, rename, show or hide any layer, and drag to reorder or nest.
+- 🪆 **Frames and groups**: shapes drawn or dropped on a frame go inside it and move with it. Group the selection (`⌘G`) to move and scale it as one; double-click to select inside a group.
+- 🔲 **Canvas grid**: dots, lines or none, chosen under Settings → Canvas.
 - ↩️ **Full undo / redo** for every edit and gesture.
 - 🔍 **Smooth viewport**: wheel to pan, ⌘/Ctrl + wheel to zoom around the pointer, Space-drag to pan, plus zoom to 100% and zoom to fit.
 - ⌨️ **Fully remappable shortcuts**: rebind any command, give one command several keys, and resolve conflicts from a built-in Settings page.
@@ -56,7 +58,7 @@ Then open **http://localhost:5173**. That's it.
 | Tool      | Key | What it does |
 | --------- | :-: | ------------ |
 | Move      | `V` | Select, move and resize layers. Drag on empty canvas to box-select. |
-| Frame     | `F` | Draw a white artboard that groups a design visually. |
+| Frame     | `F` | Draw a white artboard. Layers drawn or dropped on it go inside it. |
 | Rectangle | `R` | Draw a rectangle. Hold Shift for a square. |
 | Ellipse   | `O` | Draw an ellipse. Hold Shift for a circle. |
 | Line      | `L` | Draw a straight line. Hold Shift to snap to 45°. |
@@ -73,6 +75,7 @@ Then open **http://localhost:5173**. That's it.
 | Select all                 | `⌘A`             | `Ctrl+A`             |
 | Bring forward / Send backward | `⌘]` / `⌘[`   | `Ctrl+]` / `Ctrl+[`  |
 | Bring to front / Send to back | `⌥⌘]` / `⌥⌘[` | `Ctrl+Alt+]` / `Ctrl+Alt+[` |
+| Group / Ungroup            | `⌘G` / `⇧⌘G`     | `Ctrl+G` / `Ctrl+Shift+G` |
 | Nudge (1px / 10px)         | `←↑→↓` / `⇧` + arrows | same             |
 | Zoom in / out              | `⌘=` / `⌘-`      | `Ctrl+=` / `Ctrl+-`  |
 | Zoom to 100% / to fit      | `⇧0` / `⇧1`      | `Shift+0` / `Shift+1` |

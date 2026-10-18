@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useEditor } from '../EditorContext';
 import { useCanvasGestures, type Marquee } from '../hooks/useCanvasGestures';
+import { byIdOf, childrenByParent, isEffectivelyVisible } from '../model/tree';
 import type { TextNode } from '../model/types';
 import { CANVAS_FONT_FAMILY, measureText } from '../textMetrics';
+import { usePreferences } from '../../settings/preferences/PreferencesContext';
+import { CanvasGrid } from './CanvasGrid';
 import { FrameLabel, NodeView } from './NodeView';
 import { SelectionOverlay } from './SelectionOverlay';
 import { TextEditor } from './TextEditor';
@@ -26,6 +29,7 @@ const TOOL_CURSORS: Record<string, string> = {
 
 export function Canvas() {
   const { state, dispatch } = useEditor();
+  const { gridStyle } = usePreferences().preferences;
   const containerRef = useRef<HTMLDivElement>(null);
   const [marquee, setMarquee] = useState<Marquee | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -84,8 +88,10 @@ export function Canvas() {
   };
 
   const { viewport, nodes, selection, tool } = state;
+  const childrenOf = useMemo(() => childrenByParent(nodes), [nodes]);
+  const byId = byIdOf(nodes);
   const selectedSet = new Set(selection);
-  const selected = nodes.filter((n) => selectedSet.has(n.id) && n.visible);
+  const selected = nodes.filter((n) => selectedSet.has(n.id) && isEffectivelyVisible(byId, n));
   const cursor = spacePressed ? 'grab' : (TOOL_CURSORS[tool] ?? 'crosshair');
 
   return (
@@ -94,18 +100,20 @@ export function Canvas() {
       className={canvasClass}
       data-testid="canvas"
       data-tool={tool}
+      data-grid={gridStyle}
       style={{ cursor }}
       onPointerDown={onPointerDown}
       onDoubleClick={onDoubleClick}
     >
       <svg className={svgClass} width="100%" height="100%">
+        <CanvasGrid viewport={viewport} style={gridStyle} />
         <g
           data-testid="world"
           data-zoom={viewport.zoom}
           transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.zoom})`}
         >
-          {nodes.map((n) => (
-            <NodeView key={n.id} node={n} hidden={n.id === editingId} />
+          {(childrenOf.get(null) ?? []).map((n) => (
+            <NodeView key={n.id} node={n} childrenOf={childrenOf} editingId={editingId} />
           ))}
           {nodes.map((n) => (
             <FrameLabel key={`label-${n.id}`} node={n} zoom={viewport.zoom} />

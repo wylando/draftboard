@@ -4,6 +4,11 @@
       "type": "stdio",
       "command": "npx",
       "args": ["--no-install", "panda-mcp", "--config", "panda.config.ts", "--silent"]
+    },
+    "better-icons": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "better-icons@1.0.4"]
     }
   }
 }

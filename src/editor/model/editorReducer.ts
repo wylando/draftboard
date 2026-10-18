@@ -1,5 +1,7 @@
-import type { DesignNode, NodePatch, ToolId, Viewport } from './types';
-import { createId } from './nodes';
+import { boxCenter, mapBoxBetween, rotatePoint } from '../geometry';
+import type { Box, DesignNode, NodePatch, Point, ToolId, Viewport } from './types';
+import { createGroup, createId } from './nodes';
+import { byIdOf, descendantIds, frameAt, isContainer, mapSiblings, normalizeTree, topLevelIds } from './tree';
 
 const HISTORY_LIMIT = 200;
 const DUPLICATE_OFFSET = 10;
@@ -24,9 +26,26 @@ export type EditorAction =
   | { type: 'setViewport'; viewport: Viewport }
   | { type: 'setCanvasSize'; size: { width: number; height: number } }
   | { type: 'select'; ids: string[] }
-  | { type: 'addNode'; node: DesignNode; select?: boolean }
+  /** `parentAt`: put the node in the deepest frame under this world point. */
+  | { type: 'addNode'; node: DesignNode; select?: boolean; parentAt?: Point }
   /** Transient: does not snapshot history. Pair with a prior checkpoint. */
   | { type: 'updateNodes'; patches: Record<string, NodePatch> }
+  /**
+   * Transient. Sets a node's box and carries its children along: moving a
+   * frame or group moves them, resizing a group scales them, resizing a frame
+   * leaves them where they are, and rotating a frame turns them about its center.
+   */
+  | { type: 'transformNode'; id: string; box: Partial<Box & { rotation: number }> }
+  /**
+   * Transient, sent at the end of a canvas drag: each moved layer joins the
+   * deepest frame under `point`, or the top level. Layers inside a group stay
+   * in their group.
+   */
+  | { type: 'dropSelectionAt'; point: Point }
+  /** Layers-panel drag and drop: re-parent and reorder `ids` relative to `targetId`. */
+  | { type: 'moveLayers'; ids: string[]; targetId: string; position: 'above' | 'below' | 'inside' }
+  | { type: 'groupSelection' }
+  | { type: 'ungroupSelection' }
   /** Move the selection by a delta, as one undo step. Computed from current state. */
   | { type: 'nudgeSelection'; dx: number; dy: number }
   | { type: 'deleteSelection' }
@@ -36,7 +55,7 @@ export type EditorAction =
 
 export function initialEditorState(nodes: DesignNode[] = []): EditorState {
   return {
-    nodes,
+    nodes: normalizeTree(nodes),
     selection: [],
     tool: 'select',
     viewport: { x: 0, y: 0, zoom: 1 },
@@ -56,7 +75,7 @@ function keepExistingSelection(selection: string[], nodes: DesignNode[]): string
   return selection.filter((id) => ids.has(id));
 }
 
-function reorder(nodes: DesignNode[], selected: Set<string>, direction: 'forward' | 'backward' | 'front' | 'back') {
+function reorderSiblings(nodes: DesignNode[], selected: Set<string>, direction: 'forward' | 'backward' | 'front' | 'back') {
   if (direction === 'front') {
     return [...nodes.filter((n) => !selected.has(n.id)), ...nodes.filter((n) => selected.has(n.id))];
   }
@@ -76,6 +95,62 @@ function reorder(nodes: DesignNode[], selected: Set<string>, direction: 'forward
     }
   }
   return next;
+}
+
+/** Applies `patches`, then restores tree invariants (group bounds, empty groups). */
+function patchNodes(nodes: DesignNode[], patches: Record<string, NodePatch>): DesignNode[] | null {
+  let changed = false;
+  const next = nodes.map((n) => {
+    const patch = patches[n.id];
+    if (!patch) return n;
+    changed = true;
+    return { ...n, ...patch } as DesignNode;
+  });
+  return changed ? normalizeTree(next) : null;
+}
+
+/** The selection's top-level layers plus all their descendants. */
+function selectionWithDescendants(nodes: DesignNode[], selection: string[]): Set<string> {
+  const top = topLevelIds(byIdOf(nodes), selection);
+  return new Set([...top, ...descendantIds(nodes, top)]);
+}
+
+function transformPatches(
+  nodes: DesignNode[],
+  id: string,
+  box: Partial<Box & { rotation: number }>,
+): Record<string, NodePatch> {
+  const node = nodes.find((n) => n.id === id);
+  if (!node) return {};
+  const { rotation, ...rest } = box;
+  const next = { x: node.x, y: node.y, width: node.width, height: node.height, ...rest };
+  const patches: Record<string, NodePatch> = { [id]: next };
+  if (rotation !== undefined && node.type !== 'group') {
+    patches[id] = { ...next, rotation };
+    const delta = rotation - node.rotation;
+    if (node.type !== 'frame' || delta === 0) return patches;
+    const pivot = boxCenter(node);
+    const inner = descendantIds(nodes, [id]);
+    for (const d of nodes) {
+      if (!inner.has(d.id)) continue;
+      const c = rotatePoint(boxCenter(d), delta, pivot);
+      // Groups take their box from their children, so only leaves and frames turn.
+      patches[d.id] =
+        d.type === 'group' ? {} : { x: c.x - d.width / 2, y: c.y - d.height / 2, rotation: d.rotation + delta };
+    }
+    return patches;
+  }
+  if (!isContainer(node)) return patches;
+  const resized = next.width !== node.width || next.height !== node.height;
+  if (node.type === 'frame' && resized) return patches;
+  const dx = next.x - node.x;
+  const dy = next.y - node.y;
+  const inner = descendantIds(nodes, [id]);
+  for (const d of nodes) {
+    if (!inner.has(d.id)) continue;
+    patches[d.id] = resized ? mapBoxBetween(d, node, next) : { x: d.x + dx, y: d.y + dy };
+  }
+  return patches;
 }
 
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
@@ -121,58 +196,155 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
     case 'addNode': {
       const s = pushHistory(state);
+      const parentId = action.parentAt ? frameAt(s.nodes, action.parentAt, new Set()) : action.node.parentId;
       return {
         ...s,
-        nodes: [...s.nodes, action.node],
+        nodes: normalizeTree([...s.nodes, { ...action.node, parentId }]),
         selection: action.select === false ? s.selection : [action.node.id],
       };
     }
 
     case 'updateNodes': {
-      let changed = false;
-      const nodes = state.nodes.map((n) => {
-        const patch = action.patches[n.id];
-        if (!patch) return n;
-        changed = true;
-        return { ...n, ...patch } as DesignNode;
-      });
-      return changed ? { ...state, nodes } : state;
+      const nodes = patchNodes(state.nodes, action.patches);
+      return nodes ? { ...state, nodes } : state;
+    }
+
+    case 'transformNode': {
+      const nodes = patchNodes(state.nodes, transformPatches(state.nodes, action.id, action.box));
+      return nodes ? { ...state, nodes } : state;
+    }
+
+    case 'dropSelectionAt': {
+      const byId = byIdOf(state.nodes);
+      const top = topLevelIds(byId, state.selection);
+      const exclude = new Set([...top, ...descendantIds(state.nodes, top)]);
+      const target = frameAt(state.nodes, action.point, exclude);
+      const moving = new Set(
+        top.filter((id) => {
+          const n = byId.get(id) as DesignNode;
+          const parent = n.parentId === null ? undefined : byId.get(n.parentId);
+          return parent?.type !== 'group' && n.parentId !== target;
+        }),
+      );
+      if (moving.size === 0) return state;
+      // Re-parented layers go on top of their new siblings.
+      const rest = state.nodes.filter((n) => !moving.has(n.id));
+      const moved = state.nodes.filter((n) => moving.has(n.id)).map((n) => ({ ...n, parentId: target }));
+      return { ...state, nodes: normalizeTree([...rest, ...moved]) };
+    }
+
+    case 'moveLayers': {
+      const byId = byIdOf(state.nodes);
+      const target = byId.get(action.targetId);
+      if (!target) return state;
+      if (action.position === 'inside' && !isContainer(target)) return state;
+      const top = topLevelIds(byId, action.ids).filter((id) => id !== target.id);
+      // Can't drop a layer into its own subtree.
+      if (top.length === 0 || descendantIds(state.nodes, top).has(target.id)) return state;
+      const movingSet = new Set(top);
+      const parentId = action.position === 'inside' ? target.id : target.parentId;
+      const moved = state.nodes.filter((n) => movingSet.has(n.id)).map((n) => ({ ...n, parentId }));
+      const rest = state.nodes.filter((n) => !movingSet.has(n.id));
+      const at = rest.indexOf(target);
+      // Siblings are bottom-to-top, so "above" in the panel means later in the list.
+      const index = action.position === 'inside' ? rest.length : action.position === 'above' ? at + 1 : at;
+      const s = pushHistory(state);
+      return {
+        ...s,
+        nodes: normalizeTree([...rest.slice(0, index), ...moved, ...rest.slice(index)]),
+        selection: top,
+      };
+    }
+
+    case 'groupSelection': {
+      const top = topLevelIds(byIdOf(state.nodes), state.selection);
+      if (top.length === 0) return state;
+      const topSet = new Set(top);
+      // The group takes the place of the highest selected layer.
+      const highest = state.nodes.reduce((acc, n, i) => (topSet.has(n.id) ? i : acc), -1);
+      const anchor = state.nodes[highest] as DesignNode;
+      const group = createGroup(anchor.parentId, state.nodes);
+      const nodes = state.nodes.map((n) => (topSet.has(n.id) ? { ...n, parentId: group.id } : n));
+      nodes.splice(highest, 0, group);
+      const s = pushHistory(state);
+      return { ...s, nodes: normalizeTree(nodes), selection: [group.id] };
+    }
+
+    case 'ungroupSelection': {
+      const byId = byIdOf(state.nodes);
+      const groups = topLevelIds(byId, state.selection).filter((id) => byId.get(id)?.type === 'group');
+      if (groups.length === 0) return state;
+      const groupSet = new Set(groups);
+      const released: string[] = [];
+      const nodes: DesignNode[] = [];
+      for (const n of state.nodes) {
+        if (groupSet.has(n.id)) continue;
+        if (n.parentId !== null && groupSet.has(n.parentId)) {
+          released.push(n.id);
+          nodes.push({ ...n, parentId: (byId.get(n.parentId) as DesignNode).parentId });
+        } else {
+          nodes.push(n);
+        }
+      }
+      const s = pushHistory(state);
+      return { ...s, nodes: normalizeTree(nodes), selection: released };
     }
 
     case 'nudgeSelection': {
       if (state.selection.length === 0) return state;
-      const selected = new Set(state.selection);
+      const moving = selectionWithDescendants(state.nodes, state.selection);
       const s = pushHistory(state);
       return {
         ...s,
-        nodes: s.nodes.map((n) => (selected.has(n.id) ? { ...n, x: n.x + action.dx, y: n.y + action.dy } : n)),
+        nodes: normalizeTree(
+          s.nodes.map((n) => (moving.has(n.id) ? { ...n, x: n.x + action.dx, y: n.y + action.dy } : n)),
+        ),
       };
     }
 
     case 'deleteSelection': {
       if (state.selection.length === 0) return state;
-      const selected = new Set(state.selection);
+      const removed = selectionWithDescendants(state.nodes, state.selection);
       const s = pushHistory(state);
-      return { ...s, nodes: s.nodes.filter((n) => !selected.has(n.id)), selection: [] };
+      return { ...s, nodes: normalizeTree(s.nodes.filter((n) => !removed.has(n.id))), selection: [] };
     }
 
     case 'duplicateSelection': {
       if (state.selection.length === 0) return state;
-      const selected = new Set(state.selection);
+      const top = topLevelIds(byIdOf(state.nodes), state.selection);
+      const copying = new Set([...top, ...descendantIds(state.nodes, top)]);
+      const newIds = new Map<string, string>();
+      for (const id of copying) newIds.set(id, createId());
+      // Preorder is kept, and copies land on top of their original's siblings.
       const copies = state.nodes
-        .filter((n) => selected.has(n.id))
-        .map((n) => ({ ...n, id: createId(), x: n.x + DUPLICATE_OFFSET, y: n.y + DUPLICATE_OFFSET }));
+        .filter((n) => copying.has(n.id))
+        .map((n) => ({
+          ...n,
+          id: newIds.get(n.id) as string,
+          parentId: n.parentId !== null && copying.has(n.parentId) ? (newIds.get(n.parentId) as string) : n.parentId,
+          x: n.x + DUPLICATE_OFFSET,
+          y: n.y + DUPLICATE_OFFSET,
+        }));
       const s = pushHistory(state);
-      return { ...s, nodes: [...s.nodes, ...copies], selection: copies.map((c) => c.id) };
+      return {
+        ...s,
+        nodes: normalizeTree([...s.nodes, ...copies]),
+        selection: top.map((id) => newIds.get(id) as string),
+      };
     }
 
     case 'reorderSelection': {
       if (state.selection.length === 0) return state;
       const s = pushHistory(state);
-      return { ...s, nodes: reorder(s.nodes, new Set(state.selection), action.direction) };
+      const selected = new Set(state.selection);
+      return { ...s, nodes: mapSiblings(s.nodes, (siblings) => reorderSiblings(siblings, selected, action.direction)) };
     }
 
     case 'loadDocument':
-      return { ...initialEditorState(action.nodes), viewport: state.viewport, canvasSize: state.canvasSize };
+      return {
+        ...initialEditorState(normalizeTree(action.nodes)),
+        viewport: state.viewport,
+        canvasSize: state.canvasSize,
+      };
   }
 }

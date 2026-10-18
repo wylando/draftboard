@@ -19,7 +19,8 @@ import {
 import { useLatest } from '../../shared/useLatest';
 import type { EditorAction, EditorState } from '../model/editorReducer';
 import { createNode, DEFAULT_SIZE, minSizeFor } from '../model/nodes';
-import type { Box, DesignNode, NodePatch, NodeType, Point, Viewport } from '../model/types';
+import { byIdOf, descendantIds, enteredScopes, isEffectivelyVisible, selectTarget, topLevelIds } from '../model/tree';
+import type { Box, DesignNode, DrawableType, NodePatch, Point, Viewport } from '../model/types';
 
 /** Screen-pixel distance before a press becomes a drag. */
 const DRAG_THRESHOLD = 3;
@@ -27,7 +28,7 @@ const WHEEL_ZOOM_SPEED = 0.01;
 
 type Gesture =
   | { kind: 'pan'; start: Point; startViewport: Viewport }
-  | { kind: 'create'; nodeType: NodeType; start: Point; startWorld: Point; nodeId: string | null }
+  | { kind: 'create'; nodeType: DrawableType; start: Point; startWorld: Point; nodeId: string | null }
   | { kind: 'move'; start: Point; startWorld: Point; origins: Map<string, Point>; moved: boolean }
   | { kind: 'resize'; start: Point; startWorld: Point; node: DesignNode; handle: HandleDir; moved: boolean }
   | { kind: 'marquee'; start: Point; startWorld: Point; base: string[]; moved: boolean };
@@ -45,7 +46,7 @@ interface Options {
   onEditText: (id: string) => void;
 }
 
-const isShapeTool = (tool: string): tool is NodeType =>
+const isShapeTool = (tool: string): tool is DrawableType =>
   tool === 'frame' || tool === 'rect' || tool === 'ellipse' || tool === 'line' || tool === 'text';
 
 /**
@@ -104,7 +105,7 @@ export function useCanvasGestures({ containerRef, state, dispatch, spacePressed,
             const node = createNode(g.nodeType, box, nodes);
             if (node.type === 'line') node.flipped = flipped;
             g.nodeId = node.id;
-            dispatch({ type: 'addNode', node });
+            dispatch({ type: 'addNode', node, parentAt: g.startWorld });
           } else {
             const patch: NodePatch = g.nodeType === 'line' ? { ...box, flipped } : box;
             dispatch({ type: 'updateNodes', patches: { [g.nodeId]: patch } });
@@ -139,18 +140,21 @@ export function useCanvasGestures({ containerRef, state, dispatch, spacePressed,
           }
           const delta = { x: world.x - g.startWorld.x, y: world.y - g.startWorld.y };
           const box = resizeBox(g.node, g.node.rotation, g.handle, delta, minSizeFor(g.node.type));
-          dispatch({ type: 'updateNodes', patches: { [g.node.id]: box } });
+          dispatch({ type: 'transformNode', id: g.node.id, box });
           return;
         }
         case 'marquee': {
           if (!g.moved && dist < DRAG_THRESHOLD) return;
           g.moved = true;
           const box = boxFromPoints(g.startWorld, world);
+          const byId = byIdOf(nodes);
+          // Groups have no body of their own: they are hit through their children.
           const hits = nodes
-            .filter((n) => n.visible && boxesIntersect(box, rotatedBounds(n, n.rotation)))
-            .map((n) => n.id);
+            .filter((n) => n.type !== 'group' && isEffectivelyVisible(byId, n))
+            .filter((n) => boxesIntersect(box, rotatedBounds(n, n.rotation)))
+            .map((n) => selectTarget(byId, n.id, new Set()));
           onMarquee({ box });
-          dispatch({ type: 'select', ids: Array.from(new Set([...g.base, ...hits])) });
+          dispatch({ type: 'select', ids: topLevelIds(byId, Array.from(new Set([...g.base, ...hits]))) });
           return;
         }
       }
@@ -158,23 +162,27 @@ export function useCanvasGestures({ containerRef, state, dispatch, spacePressed,
     [dispatch, onMarquee, stateRef, toLocal],
   );
 
-  const handleUp = useCallback(() => {
+  const handleUp = useCallback((e: PointerEvent) => {
     const g = gestureRef.current;
     gestureRef.current = null;
     if (!g) return;
 
+    if (g.kind === 'move' && g.moved) {
+      // Same undo step as the move: the drag already checkpointed.
+      dispatch({ type: 'dropSelectionAt', point: screenToWorld(toLocal(e), stateRef.current.viewport) });
+    }
     if (g.kind === 'create') {
       if (!g.nodeId) {
         // A click without a drag places a default-sized node at the pointer.
         const size = DEFAULT_SIZE[g.nodeType];
         const node = createNode(g.nodeType, { x: g.startWorld.x, y: g.startWorld.y, ...size }, stateRef.current.nodes);
-        dispatch({ type: 'addNode', node });
+        dispatch({ type: 'addNode', node, parentAt: g.startWorld });
         if (node.type === 'text') onEditText(node.id);
       }
       dispatch({ type: 'setTool', tool: 'select' });
     }
     if (g.kind === 'marquee') onMarquee(null);
-  }, [dispatch, onEditText, onMarquee, stateRef]);
+  }, [dispatch, onEditText, onMarquee, stateRef, toLocal]);
 
   // Window-level listeners stay registered for the hook's lifetime and read the
   // latest handlers from refs, so a re-render mid-drag can never orphan them.
@@ -182,7 +190,7 @@ export function useCanvasGestures({ containerRef, state, dispatch, spacePressed,
   const upRef = useLatest(handleUp);
   useEffect(() => {
     const move = (e: PointerEvent) => moveRef.current(e);
-    const up = () => upRef.current();
+    const up = (e: PointerEvent) => upRef.current(e);
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
     return () => {
@@ -213,7 +221,9 @@ export function useCanvasGestures({ containerRef, state, dispatch, spacePressed,
         const dir = HANDLES.find((h) => h.id === handleEl.getAttribute('data-handle'));
         if (node && dir) gesture = { kind: 'resize', start: screen, startWorld: world, node, handle: dir, moved: false };
       } else if (nodeEl) {
-        const id = nodeEl.getAttribute('data-node-id') ?? '';
+        const byId = byIdOf(nodes);
+        const hitId = nodeEl.getAttribute('data-node-id') ?? '';
+        const id = selectTarget(byId, hitId, enteredScopes(byId, selection, false), e.metaKey || e.ctrlKey);
         let nextSelection = selection;
         if (e.shiftKey) {
           nextSelection = selection.includes(id) ? selection.filter((s) => s !== id) : [...selection, id];
@@ -222,8 +232,11 @@ export function useCanvasGestures({ containerRef, state, dispatch, spacePressed,
         }
         dispatch({ type: 'select', ids: nextSelection });
         if (nextSelection.includes(id)) {
+          // Containers carry their children; a layer and its ancestor never move twice.
+          const top = topLevelIds(byId, nextSelection);
+          const moving = new Set([...top, ...descendantIds(nodes, top)]);
           const origins = new Map<string, Point>();
-          for (const n of nodes) if (nextSelection.includes(n.id)) origins.set(n.id, { x: n.x, y: n.y });
+          for (const n of nodes) if (moving.has(n.id)) origins.set(n.id, { x: n.x, y: n.y });
           gesture = { kind: 'move', start: screen, startWorld: world, origins, moved: false };
         }
       } else {
@@ -241,11 +254,18 @@ export function useCanvasGestures({ containerRef, state, dispatch, spacePressed,
 
   const onDoubleClick = useCallback(
     (e: ReactMouseEvent) => {
-      const id = (e.target as Element).closest('[data-node-id]')?.getAttribute('data-node-id');
-      const node = stateRef.current.nodes.find((n) => n.id === id);
-      if (node?.type === 'text') onEditText(node.id);
+      const { nodes, selection } = stateRef.current;
+      const hitId = (e.target as Element).closest('[data-node-id]')?.getAttribute('data-node-id');
+      if (!hitId) return;
+      // Double-click goes one level into the selected group, or edits text.
+      const byId = byIdOf(nodes);
+      const id = selectTarget(byId, hitId, enteredScopes(byId, selection, true));
+      const node = byId.get(id);
+      if (!node) return;
+      dispatch({ type: 'select', ids: [id] });
+      if (node.type === 'text') onEditText(node.id);
     },
-    [onEditText, stateRef],
+    [dispatch, onEditText, stateRef],
   );
 
   // React registers wheel listeners as passive, so preventDefault needs a native listener.

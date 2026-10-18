@@ -1,7 +1,7 @@
 import type { DesignNode, NodeType } from './model/types';
 
 const STORAGE_KEY = 'draftboard:document:v1';
-const NODE_TYPES: ReadonlySet<NodeType> = new Set(['frame', 'rect', 'ellipse', 'line', 'text']);
+const NODE_TYPES: ReadonlySet<NodeType> = new Set(['frame', 'rect', 'ellipse', 'line', 'text', 'group']);
 
 interface SavedDocument {
   version: 1;
@@ -16,6 +16,8 @@ function isNode(value: unknown): value is DesignNode {
     typeof n.id === 'string' &&
     typeof n.type === 'string' &&
     NODE_TYPES.has(n.type as NodeType) &&
+    // Optional: documents saved before nesting have no parentId. normalizeTree repairs bad references.
+    (n.parentId === undefined || n.parentId === null || typeof n.parentId === 'string') &&
     ['x', 'y', 'width', 'height'].every((k) => typeof n[k] === 'number' && Number.isFinite(n[k]))
   );
 }

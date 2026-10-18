@@ -1,7 +1,7 @@
 import { Button, ColorInput, NumberInput, Panel, Section, TextInput } from '../../design-system';
 import { useEditor, useSelectedNodes } from '../EditorContext';
 import { useViewportControls } from '../hooks/useViewportControls';
-import type { DesignNode, NodePatch } from '../model/types';
+import type { Box, DesignNode, NodePatch } from '../model/types';
 import { emptyHint, sidebarRight, twoColumnGrid } from '../styles';
 import { CANVAS_FONT_FAMILY, measureText } from '../textMetrics';
 
@@ -13,9 +13,20 @@ function useUpdate(node: DesignNode) {
   };
 }
 
+/** Position and size go through transformNode so a frame's or group's children follow. */
+function useUpdateBox(node: DesignNode) {
+  const { dispatch } = useEditor();
+  return (box: Partial<Box & { rotation: number }>) => {
+    dispatch({ type: 'checkpoint' });
+    dispatch({ type: 'transformNode', id: node.id, box });
+  };
+}
+
 function SingleNodeProperties({ node }: { node: DesignNode }) {
   const update = useUpdate(node);
-  const hasFill = node.type !== 'line';
+  const updateBox = useUpdateBox(node);
+  const isGroup = node.type === 'group';
+  const hasFill = node.type !== 'line' && !isGroup;
   const hasRadius = node.type === 'rect' || node.type === 'frame';
 
   return (
@@ -26,11 +37,14 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
 
       <Section title="Position & size">
         <div className={twoColumnGrid}>
-          <NumberInput label="X" value={node.x} onCommit={(x) => update({ x })} testId="prop-x" />
-          <NumberInput label="Y" value={node.y} onCommit={(y) => update({ y })} testId="prop-y" />
-          <NumberInput label="W" value={node.width} min={node.type === 'line' ? 0 : 1} onCommit={(width) => update({ width })} testId="prop-w" />
-          <NumberInput label="H" value={node.height} min={node.type === 'line' ? 0 : 1} onCommit={(height) => update({ height })} testId="prop-h" />
-          <NumberInput label="°" value={node.rotation} onCommit={(rotation) => update({ rotation })} testId="prop-rotation" />
+          <NumberInput label="X" value={node.x} onCommit={(x) => updateBox({ x })} testId="prop-x" />
+          <NumberInput label="Y" value={node.y} onCommit={(y) => updateBox({ y })} testId="prop-y" />
+          <NumberInput label="W" value={node.width} min={node.type === 'line' ? 0 : 1} onCommit={(width) => updateBox({ width })} testId="prop-w" />
+          <NumberInput label="H" value={node.height} min={node.type === 'line' ? 0 : 1} onCommit={(height) => updateBox({ height })} testId="prop-h" />
+          {/* A group's box is derived from its children, so it has no rotation of its own. */}
+          {!isGroup && (
+            <NumberInput label="°" value={node.rotation} onCommit={(rotation) => updateBox({ rotation })} testId="prop-rotation" />
+          )}
           {hasRadius && (
             <NumberInput label="R" value={node.cornerRadius} min={0} onCommit={(cornerRadius) => update({ cornerRadius })} testId="prop-radius" />
           )}
@@ -60,12 +74,14 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
         </Section>
       )}
 
-      <Section title="Stroke">
-        <div className={twoColumnGrid}>
-          <ColorInput value={node.stroke} onCommit={(stroke) => update({ stroke })} testId="prop-stroke" />
-          <NumberInput label="W" value={node.strokeWidth} min={0} onCommit={(strokeWidth) => update({ strokeWidth })} testId="prop-stroke-width" />
-        </div>
-      </Section>
+      {!isGroup && (
+        <Section title="Stroke">
+          <div className={twoColumnGrid}>
+            <ColorInput value={node.stroke} onCommit={(stroke) => update({ stroke })} testId="prop-stroke" />
+            <NumberInput label="W" value={node.strokeWidth} min={0} onCommit={(strokeWidth) => update({ strokeWidth })} testId="prop-stroke-width" />
+          </div>
+        </Section>
+      )}
 
       <Section title="Layer opacity">
         <NumberInput
@@ -86,6 +102,7 @@ export function PropertiesPanel() {
   const selected = useSelectedNodes();
   const { zoomToSelection } = useViewportControls();
   const single = selected.length === 1 ? selected[0] : undefined;
+  const hasGroup = selected.some((n) => n.type === 'group');
 
   return (
     <Panel className={sidebarRight} data-testid="properties-panel">
@@ -107,6 +124,12 @@ export function PropertiesPanel() {
             <Button onClick={() => dispatch({ type: 'reorderSelection', direction: 'back' })}>Send to back</Button>
             <Button onClick={() => dispatch({ type: 'duplicateSelection' })}>Duplicate</Button>
             <Button onClick={zoomToSelection}>Zoom to</Button>
+            <Button data-testid="group-selection" onClick={() => dispatch({ type: 'groupSelection' })}>
+              Group
+            </Button>
+            <Button data-testid="ungroup-selection" disabled={!hasGroup} onClick={() => dispatch({ type: 'ungroupSelection' })}>
+              Ungroup
+            </Button>
           </div>
           <Button data-testid="delete-selection" onClick={() => dispatch({ type: 'deleteSelection' })}>
             Delete

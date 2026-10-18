@@ -1,6 +1,13 @@
-export type NodeType = 'frame' | 'rect' | 'ellipse' | 'line' | 'text';
+/** Node types the user can draw with a tool. */
+export type DrawableType = 'frame' | 'rect' | 'ellipse' | 'line' | 'text';
 
-export type ToolId = 'select' | 'hand' | NodeType;
+/** Groups are made from a selection (Group command), never drawn. */
+export type NodeType = DrawableType | 'group';
+
+/** Frames and groups can hold children. */
+export type ContainerType = 'frame' | 'group';
+
+export type ToolId = 'select' | 'hand' | DrawableType;
 
 export interface Point {
   x: number;
@@ -16,13 +23,16 @@ export interface Box {
 
 /**
  * Every node is a box in world coordinates, rotated (degrees) about its center.
- * A flat, z-ordered list (index 0 = bottom) keeps the model simple; nesting
- * frames is a planned extension, not something this model supports yet.
+ * Children keep world coordinates too; `parentId` only records the tree. The
+ * document is a flat list kept in tree preorder (see `model/tree.ts`): a parent
+ * comes before its descendants, and siblings are z-ordered (earlier = below).
  */
 export interface BaseNode extends Box {
   id: string;
   type: NodeType;
   name: string;
+  /** Containing frame or group; null at the top level. */
+  parentId: string | null;
   rotation: number;
   fill: string;
   stroke: string;
@@ -57,7 +67,15 @@ export interface TextNode extends BaseNode {
   fontSize: number;
 }
 
-export type DesignNode = FrameNode | RectNode | EllipseNode | LineNode | TextNode;
+/**
+ * Its box is always the union of its children's bounds, recomputed by
+ * `normalizeTree`, and its rotation stays 0.
+ */
+export interface GroupNode extends BaseNode {
+  type: 'group';
+}
+
+export type DesignNode = FrameNode | RectNode | EllipseNode | LineNode | TextNode | GroupNode;
 
 /** Fields any node type may carry; used for partial, type-agnostic updates. */
 export type NodePatch = Partial<

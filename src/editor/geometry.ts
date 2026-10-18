@@ -131,3 +131,40 @@ export function resizeBox(start: Box, rotation: number, handle: HandleDir, world
   const c1 = { x: anchor.x - offset1.x, y: anchor.y - offset1.y };
   return { x: c1.x - width / 2, y: c1.y - height / 2, width, height };
 }
+
+/** Whether a world point lies inside a box rotated about its center. */
+export function pointInRotatedBox(b: Box, rotation: number, p: Point): boolean {
+  const local = rotation % 360 === 0 ? p : rotatePoint(p, -rotation, boxCenter(b));
+  return local.x >= b.x && local.x <= b.x + b.width && local.y >= b.y && local.y <= b.y + b.height;
+}
+
+/**
+ * Re-maps `b` from the `from` frame of reference to `to`, scaling position and
+ * size linearly. Used to scale a group's children when the group is resized.
+ */
+export function mapBoxBetween(b: Box, from: Box, to: Box): Box {
+  const sx = from.width === 0 ? 1 : to.width / from.width;
+  const sy = from.height === 0 ? 1 : to.height / from.height;
+  return {
+    x: to.x + (b.x - from.x) * sx,
+    y: to.y + (b.y - from.y) * sy,
+    width: b.width * sx,
+    height: b.height * sy,
+  };
+}
+
+/** Smallest on-screen grid spacing (px) worth drawing. */
+export const MIN_GRID_SPACING = 12;
+
+/**
+ * Screen spacing for a canvas grid of `base` world units. It doubles (or
+ * halves) by powers of two, so it stays between MIN_GRID_SPACING and twice
+ * that at any zoom.
+ */
+export function gridSpacing(zoom: number, base = 16): number {
+  let s = base * zoom;
+  if (!(s > 0) || !Number.isFinite(s)) return MIN_GRID_SPACING;
+  while (s < MIN_GRID_SPACING) s *= 2;
+  while (s >= MIN_GRID_SPACING * 2) s /= 2;
+  return s;
+}

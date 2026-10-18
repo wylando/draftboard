@@ -10,6 +10,8 @@ export const semanticTokens = defineSemanticTokens({
       secondary: { value: '{colors.grey.100}' },
       hover: { value: '{colors.grey.100}' },
       selected: { value: '{colors.blue.200}' },
+      /** Layers inside a selected frame or group. */
+      selectedChild: { value: '{colors.blue.100}' },
       brand: { value: '{colors.blue.500}' },
       brandHover: { value: '{colors.blue.600}' },
       toolbar: { value: '{colors.grey.900}' },
@@ -27,11 +29,15 @@ export const semanticTokens = defineSemanticTokens({
       DEFAULT: { value: '{colors.grey.200}' },
       strong: { value: '{colors.grey.300}' },
       selected: { value: '{colors.blue.500}' },
+      /** Indent guides in the Layers tree. */
+      guide: { value: '{colors.grey.200}' },
     },
     icon: {
       DEFAULT: { value: '{colors.black.800}' },
       secondary: { value: '{colors.black.500}' },
     },
+    /** Canvas background grid (Settings → Canvas). */
+    canvasGrid: { value: '{colors.grey.300}' },
     /** Canvas chrome: selection outline, handles, marquee. */
     selection: {
       DEFAULT: { value: '{colors.blue.500}' },
