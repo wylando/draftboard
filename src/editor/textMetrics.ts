@@ -14,4 +14,6 @@ export function measureText(text: string, fontSize: number, fontFamily: string):
 }
 
 export const TEXT_LINE_HEIGHT = LINE_HEIGHT;
+/** Inset (world px) between a shape's edge and its label. */
+export const LABEL_PADDING = 8;
 export const CANVAS_FONT_FAMILY = 'Inter, ui-sans-serif, system-ui, -apple-system, sans-serif';

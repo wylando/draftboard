@@ -1,12 +1,50 @@
 import { memo } from 'react';
-import { arrowheadPoints, polygonPoints, starPoints } from '../geometry';
+import { arrowheadPoints, diamondPoints, polygonPoints, starPoints } from '../geometry';
+import { LABEL_COLOR, LABEL_FONT_SIZE, labelOf } from '../model/nodes';
 import type { DesignNode } from '../model/types';
-import { CANVAS_FONT_FAMILY, TEXT_LINE_HEIGHT } from '../textMetrics';
+import { CANVAS_FONT_FAMILY, LABEL_PADDING, TEXT_LINE_HEIGHT } from '../textMetrics';
 import { css } from 'styled-system/css';
 import { token } from 'styled-system/tokens';
 
 const FRAME_LABEL_COLOR = token.var('colors.text.secondary');
 const noSelectClass = css({ userSelect: 'none' });
+// Clicks pass through the label to the shape underneath.
+const labelClass = css({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 'full',
+  height: 'full',
+  textAlign: 'center',
+  whiteSpace: 'pre-wrap',
+  overflowWrap: 'anywhere',
+  overflow: 'hidden',
+  pointerEvents: 'none',
+  userSelect: 'none',
+});
+
+/** Centered text that wraps inside the node's box. */
+function Label({ node }: { node: DesignNode }) {
+  const label = labelOf(node);
+  if (!label) return null;
+  return (
+    <foreignObject width={node.width} height={node.height} pointerEvents="none">
+      {/* Font and color are document values, not UI tokens. */}
+      <div
+        className={labelClass}
+        style={{
+          padding: LABEL_PADDING,
+          fontSize: LABEL_FONT_SIZE,
+          lineHeight: TEXT_LINE_HEIGHT,
+          fontFamily: CANVAS_FONT_FAMILY,
+          color: LABEL_COLOR,
+        }}
+      >
+        {label}
+      </div>
+    </foreignObject>
+  );
+}
 
 /** Invisible stroke width (world px) that makes thin lines easy to grab. */
 const LINE_HIT_WIDTH = 8;
@@ -31,6 +69,10 @@ function Shape({ node }: { node: DesignNode }) {
           strokeWidth={node.strokeWidth}
         />
       );
+    case 'sticky':
+      return <rect width={w} height={h} fill={node.fill} stroke={stroke} strokeWidth={node.strokeWidth} />;
+    case 'diamond':
+      return <polygon points={diamondPoints(w, h)} fill={node.fill} stroke={stroke} strokeWidth={node.strokeWidth} />;
     case 'ellipse':
       return (
         <ellipse cx={w / 2} cy={h / 2} rx={w / 2} ry={h / 2} fill={node.fill} stroke={stroke} strokeWidth={node.strokeWidth} />
@@ -104,7 +146,7 @@ const nodeTransform = (node: DesignNode) =>
 interface NodeViewProps {
   node: DesignNode;
   childrenOf: ReadonlyMap<string | null, DesignNode[]>;
-  /** Text node being edited in place; drawn by the editor instead. */
+  /** Text node, or shape whose label, is being edited in place; the editor draws that text instead. */
   editingId: string | null;
 }
 
@@ -123,9 +165,10 @@ export const NodeView = memo(function NodeView({ node, childrenOf, editingId }: 
       data-node-type={node.type}
       transform={nodeTransform(node)}
       opacity={children.length === 0 ? node.opacity : undefined}
-      visibility={node.id === editingId ? 'hidden' : undefined}
+      visibility={node.id === editingId && node.type === 'text' ? 'hidden' : undefined}
     >
       <Shape node={node} />
+      {node.id !== editingId && <Label node={node} />}
     </g>
   );
   if (children.length === 0) return own;

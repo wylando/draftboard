@@ -92,6 +92,8 @@ const TYPE_ICONS: Record<NodeType, () => ReactElement> = {
   group: icons.group,
   rect: icons.rect,
   ellipse: icons.ellipse,
+  diamond: icons.diamond,
+  sticky: icons.sticky,
   line: icons.line,
   arrow: icons.arrow,
   polygon: icons.polygon,

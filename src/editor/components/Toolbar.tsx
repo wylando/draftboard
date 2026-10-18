@@ -32,11 +32,13 @@ const TOOLS: Array<{ id: ToolId; command: CommandId; icon: () => ReactElement }>
   { id: 'frame', command: 'tool.frame', icon: icons.frame },
   { id: 'rect', command: 'tool.rect', icon: icons.rect },
   { id: 'ellipse', command: 'tool.ellipse', icon: icons.ellipse },
+  { id: 'diamond', command: 'tool.diamond', icon: icons.diamond },
   { id: 'line', command: 'tool.line', icon: icons.line },
   { id: 'arrow', command: 'tool.arrow', icon: icons.arrow },
   { id: 'polygon', command: 'tool.polygon', icon: icons.polygon },
   { id: 'star', command: 'tool.star', icon: icons.star },
   { id: 'pencil', command: 'tool.pencil', icon: icons.pencil },
+  { id: 'sticky', command: 'tool.sticky', icon: icons.sticky },
   { id: 'text', command: 'tool.text', icon: icons.text },
   { id: 'hand', command: 'tool.hand', icon: icons.hand },
 ];

@@ -4,7 +4,7 @@ import { COMMANDS } from '../../settings/keybindings/commands';
 import { useEditor, useSelectedNodes } from '../EditorContext';
 import { useViewportControls } from '../hooks/useViewportControls';
 import type { AlignEdge, DistributeAxis } from '../model/editorReducer';
-import { minSizeFor } from '../model/nodes';
+import { isLabeled, labelOf, minSizeFor } from '../model/nodes';
 import type { Box, DesignNode, NodePatch } from '../model/types';
 import { emptyHint, sidebarRight, twoColumnGrid } from '../styles';
 import { css } from 'styled-system/css';
@@ -73,6 +73,12 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
           )}
         </div>
       </Section>
+
+      {isLabeled(node.type) && (
+        <Section title="Label">
+          <TextInput value={labelOf(node)} onCommit={(label) => update({ label })} testId="prop-label" />
+        </Section>
+      )}
 
       {node.type === 'polygon' && (
         <Section title="Polygon">

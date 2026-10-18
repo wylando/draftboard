@@ -1,5 +1,15 @@
 /** Node types the user draws by dragging out a box (or clicking for a default size). */
-export type DrawableType = 'frame' | 'rect' | 'ellipse' | 'line' | 'arrow' | 'polygon' | 'star' | 'text';
+export type DrawableType =
+  | 'frame'
+  | 'rect'
+  | 'ellipse'
+  | 'diamond'
+  | 'line'
+  | 'arrow'
+  | 'polygon'
+  | 'star'
+  | 'sticky'
+  | 'text';
 
 /**
  * Groups are made from a selection (Group command), paths by the pencil tool,
@@ -44,18 +54,33 @@ export interface BaseNode extends Box {
   visible: boolean;
 }
 
+/** Shapes that can carry centered, wrapped text. Optional: older documents have none. */
+interface Labeled {
+  label?: string;
+}
+
 export interface FrameNode extends BaseNode {
   type: 'frame';
   cornerRadius: number;
 }
 
-export interface RectNode extends BaseNode {
+export interface RectNode extends BaseNode, Labeled {
   type: 'rect';
   cornerRadius: number;
 }
 
-export interface EllipseNode extends BaseNode {
+export interface EllipseNode extends BaseNode, Labeled {
   type: 'ellipse';
+}
+
+/** A rhombus touching the middle of each side of its box. */
+export interface DiamondNode extends BaseNode, Labeled {
+  type: 'diamond';
+}
+
+/** A colored note; its text is its label. */
+export interface StickyNode extends BaseNode, Labeled {
+  type: 'sticky';
 }
 
 export interface LineNode extends BaseNode {
@@ -71,12 +96,12 @@ export interface ArrowNode extends BaseNode {
 }
 
 /** A regular polygon inscribed in the node's box, first vertex at the top. */
-export interface PolygonNode extends BaseNode {
+export interface PolygonNode extends BaseNode, Labeled {
   type: 'polygon';
   sides: number;
 }
 
-export interface StarNode extends BaseNode {
+export interface StarNode extends BaseNode, Labeled {
   type: 'star';
   /** Number of outer points. */
   points: number;
@@ -114,6 +139,8 @@ export type DesignNode =
   | FrameNode
   | RectNode
   | EllipseNode
+  | DiamondNode
+  | StickyNode
   | LineNode
   | ArrowNode
   | PolygonNode
@@ -126,6 +153,7 @@ export type DesignNode =
 /** Fields any node type may carry; used for partial, type-agnostic updates. */
 export type NodePatch = Partial<
   Omit<FrameNode, 'id' | 'type'> &
+    Labeled &
     Omit<LineNode, 'id' | 'type'> &
     Omit<PolygonNode, 'id' | 'type'> &
     Omit<StarNode, 'id' | 'type'> &

@@ -161,6 +161,31 @@ export const icons = {
       </g>
     </Icon>
   ),
+  // Diagram tools: lucide (via better-icons), 24px geometry scaled to 16px.
+  diamond: () => (
+    <Icon>
+      <g transform="scale(0.6667)" strokeWidth="1.875">
+        <path d="M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41L13.7 2.71a2.41 2.41 0 0 0-3.41 0Z" />
+      </g>
+    </Icon>
+  ),
+  sticky: () => (
+    <Icon>
+      <g transform="scale(0.6667)" strokeWidth="1.875">
+        <path d="M21 9a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 15 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z" />
+        <path d="M15 3v5a1 1 0 0 0 1 1h5" />
+      </g>
+    </Icon>
+  ),
+  connector: () => (
+    <Icon>
+      <g transform="scale(0.6667)" strokeWidth="1.875">
+        <circle cx="19" cy="5" r="2" />
+        <circle cx="5" cy="19" r="2" />
+        <path d="M5 17A12 12 0 0 1 17 5" />
+      </g>
+    </Icon>
+  ),
   text: () => (
     <Icon>
       <path d="M3 3.5h10M8 3.5v10M6 13.5h4" />

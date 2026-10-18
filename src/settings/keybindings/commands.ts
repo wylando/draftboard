@@ -28,6 +28,8 @@ export const COMMANDS = {
   'tool.frame': { label: 'Frame', category: 'tools', defaults: ['F'], description: 'Draw a frame: a white artboard. Layers drawn or dropped on it go inside it and are clipped to its edges.' },
   'tool.rect': { label: 'Rectangle', category: 'tools', defaults: ['R'], description: 'Draw a rectangle. Hold Shift for a square; click once for a 100×100 default.' },
   'tool.ellipse': { label: 'Ellipse', category: 'tools', defaults: ['O'], description: 'Draw an ellipse. Hold Shift for a circle.' },
+  'tool.diamond': { label: 'Diamond', category: 'tools', defaults: ['D'], description: 'Draw a diamond, for example a decision in a flowchart. Double-click a selected shape to give it a label.' },
+  'tool.sticky': { label: 'Sticky note', category: 'tools', defaults: ['N'], description: 'Click to place a note and start typing, or drag to size it.' },
   'tool.line': { label: 'Line', category: 'tools', defaults: ['L'], description: 'Draw a straight line. Hold Shift to snap to 45°.' },
   'tool.arrow': { label: 'Arrow', category: 'tools', defaults: ['Shift+L'], description: 'Draw a line with an arrowhead at the end. Hold Shift to snap to 45°.' },
   'tool.polygon': { label: 'Polygon', category: 'tools', defaults: ['P'], description: 'Draw a regular polygon (a triangle at first). Change its sides in Properties. Hold Shift to keep it even.' },

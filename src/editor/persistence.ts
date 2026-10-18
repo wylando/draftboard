@@ -5,6 +5,8 @@ const NODE_TYPES: ReadonlySet<NodeType> = new Set([
   'frame',
   'rect',
   'ellipse',
+  'diamond',
+  'sticky',
   'line',
   'arrow',
   'polygon',
@@ -21,6 +23,7 @@ const isFiniteNumber = (v: unknown): v is number => typeof v === 'number' && Num
 
 /** Fields the renderer reads for types that carry more than a box. */
 function hasTypeFields(n: Record<string, unknown>): boolean {
+  if (n.label !== undefined && typeof n.label !== 'string') return false;
   switch (n.type) {
     case 'polygon':
       return isFiniteNumber(n.sides);

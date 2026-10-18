@@ -10,6 +10,8 @@ const LABELS: Record<NodeType, string> = {
   frame: 'Frame',
   rect: 'Rectangle',
   ellipse: 'Ellipse',
+  diamond: 'Diamond',
+  sticky: 'Sticky',
   line: 'Line',
   arrow: 'Arrow',
   polygon: 'Polygon',
@@ -31,6 +33,8 @@ export const DEFAULT_SIZE: Record<DrawableType, { width: number; height: number 
   frame: { width: 320, height: 240 },
   rect: { width: 100, height: 100 },
   ellipse: { width: 100, height: 100 },
+  diamond: { width: 120, height: 80 },
+  sticky: { width: 200, height: 200 },
   line: { width: 100, height: 0 },
   arrow: { width: 100, height: 0 },
   polygon: { width: 100, height: 100 },
@@ -54,7 +58,10 @@ export function createNode(type: DrawableType, box: Box, existing: DesignNode[])
     case 'rect':
       return { ...base, type, fill: '#d9d9d9', stroke: '#000000', strokeWidth: 0, cornerRadius: 0 };
     case 'ellipse':
+    case 'diamond':
       return { ...base, type, fill: '#d9d9d9', stroke: '#000000', strokeWidth: 0 };
+    case 'sticky':
+      return { ...base, type, fill: '#fff1a8', stroke: '#000000', strokeWidth: 0, label: '' };
     case 'line':
     case 'arrow':
       return { ...base, type, fill: '#000000', stroke: '#000000', strokeWidth: 1, flipped: false };
@@ -133,6 +140,14 @@ export function createImage(src: string, box: Box, existing: DesignNode[]): Imag
     src,
   };
 }
+
+/** Label text color and size. Document data, like the shape defaults above. */
+export const LABEL_COLOR = '#1e1e1e';
+export const LABEL_FONT_SIZE = 14;
+
+const LABELED: ReadonlySet<NodeType> = new Set(['rect', 'ellipse', 'diamond', 'polygon', 'star', 'sticky']);
+export const isLabeled = (type: NodeType) => LABELED.has(type);
+export const labelOf = (node: DesignNode): string => ('label' in node ? (node.label ?? '') : '');
 
 /** Smallest dimension a node may be resized to. Lines, arrows and strokes may be flat. */
 export const minSizeFor = (type: NodeType) => (type === 'line' || type === 'arrow' || type === 'path' ? 0 : 1);

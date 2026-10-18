@@ -180,6 +180,8 @@ function radialPoints(w: number, h: number, count: number, radiusAt: (i: number)
 
 export const polygonPoints = (w: number, h: number, sides: number) => radialPoints(w, h, sides, () => 1);
 
+export const diamondPoints = (w: number, h: number) => `${w / 2},0 ${w},${h / 2} ${w / 2},${h} 0,${h / 2}`;
+
 /** Alternates outer and inner vertices, so a 5-point star has 10. */
 export const starPoints = (w: number, h: number, points: number, innerRatio: number) =>
   radialPoints(w, h, points * 2, (i) => (i % 2 === 0 ? 1 : innerRatio));

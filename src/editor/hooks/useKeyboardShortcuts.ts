@@ -40,6 +40,10 @@ function runCommand(id: CommandId, o: Options): void {
       return dispatch({ type: 'setTool', tool: 'ellipse' });
     case 'tool.line':
       return dispatch({ type: 'setTool', tool: 'line' });
+    case 'tool.diamond':
+      return dispatch({ type: 'setTool', tool: 'diamond' });
+    case 'tool.sticky':
+      return dispatch({ type: 'setTool', tool: 'sticky' });
     case 'tool.arrow':
       return dispatch({ type: 'setTool', tool: 'arrow' });
     case 'tool.polygon':

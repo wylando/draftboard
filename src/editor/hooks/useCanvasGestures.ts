@@ -18,7 +18,7 @@ import {
 } from '../geometry';
 import { useLatest } from '../../shared/useLatest';
 import type { EditorAction, EditorState } from '../model/editorReducer';
-import { createNode, createPath, DEFAULT_SIZE, minSizeFor } from '../model/nodes';
+import { createNode, createPath, DEFAULT_SIZE, isLabeled, minSizeFor } from '../model/nodes';
 import { byIdOf, descendantIds, enteredScopes, isEffectivelyVisible, selectTarget, topLevelIds } from '../model/tree';
 import type { Box, DesignNode, DrawableType, NodePatch, Point, Viewport } from '../model/types';
 
@@ -47,7 +47,18 @@ interface Options {
   onEditText: (id: string) => void;
 }
 
-const SHAPE_TOOLS: ReadonlySet<string> = new Set<DrawableType>(['frame', 'rect', 'ellipse', 'line', 'arrow', 'polygon', 'star', 'text']);
+const SHAPE_TOOLS: ReadonlySet<string> = new Set<DrawableType>([
+  'frame',
+  'rect',
+  'ellipse',
+  'diamond',
+  'line',
+  'arrow',
+  'polygon',
+  'star',
+  'sticky',
+  'text',
+]);
 const isShapeTool = (tool: string): tool is DrawableType => SHAPE_TOOLS.has(tool);
 const hasDirection = (type: DrawableType) => type === 'line' || type === 'arrow';
 
@@ -192,7 +203,8 @@ export function useCanvasGestures({ containerRef, state, dispatch, spacePressed,
         const size = DEFAULT_SIZE[g.nodeType];
         const node = createNode(g.nodeType, { x: g.startWorld.x, y: g.startWorld.y, ...size }, stateRef.current.nodes);
         dispatch({ type: 'addNode', node, parentAt: g.startWorld });
-        if (node.type === 'text') onEditText(node.id);
+        // Text and sticky notes are placed to be typed into.
+        if (node.type === 'text' || node.type === 'sticky') onEditText(node.id);
       }
       dispatch({ type: 'setTool', tool: 'select' });
     }
@@ -282,7 +294,9 @@ export function useCanvasGestures({ containerRef, state, dispatch, spacePressed,
       const node = byId.get(id);
       if (!node) return;
       dispatch({ type: 'select', ids: [id] });
-      if (node.type === 'text') onEditText(node.id);
+      // A shape's label is edited only once the shape itself is selected, so
+      // double-clicking into a group still just selects the layer inside.
+      if (node.type === 'text' || (isLabeled(node.type) && selection.includes(id))) onEditText(node.id);
     },
     [dispatch, onEditText, stateRef],
   );

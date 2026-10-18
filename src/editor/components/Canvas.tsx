@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useEditor } from '../EditorContext';
 import { useCanvasGestures, type Marquee } from '../hooks/useCanvasGestures';
 import { byIdOf, childrenByParent, isEffectivelyVisible } from '../model/tree';
-import type { TextNode } from '../model/types';
+import { isLabeled, LABEL_COLOR, LABEL_FONT_SIZE, labelOf } from '../model/nodes';
 import { CANVAS_FONT_FAMILY, measureText } from '../textMetrics';
 import { usePreferences } from '../../settings/preferences/PreferencesContext';
 import { CanvasGrid } from './CanvasGrid';
@@ -76,13 +76,16 @@ export function Canvas() {
     onEditText,
   });
 
-  const editingNode = state.nodes.find((n): n is TextNode => n.id === editingId && n.type === 'text');
+  const editingNode = state.nodes.find((n) => n.id === editingId && (n.type === 'text' || isLabeled(n.type)));
 
   const commitText = (text: string) => {
-    if (editingNode && text !== editingNode.text) {
+    if (editingNode?.type === 'text' && text !== editingNode.text) {
       const size = measureText(text, editingNode.fontSize, CANVAS_FONT_FAMILY);
       dispatch({ type: 'checkpoint' });
       dispatch({ type: 'updateNodes', patches: { [editingNode.id]: { text, ...size } } });
+    } else if (editingNode && editingNode.type !== 'text' && text !== labelOf(editingNode)) {
+      dispatch({ type: 'checkpoint' });
+      dispatch({ type: 'updateNodes', patches: { [editingNode.id]: { label: text } } });
     }
     setEditingId(null);
   };
@@ -129,7 +132,11 @@ export function Canvas() {
       {editingNode && (
         <TextEditor
           key={editingNode.id}
-          node={editingNode}
+          text={editingNode.type === 'text' ? editingNode.text : labelOf(editingNode)}
+          box={editingNode}
+          fontSize={editingNode.type === 'text' ? editingNode.fontSize : LABEL_FONT_SIZE}
+          color={editingNode.type === 'text' ? editingNode.fill : LABEL_COLOR}
+          label={editingNode.type !== 'text'}
           viewport={viewport}
           onCommit={commitText}
           onCancel={() => setEditingId(null)}
