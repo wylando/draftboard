@@ -186,13 +186,14 @@ function LayerRow({ row, selected, dragging, expanded, onToggle, drop, dragHandl
       data-depth={depth}
       data-drop={drop ?? undefined}
       data-dragging={dragging || undefined}
+      data-in-selection={row.inSelection || undefined}
       draggable={!renaming}
       onClick={(e) => select(e.shiftKey)}
       onDoubleClick={() => setRenaming(true)}
       {...dragHandlers}
     >
       {Array.from({ length: depth }, (_, i) => (
-        <span key={i} className={guideClass} aria-hidden="true" />
+        <span key={i} className={guideClass} aria-hidden="true" data-testid="layer-guide" />
       ))}
       {hasChildren ? (
         <button

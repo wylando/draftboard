@@ -10,19 +10,14 @@ describe('Drawing shapes', () => {
     cy.prop('w').should('have.value', '200');
     cy.prop('h').should('have.value', '100');
     cy.get('[data-testid=layers-panel]').should('contain', 'Rectangle 1');
-  });
-
-  it('returns to the move tool after creating a shape', () => {
-    cy.drawShape('ellipse', [50, 50], [150, 150]);
-    cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'select');
+    // drawShape already waits for data-tool=select; this checks the toolbar follows.
     cy.get('[data-testid=tool-select]').should('have.attr', 'aria-pressed', 'true');
   });
 
   it('places a default-size shape on click using a keyboard shortcut', () => {
     cy.pressKey('o');
     cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'ellipse');
-    cy.canvasPointer('pointerdown', [200, 200]);
-    cy.canvasPointer('pointerup', [200, 200]);
+    cy.canvasClick([200, 200]);
 
     cy.get('[data-node-type=ellipse]').should('have.length', 1);
     cy.prop('w').should('have.value', '100');
@@ -43,8 +38,7 @@ describe('Drawing shapes', () => {
   it('creates and edits text', () => {
     cy.pressKey('t');
     cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'text');
-    cy.canvasPointer('pointerdown', [120, 120]);
-    cy.canvasPointer('pointerup', [120, 120]);
+    cy.canvasClick([120, 120]);
 
     cy.get('[data-testid=text-editor]').should('be.focused').type('Hello canvas{enter}');
     cy.get('[data-testid=text-editor]').should('not.exist');

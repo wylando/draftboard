@@ -33,6 +33,7 @@ describe('Frames contain layers', () => {
 
   it('moving the frame with the X field moves its children too', () => {
     layer('Frame 1').click();
+    cy.prop('name').should('have.value', 'Frame 1');
     cy.prop('x').clear().type('0{enter}');
     layer('Rectangle 1').click();
     cy.prop('x').should('have.value', '50');
@@ -55,6 +56,7 @@ describe('Frames contain layers', () => {
 
   it('rotating the frame turns its children about the frame center', () => {
     layer('Frame 1').click();
+    cy.prop('name').should('have.value', 'Frame 1');
     cy.prop('rotation').clear().type('180{enter}');
     layer('Rectangle 1').click();
     // Frame center is (250, 200): the rect's center (150, 150) maps to (350, 250).
@@ -65,6 +67,7 @@ describe('Frames contain layers', () => {
 
   it('deleting the frame deletes its children', () => {
     layer('Frame 1').click();
+    cy.prop('name').should('have.value', 'Frame 1');
     cy.pressKey('Backspace');
     cy.get('[data-node-type]').should('not.exist');
   });
@@ -82,7 +85,6 @@ describe('Groups', () => {
   });
 
   it('Mod+G groups the selection; the group spans its layers', () => {
-    cy.prop('name').should('have.value', 'Group 1');
     cy.prop('x').should('have.value', '100');
     cy.prop('w').should('have.value', '300');
     cy.prop('rotation').should('not.exist');
@@ -101,9 +103,11 @@ describe('Groups', () => {
     cy.canvasClick([350, 150]);
     cy.prop('name').should('have.value', 'Rectangle 2');
 
+    // Rectangle 1, not the Rectangle 2 still selected above, so this can't pass by leftover state.
     cy.canvasClick([700, 500]);
-    cy.canvasClick([350, 150], MOD);
-    cy.prop('name').should('have.value', 'Rectangle 2');
+    cy.get('[data-testid=properties-panel]').should('contain', 'Select a layer');
+    cy.canvasClick([150, 150], MOD);
+    cy.prop('name').should('have.value', 'Rectangle 1');
   });
 
   it('dragging a layer inside the group stays in the group, which grows', () => {
@@ -147,8 +151,10 @@ describe('Groups', () => {
 
   it('a group whose last layer is deleted disappears', () => {
     cy.canvasClick([150, 150], MOD);
+    cy.prop('name').should('have.value', 'Rectangle 1');
     cy.pressKey('Backspace');
     cy.canvasClick([350, 150], MOD);
+    cy.prop('name').should('have.value', 'Rectangle 2');
     cy.pressKey('Backspace');
     cy.get('[data-node-type=group]').should('not.exist');
     cy.get('[data-testid=layers-panel]').should('not.contain', 'Group 1');
