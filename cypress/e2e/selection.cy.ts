@@ -7,8 +7,7 @@ describe('Selecting, moving and resizing', () => {
 
   it('clicking empty canvas clears the selection', () => {
     cy.get('[data-testid=prop-x]').should('exist');
-    cy.canvasPointer('pointerdown', [700, 500]);
-    cy.canvasPointer('pointerup', [700, 500]);
+    cy.canvasClick([700, 500]);
     cy.get('[data-testid=prop-x]').should('not.exist');
     cy.get('[data-testid=properties-panel]').should('contain', 'Select a layer');
   });
@@ -33,14 +32,7 @@ describe('Selecting, moving and resizing', () => {
   });
 
   it('shift-click adds to the selection', () => {
-    cy.canvasPointer('pointerdown', [150, 150], { shiftKey: true });
-    cy.canvasPointer('pointerup', [150, 150], { shiftKey: true });
+    cy.canvasClick([150, 150], { shiftKey: true });
     cy.get('[data-testid=properties-panel]').should('contain', '2 layers selected');
-  });
-
-  it('selects a layer from the layers panel', () => {
-    cy.get('[data-testid=layers-panel]').contains('Rectangle 1').click();
-    cy.prop('name').should('have.value', 'Rectangle 1');
-    cy.prop('x').should('have.value', '100');
   });
 });

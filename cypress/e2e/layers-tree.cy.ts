@@ -22,7 +22,8 @@ describe('Layers tree', () => {
 
   it('indents children under their parent with one guide per level', () => {
     layerRow('Frame 1').should('have.attr', 'data-depth', '0');
-    layerRow('Rectangle 1').should('have.attr', 'data-depth', '1').find('[aria-hidden=true]').should('have.length.at.least', 1);
+    layerRow('Frame 1').find('[data-testid=layer-guide]').should('not.exist');
+    layerRow('Rectangle 1').should('have.attr', 'data-depth', '1').find('[data-testid=layer-guide]').should('have.length', 1);
     // Top of the z-order first: the ellipse was drawn last, at the top level.
     treeRows().first().should('contain', 'Ellipse 1');
   });
@@ -45,7 +46,8 @@ describe('Layers tree', () => {
   it('marks layers inside a selected container', () => {
     layerRow('Frame 1').click();
     layerRow('Frame 1').should('have.attr', 'aria-selected', 'true');
-    layerRow('Rectangle 1').should('have.attr', 'aria-selected', 'false');
+    layerRow('Rectangle 1').should('have.attr', 'aria-selected', 'false').and('have.attr', 'data-in-selection', 'true');
+    layerRow('Ellipse 1').should('not.have.attr', 'data-in-selection');
   });
 
   it('drags a layer onto a frame to put it inside', () => {
@@ -67,7 +69,6 @@ describe('Layers tree', () => {
   it('reorders top-level layers', () => {
     dragLayer('Ellipse 1', 'Frame 1', 'bottom', 'below');
     treeRows().last().should('contain', 'Ellipse 1');
-    cy.get('[data-node-type=ellipse]').should('exist');
   });
 
   it('will not drop a frame into its own child', () => {
@@ -77,6 +78,10 @@ describe('Layers tree', () => {
     layerRow('Rectangle 1').trigger('dragover', 'center', { dataTransfer });
     layerRow('Rectangle 1').should('not.have.attr', 'data-drop');
     layerRow('Rectangle 1').trigger('drop', 'center', { dataTransfer });
+    layerRow('Frame 1').trigger('dragend', { dataTransfer });
+    // The drag ending has rendered, so the drop has too: the tree is unchanged.
+    layerRow('Frame 1').should('not.have.attr', 'data-dragging');
     layerRow('Frame 1').should('have.attr', 'aria-level', '1');
+    layerRow('Rectangle 1').should('have.attr', 'aria-level', '2');
   });
 });

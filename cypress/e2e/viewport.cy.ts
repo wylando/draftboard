@@ -14,6 +14,7 @@ describe('Viewport: zoom and pan', () => {
 
   it('resets to 100% with Shift+0', () => {
     cy.get('[data-testid=zoom-in]').click();
+    zoomLabel().should('have.text', '200%');
     cy.pressKey(')', { code: 'Digit0', shiftKey: true });
     zoomLabel().should('have.text', '100%');
   });
@@ -39,6 +40,7 @@ describe('Viewport: zoom and pan', () => {
 
   it('draws in world coordinates when zoomed', () => {
     cy.get('[data-testid=zoom-in]').click(); // 200% around canvas center
+    zoomLabel().should('have.text', '200%');
     cy.get('[data-testid=canvas]').then(($c) => {
       const { width, height } = $c[0]!.getBoundingClientRect();
       // Screen = world * 2 + (center - center * 2) => world = (screen + center) / 2

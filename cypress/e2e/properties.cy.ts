@@ -4,9 +4,11 @@ describe('Properties panel', () => {
     cy.drawShape('rect', [100, 100], [200, 200]);
   });
 
-  it('changes fill color via hex input', () => {
-    cy.prop('fill').clear().type('FF0000{enter}');
-    cy.get('[data-node-type=rect] rect').should('have.attr', 'fill', '#ff0000');
+  it('changes fill via hex input as one undo step', () => {
+    cy.prop('fill').clear().type('00FF00{enter}');
+    cy.get('[data-node-type=rect] rect').should('have.attr', 'fill', '#00ff00');
+    cy.pressKey('z', { metaKey: true });
+    cy.get('[data-node-type=rect] rect').should('have.attr', 'fill', '#d9d9d9');
   });
 
   it('moves a node by editing X and Y', () => {
@@ -30,21 +32,8 @@ describe('Properties panel', () => {
     cy.get('[data-testid=layers-panel] [aria-label="Hide layer"]').click({ force: true });
     cy.get('[data-node-type=rect]').should('not.exist');
   });
-});
-
-describe('Color edits and history', () => {
-  it('one fill change is one undo step', () => {
-    cy.visitEmpty();
-    cy.drawShape('rect', [100, 100], [200, 200]);
-    cy.prop('fill').clear().type('00FF00{enter}');
-    cy.get('[data-node-type=rect] rect').should('have.attr', 'fill', '#00ff00');
-    cy.pressKey('z', { metaKey: true });
-    cy.get('[data-node-type=rect] rect').should('have.attr', 'fill', '#d9d9d9');
-  });
 
   it('dragging the color picker only commits on change', () => {
-    cy.visitEmpty();
-    cy.drawShape('rect', [100, 100], [200, 200]);
     cy.get('[data-testid=prop-fill-swatch]').then(($el) => {
       const el = $el[0] as HTMLInputElement;
       const win = el.ownerDocument.defaultView!;

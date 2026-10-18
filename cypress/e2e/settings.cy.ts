@@ -45,7 +45,12 @@ describe('Settings: keyboard shortcuts', () => {
     chip('tool.rect', 'R').should('not.exist');
 
     cy.get('[data-testid=close-settings]').click();
+    cy.get('[data-testid=canvas]').should('be.visible');
     cy.pressKey('r', { code: 'KeyR' });
+    // data-tool is already "select", so wait for a later update to render
+    // first; otherwise this passes even if R still picks Rectangle.
+    cy.get('[data-testid=zoom-in]').click();
+    cy.get('[data-testid=zoom-level]').should('have.text', '200%');
     cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'select');
     cy.pressKey('b', { code: 'KeyB' });
     cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'rect');
@@ -76,6 +81,7 @@ describe('Settings: keyboard shortcuts', () => {
   it('cancelling a conflict changes nothing', () => {
     record('tool.rect', 'v', 'KeyV');
     cy.get('[data-testid=conflict-notice]').contains('Cancel').click();
+    cy.get('[data-testid=conflict-notice]').should('not.exist');
     chip('tool.select', 'V').should('exist');
     chip('tool.rect', 'V').should('not.exist');
   });
@@ -106,7 +112,7 @@ describe('Settings: keyboard shortcuts', () => {
     cy.get('[data-testid=reset-all]').should('be.disabled');
   });
 
-  it('filters by command name or key', () => {
+  it('filters by command name', () => {
     cy.get('[data-testid=shortcut-search]').type('duplicate');
     row('edit.duplicate').should('exist');
     row('tool.rect').should('not.exist');
