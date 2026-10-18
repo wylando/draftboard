@@ -47,6 +47,12 @@ function runCommand(id: CommandId, o: Options): void {
       return dispatch({ type: 'undo' });
     case 'edit.redo':
       return dispatch({ type: 'redo' });
+    case 'edit.copy':
+      return dispatch({ type: 'copySelection' });
+    case 'edit.cut':
+      return dispatch({ type: 'cutSelection' });
+    case 'edit.paste':
+      return dispatch({ type: 'pasteClipboard' });
     case 'edit.duplicate':
       return dispatch({ type: 'duplicateSelection' });
     case 'edit.delete':

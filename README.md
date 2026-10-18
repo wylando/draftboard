@@ -32,6 +32,7 @@ Draw, arrange and fine-tune shapes on an infinite canvas: no account, no cloud, 
 - 🗂️ **Layers tree**: a code-editor-style tree with collapsible frames and groups and indent guides. Select, rename, show or hide any layer, and drag to reorder or nest.
 - 🪆 **Frames and groups**: shapes drawn or dropped on a frame go inside it and move with it. Group the selection (`⌘G`) to move and scale it as one; double-click to select inside a group.
 - 🔲 **Canvas grid**: dots, lines or none, chosen under Settings → Canvas.
+- 📋 **Copy, cut and paste** layers with their children (`⌘C` / `⌘X` / `⌘V`). Each paste lands 10px from the last. The clipboard lives in memory, so it's cleared on reload.
 - ↩️ **Full undo / redo** for every edit and gesture.
 - 🔍 **Smooth viewport**: wheel to pan, ⌘/Ctrl + wheel to zoom around the pointer, Space-drag to pan, plus zoom to 100% and zoom to fit.
 - ⌨️ **Fully remappable shortcuts**: rebind any command, give one command several keys, and resolve conflicts from a built-in Settings page.
@@ -70,6 +71,7 @@ Then open **http://localhost:5173**. That's it.
 | Action                     | macOS            | Windows / Linux      |
 | -------------------------- | ---------------- | -------------------- |
 | Undo / Redo                | `⌘Z` / `⇧⌘Z`     | `Ctrl+Z` / `Ctrl+Y`  |
+| Copy / Cut / Paste         | `⌘C` / `⌘X` / `⌘V` | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` |
 | Duplicate                  | `⌘D`             | `Ctrl+D`             |
 | Delete                     | `⌫` / `Delete`   | `Backspace` / `Delete` |
 | Select all                 | `⌘A`             | `Ctrl+A`             |
