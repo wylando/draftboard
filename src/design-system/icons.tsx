@@ -92,6 +92,75 @@ export const icons = {
       </g>
     </Icon>
   ),
+  // Align and distribute: lucide (via better-icons), 24px geometry scaled to 16px.
+  alignLeft: () => (
+    <Icon>
+      <g transform="scale(0.6667)" strokeWidth="1.875">
+        <rect width="9" height="6" x="6" y="14" rx="2" />
+        <rect width="16" height="6" x="6" y="4" rx="2" />
+        <path d="M2 2v20" />
+      </g>
+    </Icon>
+  ),
+  alignHCenter: () => (
+    <Icon>
+      <g transform="scale(0.6667)" strokeWidth="1.875">
+        <path d="M12 2v20M8 10H4a2 2 0 0 1-2-2V6c0-1.1.9-2 2-2h4m8 6h4a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-4M8 20H7a2 2 0 0 1-2-2v-2c0-1.1.9-2 2-2h1m8 0h1a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-1" />
+      </g>
+    </Icon>
+  ),
+  alignRight: () => (
+    <Icon>
+      <g transform="scale(0.6667)" strokeWidth="1.875">
+        <rect width="16" height="6" x="2" y="4" rx="2" />
+        <rect width="9" height="6" x="9" y="14" rx="2" />
+        <path d="M22 22V2" />
+      </g>
+    </Icon>
+  ),
+  alignTop: () => (
+    <Icon>
+      <g transform="scale(0.6667)" strokeWidth="1.875">
+        <rect width="6" height="16" x="4" y="6" rx="2" />
+        <rect width="6" height="9" x="14" y="6" rx="2" />
+        <path d="M22 2H2" />
+      </g>
+    </Icon>
+  ),
+  alignVCenter: () => (
+    <Icon>
+      <g transform="scale(0.6667)" strokeWidth="1.875">
+        <path d="M2 12h20m-12 4v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-4m6-8V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v4m16 8v1a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-1m0-8V7c0-1.1.9-2 2-2h2a2 2 0 0 1 2 2v1" />
+      </g>
+    </Icon>
+  ),
+  alignBottom: () => (
+    <Icon>
+      <g transform="scale(0.6667)" strokeWidth="1.875">
+        <rect width="6" height="16" x="4" y="2" rx="2" />
+        <rect width="6" height="9" x="14" y="9" rx="2" />
+        <path d="M22 22H2" />
+      </g>
+    </Icon>
+  ),
+  distributeHorizontal: () => (
+    <Icon>
+      <g transform="scale(0.6667)" strokeWidth="1.875">
+        <rect width="6" height="14" x="4" y="5" rx="2" />
+        <rect width="6" height="10" x="14" y="7" rx="2" />
+        <path d="M17 22v-5m0-10V2M7 22v-3M7 5V2" />
+      </g>
+    </Icon>
+  ),
+  distributeVertical: () => (
+    <Icon>
+      <g transform="scale(0.6667)" strokeWidth="1.875">
+        <path d="M22 17h-3m3-10h-5M5 17H2M7 7H2" />
+        <rect width="14" height="6" x="5" y="14" rx="2" />
+        <rect width="10" height="6" x="7" y="4" rx="2" />
+      </g>
+    </Icon>
+  ),
   text: () => (
     <Icon>
       <path d="M3 3.5h10M8 3.5v10M6 13.5h4" />

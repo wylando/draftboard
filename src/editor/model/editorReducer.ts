@@ -1,4 +1,4 @@
-import { boxCenter, mapBoxBetween, rotatePoint } from '../geometry';
+import { boxCenter, mapBoxBetween, rotatedBounds, rotatePoint, unionBoxes } from '../geometry';
 import type { Box, DesignNode, NodePatch, Point, ToolId, Viewport } from './types';
 import { createGroup, createId } from './nodes';
 import { byIdOf, descendantIds, type ById, frameAt, isContainer, mapSiblings, normalizeTree, topLevelIds } from './tree';
@@ -18,6 +18,9 @@ export interface EditorState {
   /** Copied or cut layers with their descendants, in preorder. In memory only; not saved. */
   clipboard: DesignNode[];
 }
+
+export type AlignEdge = 'left' | 'hcenter' | 'right' | 'top' | 'vcenter' | 'bottom';
+export type DistributeAxis = 'horizontal' | 'vertical';
 
 export type EditorAction =
   /** Snapshot current nodes onto the undo stack. Dispatch once before a gesture. */
@@ -57,6 +60,10 @@ export type EditorAction =
   | { type: 'cutSelection' }
   /** Paste the clipboard 10px from where it was copied; the next paste goes 10px further. */
   | { type: 'pasteClipboard' }
+  /** Line up the selection's top-level layers (2 or more) on one edge or center of their bounds. */
+  | { type: 'alignSelection'; edge: AlignEdge }
+  /** Equalize the gaps between 3 or more top-level layers; the outermost two stay put. */
+  | { type: 'distributeSelection'; axis: DistributeAxis }
   | { type: 'reorderSelection'; direction: 'forward' | 'backward' | 'front' | 'back' }
   | { type: 'loadDocument'; nodes: DesignNode[] };
 
@@ -142,6 +149,70 @@ function cloneOffset(nodes: DesignNode[], existing: ById): { copies: DesignNode[
     };
   });
   return { copies, newIds };
+}
+
+/** Moves each top-level layer in `deltas`, with its descendants, by its delta. */
+function moveSubtrees(nodes: DesignNode[], deltas: Map<string, Point>): DesignNode[] {
+  const all = new Map(deltas);
+  for (const [id, d] of deltas) for (const inner of descendantIds(nodes, [id])) all.set(inner, d);
+  return normalizeTree(
+    nodes.map((n) => {
+      const d = all.get(n.id);
+      return d && (d.x !== 0 || d.y !== 0) ? { ...n, x: n.x + d.x, y: n.y + d.y } : n;
+    }),
+  );
+}
+
+function alignDeltas(boxes: Array<{ id: string; box: Box }>, edge: AlignEdge): Map<string, Point> {
+  const bounds = unionBoxes(boxes.map((b) => b.box)) as Box;
+  const deltas = new Map<string, Point>();
+  for (const { id, box } of boxes) {
+    const dx =
+      edge === 'left'
+        ? bounds.x - box.x
+        : edge === 'right'
+          ? bounds.x + bounds.width - (box.x + box.width)
+          : edge === 'hcenter'
+            ? bounds.x + bounds.width / 2 - (box.x + box.width / 2)
+            : 0;
+    const dy =
+      edge === 'top'
+        ? bounds.y - box.y
+        : edge === 'bottom'
+          ? bounds.y + bounds.height - (box.y + box.height)
+          : edge === 'vcenter'
+            ? bounds.y + bounds.height / 2 - (box.y + box.height / 2)
+            : 0;
+    deltas.set(id, { x: dx, y: dy });
+  }
+  return deltas;
+}
+
+function distributeDeltas(boxes: Array<{ id: string; box: Box }>, axis: DistributeAxis): Map<string, Point> {
+  const [pos, size] = axis === 'horizontal' ? (['x', 'width'] as const) : (['y', 'height'] as const);
+  const sorted = [...boxes].sort((a, b) => a.box[pos] - b.box[pos]);
+  const first = sorted[0] as { box: Box };
+  const last = sorted[sorted.length - 1] as { box: Box };
+  const span = last.box[pos] + last.box[size] - first.box[pos];
+  const filled = sorted.reduce((sum, b) => sum + b.box[size], 0);
+  const gap = (span - filled) / (sorted.length - 1);
+  const deltas = new Map<string, Point>();
+  let next = first.box[pos];
+  for (const { id, box } of sorted) {
+    const d = next - box[pos];
+    deltas.set(id, axis === 'horizontal' ? { x: d, y: 0 } : { x: 0, y: d });
+    next += box[size] + gap;
+  }
+  return deltas;
+}
+
+/** The selection's top-level layers with their on-screen (rotated) bounds. */
+function topLevelBoxes(state: EditorState): Array<{ id: string; box: Box }> {
+  const byId = byIdOf(state.nodes);
+  return topLevelIds(byId, state.selection).map((id) => {
+    const n = byId.get(id) as DesignNode;
+    return { id, box: rotatedBounds(n, n.rotation) };
+  });
 }
 
 function transformPatches(
@@ -387,6 +458,20 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         // The next paste offsets from this one, so repeated pastes cascade.
         clipboard: copies,
       };
+    }
+
+    case 'alignSelection': {
+      const boxes = topLevelBoxes(state);
+      if (boxes.length < 2) return state;
+      const s = pushHistory(state);
+      return { ...s, nodes: moveSubtrees(s.nodes, alignDeltas(boxes, action.edge)) };
+    }
+
+    case 'distributeSelection': {
+      const boxes = topLevelBoxes(state);
+      if (boxes.length < 3) return state;
+      const s = pushHistory(state);
+      return { ...s, nodes: moveSubtrees(s.nodes, distributeDeltas(boxes, action.axis)) };
     }
 
     case 'reorderSelection': {

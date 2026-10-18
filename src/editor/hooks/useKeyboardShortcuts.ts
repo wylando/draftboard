@@ -87,6 +87,22 @@ function runCommand(id: CommandId, o: Options): void {
       return dispatch({ type: 'reorderSelection', direction: 'front' });
     case 'arrange.back':
       return dispatch({ type: 'reorderSelection', direction: 'back' });
+    case 'arrange.alignLeft':
+      return dispatch({ type: 'alignSelection', edge: 'left' });
+    case 'arrange.alignHCenter':
+      return dispatch({ type: 'alignSelection', edge: 'hcenter' });
+    case 'arrange.alignRight':
+      return dispatch({ type: 'alignSelection', edge: 'right' });
+    case 'arrange.alignTop':
+      return dispatch({ type: 'alignSelection', edge: 'top' });
+    case 'arrange.alignVCenter':
+      return dispatch({ type: 'alignSelection', edge: 'vcenter' });
+    case 'arrange.alignBottom':
+      return dispatch({ type: 'alignSelection', edge: 'bottom' });
+    case 'arrange.distributeHorizontal':
+      return dispatch({ type: 'distributeSelection', axis: 'horizontal' });
+    case 'arrange.distributeVertical':
+      return dispatch({ type: 'distributeSelection', axis: 'vertical' });
     case 'arrange.group':
       return dispatch({ type: 'groupSelection' });
     case 'arrange.ungroup':

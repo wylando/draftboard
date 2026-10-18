@@ -1,9 +1,28 @@
-import { Button, ColorInput, NumberInput, Panel, Section, TextInput } from '../../design-system';
+import type { ReactElement } from 'react';
+import { Button, ColorInput, IconButton, icons, NumberInput, Panel, Section, TextInput } from '../../design-system';
+import { COMMANDS } from '../../settings/keybindings/commands';
 import { useEditor, useSelectedNodes } from '../EditorContext';
 import { useViewportControls } from '../hooks/useViewportControls';
+import type { AlignEdge, DistributeAxis } from '../model/editorReducer';
 import { minSizeFor } from '../model/nodes';
 import type { Box, DesignNode, NodePatch } from '../model/types';
 import { emptyHint, sidebarRight, twoColumnGrid } from '../styles';
+import { css } from 'styled-system/css';
+
+const alignRowClass = css({ display: 'flex', flexWrap: 'wrap', gap: '1' });
+
+const ALIGN: Array<{ edge: AlignEdge; command: keyof typeof COMMANDS; icon: () => ReactElement }> = [
+  { edge: 'left', command: 'arrange.alignLeft', icon: icons.alignLeft },
+  { edge: 'hcenter', command: 'arrange.alignHCenter', icon: icons.alignHCenter },
+  { edge: 'right', command: 'arrange.alignRight', icon: icons.alignRight },
+  { edge: 'top', command: 'arrange.alignTop', icon: icons.alignTop },
+  { edge: 'vcenter', command: 'arrange.alignVCenter', icon: icons.alignVCenter },
+  { edge: 'bottom', command: 'arrange.alignBottom', icon: icons.alignBottom },
+];
+const DISTRIBUTE: Array<{ axis: DistributeAxis; command: keyof typeof COMMANDS; icon: () => ReactElement }> = [
+  { axis: 'horizontal', command: 'arrange.distributeHorizontal', icon: icons.distributeHorizontal },
+  { axis: 'vertical', command: 'arrange.distributeVertical', icon: icons.distributeVertical },
+];
 import { CANVAS_FONT_FAMILY, measureText } from '../textMetrics';
 
 function useUpdate(node: DesignNode) {
@@ -141,6 +160,31 @@ export function PropertiesPanel() {
       {selected.length > 1 && (
         <Section title={`${selected.length} layers selected`}>
           <p className={emptyHint}>Drag to move them together, or use ⌘D / Delete.</p>
+        </Section>
+      )}
+      {selected.length > 1 && (
+        <Section title="Align">
+          <div className={alignRowClass}>
+            {ALIGN.map((a) => (
+              <IconButton
+                key={a.edge}
+                label={COMMANDS[a.command].label}
+                data-testid={`align-${a.edge}`}
+                icon={<a.icon />}
+                onClick={() => dispatch({ type: 'alignSelection', edge: a.edge })}
+              />
+            ))}
+            {DISTRIBUTE.map((d) => (
+              <IconButton
+                key={d.axis}
+                label={COMMANDS[d.command].label}
+                data-testid={`distribute-${d.axis}`}
+                icon={<d.icon />}
+                disabled={selected.length < 3}
+                onClick={() => dispatch({ type: 'distributeSelection', axis: d.axis })}
+              />
+            ))}
+          </div>
         </Section>
       )}
       {selected.length > 0 && (
