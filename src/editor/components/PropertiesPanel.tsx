@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { Button, ColorInput, NumberInput, Panel, Section, TextInput } from '../../design-system';
 import { useEditor, useSelectedNodes } from '../EditorContext';
 import { useViewportControls } from '../hooks/useViewportControls';
+import { nameTaken } from '../model/nodes';
 import type { Box, DesignNode, NodePatch } from '../model/types';
-import { emptyHint, sidebarRight, twoColumnGrid } from '../styles';
+import { emptyHint, fieldError, sidebarRight, twoColumnGrid } from '../styles';
 import { CANVAS_FONT_FAMILY, measureText } from '../textMetrics';
 
 function useUpdate(node: DesignNode) {
@@ -23,6 +25,8 @@ function useUpdateBox(node: DesignNode) {
 }
 
 function SingleNodeProperties({ node }: { node: DesignNode }) {
+  const { state, dispatch } = useEditor();
+  const [nameError, setNameError] = useState<string | null>(null);
   const update = useUpdate(node);
   const updateBox = useUpdateBox(node);
   const isGroup = node.type === 'group';
@@ -32,7 +36,24 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
   return (
     <>
       <Section title="Layer" testId="section-layer">
-        <TextInput value={node.name} onCommit={(name) => update({ name })} testId="prop-name" />
+        <TextInput
+          value={node.name}
+          testId="prop-name"
+          onCommit={(value) => {
+            const name = value.trim();
+            if (nameTaken(state.nodes, name, node.id)) {
+              setNameError(name);
+              return;
+            }
+            setNameError(null);
+            dispatch({ type: 'renameNode', id: node.id, name });
+          }}
+        />
+        {nameError !== null && (
+          <p className={fieldError} role="alert">
+            Another layer is already named “{nameError}”.
+          </p>
+        )}
       </Section>
 
       <Section title="Position & size">

@@ -93,7 +93,11 @@ export function TextInput({ label, value, onCommit, testId }: TextInputProps) {
         value={draft}
         data-testid={testId}
         onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => draft !== value && onCommit(draft)}
+        onBlur={() => {
+          if (draft !== value) onCommit(draft);
+          // A rejected commit leaves `value` as it was, so show it again; an accepted one re-syncs via useDraft.
+          setDraft(value);
+        }}
         onKeyDown={blurOnEnter}
       />
     </FieldShell>

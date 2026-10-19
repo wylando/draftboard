@@ -29,14 +29,14 @@ Draw, arrange and fine-tune shapes on an infinite canvas: no account, no cloud, 
 - 🎨 **Drawing tools**: frames, rectangles, ellipses, lines and text. Drag to draw, or click to drop a default-size shape.
 - 🖱️ **Direct manipulation**: click, Shift-click or marquee-select. Move, resize with eight handles (rotated shapes too), and constrain with Shift.
 - 🎛️ **Properties panel**: position, size, rotation, corner radius, fill, stroke, opacity, and text content and size.
-- 🗂️ **Layers tree**: a code-editor-style tree with collapsible frames and groups and indent guides. Select, rename, show or hide any layer, and drag to reorder or nest.
+- 🗂️ **Layers tree**: a code-editor-style tree with collapsible frames and groups and indent guides. Select, rename, show or hide any layer, and drag to reorder or nest. Layer names are unique, ignoring case: a rename to a name another layer has is refused with a short message.
 - 🪆 **Frames and groups**: shapes drawn or dropped on a frame go inside it and move with it. Group the selection (`⌘G`) to move and scale it as one; double-click to select inside a group.
 - 🔲 **Canvas grid**: dots, lines or none, chosen under Settings → Canvas.
-- 📋 **Copy, cut and paste** layers with their children (`⌘C` / `⌘X` / `⌘V`). Each paste lands 10px from the last. The clipboard lives in memory, so it's cleared on reload.
+- 📋 **Copy, cut and paste** layers with their children (`⌘C` / `⌘X` / `⌘V`). Each paste lands 10px from the last. Pasted and duplicated layers get the next free name ("Rectangle 1" → "Rectangle 2"). The clipboard lives in memory, so it's cleared on reload.
 - ↩️ **Full undo / redo** for every edit and gesture.
 - 🔍 **Smooth viewport**: wheel to pan, ⌘/Ctrl + wheel to zoom around the pointer, Space-drag to pan, plus zoom to 100% and zoom to fit.
 - ⌨️ **Fully remappable shortcuts**: rebind any command, give one command several keys, and resolve conflicts from a built-in Settings page.
-- 💾 **Autosave**: your document saves to the browser as you work. Export or import it as JSON at any time.
+- 💾 **Autosave**: your document saves to the browser as you work. Export or import it as JSON at any time. If a loaded document repeats a layer name, later layers get the next free name.
 - 📴 **100% offline**: no CDNs, web fonts, analytics or remote assets. Once dependencies are installed, nothing leaves your machine.
 
 ## 🚀 Quick start

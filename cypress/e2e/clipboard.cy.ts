@@ -15,6 +15,7 @@ describe('Copy, cut and paste', () => {
     cy.get('[data-node-type=rect]').should('have.length', 3);
     cy.prop('x').should('have.value', '120');
     cy.prop('y').should('have.value', '120');
+    cy.prop('name').should('have.value', 'Rectangle 3');
 
     cy.pressKey('z', { ...MOD, code: 'KeyZ' });
     cy.get('[data-node-type=rect]').should('have.length', 2);
@@ -26,6 +27,8 @@ describe('Copy, cut and paste', () => {
     cy.pressKey('v', { ...MOD, code: 'KeyV' });
     cy.get('[data-node-type=rect]').should('have.length', 1);
     cy.prop('x').should('have.value', '110');
+    // Nothing else holds the name any more, so the pasted layer keeps it.
+    cy.prop('name').should('have.value', 'Rectangle 1');
 
     cy.pressKey('z', { ...MOD, code: 'KeyZ' });
     cy.get('[data-node-type=rect]').should('not.exist');
@@ -49,6 +52,13 @@ describe('Copy, cut and paste', () => {
     // One child under each frame. Without id remapping both children would sit under the original: 1,2,2,1.
     cy.get('[data-testid=layers-panel] [role=treeitem]').should(($rows) => {
       expect([...$rows].map((r) => r.getAttribute('aria-level')).join(',')).to.equal('1,2,1,2');
+    });
+    // The copy and its child both get the next free names, so no two layers share one.
+    cy.prop('name').should('have.value', 'Frame 2');
+    cy.get('[data-testid=layers-panel] [role=treeitem]').should(($rows) => {
+      expect([...$rows].map((r) => r.textContent?.trim()).join(',')).to.equal(
+        'Frame 2,Rectangle 2,Frame 1,Rectangle 1',
+      );
     });
   });
 });

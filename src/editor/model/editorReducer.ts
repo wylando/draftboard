@@ -1,6 +1,6 @@
 import { boxCenter, mapBoxBetween, rotatePoint } from '../geometry';
 import type { Box, DesignNode, NodePatch, Point, ToolId, Viewport } from './types';
-import { createGroup, createId } from './nodes';
+import { createGroup, createId, nameKey, nameTaken, uniqueName } from './nodes';
 import { byIdOf, descendantIds, type ById, frameAt, isContainer, mapSiblings, normalizeTree, topLevelIds } from './tree';
 
 const HISTORY_LIMIT = 200;
@@ -32,6 +32,8 @@ export type EditorAction =
   | { type: 'addNode'; node: DesignNode; select?: boolean; parentAt?: Point }
   /** Transient: does not snapshot history. Pair with a prior checkpoint. */
   | { type: 'updateNodes'; patches: Record<string, NodePatch> }
+  /** Ignored when the trimmed name is empty, unchanged or held by another layer (ignoring case). */
+  | { type: 'renameNode'; id: string; name: string }
   /**
    * Transient. Sets a node's box and carries its children along: moving a
    * frame or group moves them, resizing a group scales them, resizing a frame
@@ -60,9 +62,19 @@ export type EditorAction =
   | { type: 'reorderSelection'; direction: 'forward' | 'backward' | 'front' | 'back' }
   | { type: 'loadDocument'; nodes: DesignNode[] };
 
+/** Saved or imported documents may repeat a name; the first layer in tree order keeps it. */
+function dedupeNames(nodes: DesignNode[]): DesignNode[] {
+  const taken = new Set<string>();
+  return nodes.map((n) => {
+    const name = uniqueName(n.name, taken);
+    taken.add(nameKey(name));
+    return name === n.name ? n : { ...n, name };
+  });
+}
+
 export function initialEditorState(nodes: DesignNode[] = []): EditorState {
   return {
-    nodes: normalizeTree(nodes),
+    nodes: dedupeNames(normalizeTree(nodes)),
     selection: [],
     tool: 'select',
     viewport: { x: 0, y: 0, zoom: 1 },
@@ -126,16 +138,20 @@ function selectionWithDescendants(nodes: DesignNode[], selection: string[]): Set
 /**
  * Copies of `nodes` (a subtree list in preorder) with fresh ids, offset by
  * PASTE_OFFSET. Parents inside the list are remapped; a parent outside it is
- * kept only if it is in `existing`.
+ * kept only if it is in `existing`. A copy whose name is taken gets the next free one.
  */
 function cloneOffset(nodes: DesignNode[], existing: ById): { copies: DesignNode[]; newIds: Map<string, string> } {
   const newIds = new Map<string, string>();
   for (const n of nodes) newIds.set(n.id, createId());
+  const taken = new Set([...existing.values()].map((n) => nameKey(n.name)));
   const copies = nodes.map((n) => {
     const inner = n.parentId === null ? undefined : newIds.get(n.parentId);
+    const name = uniqueName(n.name, taken);
+    taken.add(nameKey(name));
     return {
       ...n,
       id: newIds.get(n.id) as string,
+      name,
       parentId: inner ?? (n.parentId !== null && existing.has(n.parentId) ? n.parentId : null),
       x: n.x + PASTE_OFFSET,
       y: n.y + PASTE_OFFSET,
@@ -236,6 +252,14 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case 'updateNodes': {
       const nodes = patchNodes(state.nodes, action.patches);
       return nodes ? { ...state, nodes } : state;
+    }
+
+    case 'renameNode': {
+      const name = action.name.trim();
+      const node = state.nodes.find((n) => n.id === action.id);
+      if (!node || !name || name === node.name || nameTaken(state.nodes, name, node.id)) return state;
+      const s = pushHistory(state);
+      return { ...s, nodes: s.nodes.map((n) => (n.id === action.id ? { ...n, name } : n)) };
     }
 
     case 'transformNode': {

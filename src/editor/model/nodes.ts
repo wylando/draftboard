@@ -15,11 +15,31 @@ const LABELS: Record<NodeType, string> = {
   group: 'Group',
 };
 
-/** Next free "<Label> <n>" name, mirroring how design tools auto-number layers. */
+/** Layer names are unique across the document, ignoring case: "Rect" and "rect" clash. */
+export const nameKey = (name: string) => name.toLowerCase();
+
+/** Whether a layer other than `id` already has `name`. */
+export function nameTaken(nodes: DesignNode[], name: string, id: string): boolean {
+  return nodes.some((n) => n.id !== id && nameKey(n.name) === nameKey(name));
+}
+
+/**
+ * `desired` if its `nameKey` isn't in `taken`, otherwise the first free name made by
+ * raising its trailing number ("Rectangle 1" → "Rectangle 2") or appending one
+ * ("Header" → "Header 2").
+ */
+export function uniqueName(desired: string, taken: Set<string>): string {
+  if (!taken.has(nameKey(desired))) return desired;
+  const match = /^(.*) (\d+)$/.exec(desired);
+  const base = match ? (match[1] as string) : desired;
+  let n = match ? Number(match[2]) + 1 : 2;
+  while (taken.has(nameKey(`${base} ${n}`))) n += 1;
+  return `${base} ${n}`;
+}
+
+/** Lowest free "<Label> <n>" name, so a deleted layer's number is reused. */
 export function nextName(type: NodeType, existing: DesignNode[]): string {
-  const label = LABELS[type];
-  const used = existing.filter((n) => n.type === type).length;
-  return `${label} ${used + 1}`;
+  return uniqueName(`${LABELS[type]} 1`, new Set(existing.map((n) => nameKey(n.name))));
 }
 
 export const DEFAULT_SIZE: Record<DrawableType, { width: number; height: number }> = {

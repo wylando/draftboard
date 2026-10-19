@@ -84,4 +84,26 @@ describe('Layers tree', () => {
     layerRow('Frame 1').should('have.attr', 'aria-level', '1');
     layerRow('Rectangle 1').should('have.attr', 'aria-level', '2');
   });
+
+  it('renames a layer, but never to a name another layer has, ignoring case', () => {
+    const renameInput = () => cy.get('[data-testid=layers-panel] input');
+    const nameError = (panel: string) => cy.get(`[data-testid=${panel}] [role=alert]`);
+    layerRow('Ellipse 1').dblclick();
+    renameInput().clear().type('Rectangle 1{enter}');
+    // The input closes in the same render that would apply the rename.
+    renameInput().should('not.exist');
+    layerRow('Ellipse 1').should('exist');
+    nameError('layers-panel').should('contain', 'Rectangle 1');
+
+    cy.prop('name').clear().type('frame 1{enter}');
+    cy.prop('name').should('have.value', 'Ellipse 1');
+    nameError('properties-panel').should('contain', 'frame 1');
+
+    // Changing the case of a layer's own name is not a clash.
+    layerRow('Ellipse 1').dblclick();
+    renameInput().clear().type('ELLIPSE 1{enter}');
+    layerRow('ELLIPSE 1').should('exist');
+    cy.prop('name').should('have.value', 'ELLIPSE 1');
+    nameError('layers-panel').should('not.exist');
+  });
 });
