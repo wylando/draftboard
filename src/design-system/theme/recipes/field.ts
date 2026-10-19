@@ -33,6 +33,12 @@ export const fieldRecipe = defineSlotRecipe({
       flex: 'none',
       minWidth: '[12px]',
       color: 'text.secondary',
+      '&[data-scrub]': {
+        cursor: 'ew-resize',
+        userSelect: 'none',
+        // Lets a touch drag scrub instead of scrolling the panel.
+        touchAction: 'none',
+      },
     },
     input: {
       flex: '1',
