@@ -28,7 +28,7 @@ Draw, arrange and fine-tune shapes on an infinite canvas: no account, no cloud, 
 ## ✨ Features
 
 - 🎨 **Drawing tools**: frames, rectangles, ellipses, lines and text. Drag to draw, or click to drop a default-size shape.
-- 🖱️ **Direct manipulation**: click, Shift-click or marquee-select. Move, resize with eight handles (rotated shapes too), and constrain with Shift.
+- 🖱️ **Direct manipulation**: click, Shift-click or marquee-select. Move, resize with eight handles (rotated shapes too), rotate by dragging just outside a corner (Shift snaps to 15°), and constrain with Shift.
 - 🎛️ **Properties panel**: position, size, rotation, corner radius, fill, stroke, opacity, and text content and size.
 - 🗂️ **Layers tree**: a code-editor-style tree with collapsible frames and groups and indent guides. Select, rename, show or hide any layer, and drag to reorder or nest. Layer names are unique, ignoring case: a rename to a name another layer has is refused with a short message.
 - 🪆 **Frames and groups**: shapes drawn or dropped on a frame go inside it and move with it. Group the selection (`⌘G`) to move and scale it as one; double-click to select inside a group.
@@ -60,7 +60,7 @@ Then open **http://localhost:5173**. That's it.
 
 | Tool      | Key | What it does |
 | --------- | :-: | ------------ |
-| Move      | `V` | Select, move and resize layers. Drag on empty canvas to box-select. |
+| Move      | `V` | Select, move, resize and rotate layers. Drag just outside a corner to rotate. Drag on empty canvas to box-select. |
 | Frame     | `F` | Draw a white artboard. Layers drawn or dropped on it go inside it. |
 | Rectangle | `R` | Draw a rectangle. Hold Shift for a square. |
 | Ellipse   | `O` | Draw an ellipse. Hold Shift for a circle. |
