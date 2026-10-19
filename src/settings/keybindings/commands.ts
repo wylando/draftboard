@@ -34,6 +34,9 @@ export const COMMANDS = {
 
   'edit.undo': { label: 'Undo', category: 'edit', defaults: ['Mod+Z'], description: 'Undo the last change to the document.' },
   'edit.redo': { label: 'Redo', category: 'edit', defaults: ['Mod+Shift+Z', 'Mod+Y'], description: 'Redo the last undone change.' },
+  'edit.copy': { label: 'Copy', category: 'edit', defaults: ['Mod+C'], description: 'Copy the selected layers, with their children, for pasting.' },
+  'edit.cut': { label: 'Cut', category: 'edit', defaults: ['Mod+X'], description: 'Copy the selected layers, then remove them.' },
+  'edit.paste': { label: 'Paste', category: 'edit', defaults: ['Mod+V'], description: 'Paste copied layers 10px from where they were copied. Each paste goes 10px further.' },
   'edit.duplicate': { label: 'Duplicate', category: 'edit', defaults: ['Mod+D'], description: 'Copy the selection, offset by 10px.' },
   'edit.delete': { label: 'Delete', category: 'edit', defaults: ['Backspace', 'Delete'], description: 'Remove the selected layers.' },
   'edit.selectAll': { label: 'Select all', category: 'edit', defaults: ['Mod+A'], description: 'Select every visible top-level layer, or every layer beside the current selection inside a frame or group.' },

@@ -1,9 +1,10 @@
 import { useState, type DragEvent, type ReactElement } from 'react';
 import { IconButton, icons, Panel, Section } from '../../design-system';
 import { useEditor } from '../EditorContext';
+import { nameTaken } from '../model/nodes';
 import { ancestorIds, byIdOf, childrenByParent, isContainer, topLevelIds } from '../model/tree';
 import type { DesignNode, NodeType } from '../model/types';
-import { emptyHint, sidebarLeft } from '../styles';
+import { emptyHint, fieldError, sidebarLeft } from '../styles';
 import { css, cx } from 'styled-system/css';
 
 type DropPosition = 'above' | 'below' | 'inside';
@@ -57,6 +58,7 @@ const iconClass = css({ display: 'inline-flex', flex: 'none', color: 'icon.secon
 const nameClass = css({ flex: '1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' });
 const containerNameClass = css({ fontWeight: 'strong' });
 const hiddenNameClass = css({ color: 'text.secondary' });
+const renameErrorClass = css({ paddingInline: '2', paddingBottom: '1' });
 const renameClass = css({
   flex: '1',
   minWidth: '0',
@@ -149,6 +151,9 @@ function LayerRow({ row, selected, dragging, expanded, onToggle, drop, dragHandl
   const { node, depth, hasChildren } = row;
   const { state, dispatch } = useEditor();
   const [renaming, setRenaming] = useState(false);
+  // Shown under this row, so it stays in view however long the tree is.
+  const [renameError, setRenameError] = useState<string | null>(null);
+  if (renameError !== null && !selected) setRenameError(null);
   const Icon = TYPE_ICONS[node.type];
 
   const select = (additive: boolean) => {
@@ -163,87 +168,99 @@ function LayerRow({ row, selected, dragging, expanded, onToggle, drop, dragHandl
   const rename = (name: string) => {
     setRenaming(false);
     const trimmed = name.trim();
-    if (!trimmed || trimmed === node.name) return;
-    dispatch({ type: 'checkpoint' });
-    dispatch({ type: 'updateNodes', patches: { [node.id]: { name: trimmed } } });
+    if (nameTaken(state.nodes, trimmed, node.id)) {
+      setRenameError(trimmed);
+      return;
+    }
+    setRenameError(null);
+    dispatch({ type: 'renameNode', id: node.id, name: trimmed });
   };
 
   return (
-    <li
-      className={cx(
-        'group',
-        rowClass,
-        selected && rowSelectedClass,
-        row.inSelection && rowInSelectionClass,
-        dragging && rowDraggingClass,
-        drop && DROP_CLASSES[drop],
-      )}
-      role="treeitem"
-      aria-level={depth + 1}
-      aria-expanded={hasChildren ? expanded : undefined}
-      aria-selected={selected}
-      data-testid={`layer-${node.id}`}
-      data-depth={depth}
-      data-drop={drop ?? undefined}
-      data-dragging={dragging || undefined}
-      data-in-selection={row.inSelection || undefined}
-      draggable={!renaming}
-      onClick={(e) => select(e.shiftKey)}
-      onDoubleClick={() => setRenaming(true)}
-      {...dragHandlers}
-    >
-      {Array.from({ length: depth }, (_, i) => (
-        <span key={i} className={guideClass} aria-hidden="true" data-testid="layer-guide" />
-      ))}
-      {hasChildren ? (
-        <button
-          type="button"
-          className={twistieClass}
-          aria-expanded={expanded}
-          aria-label={expanded ? `Collapse ${node.name}` : `Expand ${node.name}`}
-          data-testid={`toggle-${node.id}`}
+    <>
+      <li
+        className={cx(
+          'group',
+          rowClass,
+          selected && rowSelectedClass,
+          row.inSelection && rowInSelectionClass,
+          dragging && rowDraggingClass,
+          drop && DROP_CLASSES[drop],
+        )}
+        role="treeitem"
+        aria-level={depth + 1}
+        aria-expanded={hasChildren ? expanded : undefined}
+        aria-selected={selected}
+        data-testid={`layer-${node.id}`}
+        data-depth={depth}
+        data-drop={drop ?? undefined}
+        data-dragging={dragging || undefined}
+        data-in-selection={row.inSelection || undefined}
+        draggable={!renaming}
+        onClick={(e) => select(e.shiftKey)}
+        onDoubleClick={() => setRenaming(true)}
+        {...dragHandlers}
+      >
+        {Array.from({ length: depth }, (_, i) => (
+          <span key={i} className={guideClass} aria-hidden="true" data-testid="layer-guide" />
+        ))}
+        {hasChildren ? (
+          <button
+            type="button"
+            className={twistieClass}
+            aria-expanded={expanded}
+            aria-label={expanded ? `Collapse ${node.name}` : `Expand ${node.name}`}
+            data-testid={`toggle-${node.id}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle();
+            }}
+            onDoubleClick={(e) => e.stopPropagation()}
+          >
+            <icons.chevronRight />
+          </button>
+        ) : (
+          <span className={twistieSpacerClass} />
+        )}
+        <span className={iconClass}>
+          <Icon />
+        </span>
+        {renaming ? (
+          <input
+            className={renameClass}
+            defaultValue={node.name}
+            autoFocus
+            onClick={(e) => e.stopPropagation()}
+            onBlur={(e) => rename(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.currentTarget.blur();
+              if (e.key === 'Escape') setRenaming(false);
+            }}
+          />
+        ) : (
+          <span className={cx(nameClass, isContainer(node) && containerNameClass, !node.visible && hiddenNameClass)}>
+            {node.name}
+          </span>
+        )}
+        <IconButton
+          className={node.visible ? visibilityClass : visibilityShownClass}
+          label={node.visible ? 'Hide layer' : 'Show layer'}
+          icon={node.visible ? <icons.eye /> : <icons.eyeOff />}
           onClick={(e) => {
             e.stopPropagation();
-            onToggle();
-          }}
-          onDoubleClick={(e) => e.stopPropagation()}
-        >
-          <icons.chevronRight />
-        </button>
-      ) : (
-        <span className={twistieSpacerClass} />
-      )}
-      <span className={iconClass}>
-        <Icon />
-      </span>
-      {renaming ? (
-        <input
-          className={renameClass}
-          defaultValue={node.name}
-          autoFocus
-          onClick={(e) => e.stopPropagation()}
-          onBlur={(e) => rename(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') e.currentTarget.blur();
-            if (e.key === 'Escape') setRenaming(false);
+            dispatch({ type: 'checkpoint' });
+            dispatch({ type: 'updateNodes', patches: { [node.id]: { visible: !node.visible } } });
           }}
         />
-      ) : (
-        <span className={cx(nameClass, isContainer(node) && containerNameClass, !node.visible && hiddenNameClass)}>
-          {node.name}
-        </span>
+      </li>
+      {renameError !== null && (
+        <li role="none" className={renameErrorClass}>
+          <p className={fieldError} role="alert">
+            Another layer is already named “{renameError}”.
+          </p>
+        </li>
       )}
-      <IconButton
-        className={node.visible ? visibilityClass : visibilityShownClass}
-        label={node.visible ? 'Hide layer' : 'Show layer'}
-        icon={node.visible ? <icons.eye /> : <icons.eyeOff />}
-        onClick={(e) => {
-          e.stopPropagation();
-          dispatch({ type: 'checkpoint' });
-          dispatch({ type: 'updateNodes', patches: { [node.id]: { visible: !node.visible } } });
-        }}
-      />
-    </li>
+    </>
   );
 }
 

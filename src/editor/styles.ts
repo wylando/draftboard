@@ -23,6 +23,13 @@ export const twoColumnGrid = css({
   gap: '2',
 });
 
+/** Inline message under a field whose value was refused, e.g. a taken layer name. */
+export const fieldError = css({
+  margin: '0',
+  marginTop: '1',
+  color: 'text.danger',
+});
+
 export const emptyHint = css({
   margin: '0',
   color: 'text.secondary',

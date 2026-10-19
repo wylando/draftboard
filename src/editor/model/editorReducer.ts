@@ -1,10 +1,10 @@
 import { boxCenter, mapBoxBetween, rotatePoint } from '../geometry';
 import type { Box, DesignNode, NodePatch, Point, ToolId, Viewport } from './types';
-import { createGroup, createId } from './nodes';
-import { byIdOf, descendantIds, frameAt, isContainer, mapSiblings, normalizeTree, topLevelIds } from './tree';
+import { createGroup, createId, nameKey, nameTaken, uniqueName } from './nodes';
+import { byIdOf, descendantIds, type ById, frameAt, isContainer, mapSiblings, normalizeTree, topLevelIds } from './tree';
 
 const HISTORY_LIMIT = 200;
-const DUPLICATE_OFFSET = 10;
+const PASTE_OFFSET = 10;
 
 export interface EditorState {
   nodes: DesignNode[];
@@ -15,6 +15,8 @@ export interface EditorState {
   canvasSize: { width: number; height: number };
   past: DesignNode[][];
   future: DesignNode[][];
+  /** Copied or cut layers with their descendants, in preorder. In memory only; not saved. */
+  clipboard: DesignNode[];
 }
 
 export type EditorAction =
@@ -30,6 +32,8 @@ export type EditorAction =
   | { type: 'addNode'; node: DesignNode; select?: boolean; parentAt?: Point }
   /** Transient: does not snapshot history. Pair with a prior checkpoint. */
   | { type: 'updateNodes'; patches: Record<string, NodePatch> }
+  /** Ignored when the trimmed name is empty, unchanged or held by another layer (ignoring case). */
+  | { type: 'renameNode'; id: string; name: string }
   /**
    * Transient. Sets a node's box and carries its children along: moving a
    * frame or group moves them, resizing a group scales them, resizing a frame
@@ -50,18 +54,34 @@ export type EditorAction =
   | { type: 'nudgeSelection'; dx: number; dy: number }
   | { type: 'deleteSelection' }
   | { type: 'duplicateSelection' }
+  | { type: 'copySelection' }
+  /** Copy, then delete, as one undo step. */
+  | { type: 'cutSelection' }
+  /** Paste the clipboard 10px from where it was copied; the next paste goes 10px further. */
+  | { type: 'pasteClipboard' }
   | { type: 'reorderSelection'; direction: 'forward' | 'backward' | 'front' | 'back' }
   | { type: 'loadDocument'; nodes: DesignNode[] };
 
+/** Saved or imported documents may repeat a name; the first layer in tree order keeps it. */
+function dedupeNames(nodes: DesignNode[]): DesignNode[] {
+  const taken = new Set<string>();
+  return nodes.map((n) => {
+    const name = uniqueName(n.name, taken);
+    taken.add(nameKey(name));
+    return name === n.name ? n : { ...n, name };
+  });
+}
+
 export function initialEditorState(nodes: DesignNode[] = []): EditorState {
   return {
-    nodes: normalizeTree(nodes),
+    nodes: dedupeNames(normalizeTree(nodes)),
     selection: [],
     tool: 'select',
     viewport: { x: 0, y: 0, zoom: 1 },
     canvasSize: { width: 0, height: 0 },
     past: [],
     future: [],
+    clipboard: [],
   };
 }
 
@@ -113,6 +133,31 @@ function patchNodes(nodes: DesignNode[], patches: Record<string, NodePatch>): De
 function selectionWithDescendants(nodes: DesignNode[], selection: string[]): Set<string> {
   const top = topLevelIds(byIdOf(nodes), selection);
   return new Set([...top, ...descendantIds(nodes, top)]);
+}
+
+/**
+ * Copies of `nodes` (a subtree list in preorder) with fresh ids, offset by
+ * PASTE_OFFSET. Parents inside the list are remapped; a parent outside it is
+ * kept only if it is in `existing`. A copy whose name is taken gets the next free one.
+ */
+function cloneOffset(nodes: DesignNode[], existing: ById): { copies: DesignNode[]; newIds: Map<string, string> } {
+  const newIds = new Map<string, string>();
+  for (const n of nodes) newIds.set(n.id, createId());
+  const taken = new Set([...existing.values()].map((n) => nameKey(n.name)));
+  const copies = nodes.map((n) => {
+    const inner = n.parentId === null ? undefined : newIds.get(n.parentId);
+    const name = uniqueName(n.name, taken);
+    taken.add(nameKey(name));
+    return {
+      ...n,
+      id: newIds.get(n.id) as string,
+      name,
+      parentId: inner ?? (n.parentId !== null && existing.has(n.parentId) ? n.parentId : null),
+      x: n.x + PASTE_OFFSET,
+      y: n.y + PASTE_OFFSET,
+    };
+  });
+  return { copies, newIds };
 }
 
 function transformPatches(
@@ -207,6 +252,14 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case 'updateNodes': {
       const nodes = patchNodes(state.nodes, action.patches);
       return nodes ? { ...state, nodes } : state;
+    }
+
+    case 'renameNode': {
+      const name = action.name.trim();
+      const node = state.nodes.find((n) => n.id === action.id);
+      if (!node || !name || name === node.name || nameTaken(state.nodes, name, node.id)) return state;
+      const s = pushHistory(state);
+      return { ...s, nodes: s.nodes.map((n) => (n.id === action.id ? { ...n, name } : n)) };
     }
 
     case 'transformNode': {
@@ -311,25 +364,52 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
     case 'duplicateSelection': {
       if (state.selection.length === 0) return state;
-      const top = topLevelIds(byIdOf(state.nodes), state.selection);
-      const copying = new Set([...top, ...descendantIds(state.nodes, top)]);
-      const newIds = new Map<string, string>();
-      for (const id of copying) newIds.set(id, createId());
+      const byId = byIdOf(state.nodes);
+      const top = topLevelIds(byId, state.selection);
+      const copying = selectionWithDescendants(state.nodes, state.selection);
       // Preorder is kept, and copies land on top of their original's siblings.
-      const copies = state.nodes
-        .filter((n) => copying.has(n.id))
-        .map((n) => ({
-          ...n,
-          id: newIds.get(n.id) as string,
-          parentId: n.parentId !== null && copying.has(n.parentId) ? (newIds.get(n.parentId) as string) : n.parentId,
-          x: n.x + DUPLICATE_OFFSET,
-          y: n.y + DUPLICATE_OFFSET,
-        }));
+      const { copies, newIds } = cloneOffset(
+        state.nodes.filter((n) => copying.has(n.id)),
+        byId,
+      );
       const s = pushHistory(state);
       return {
         ...s,
         nodes: normalizeTree([...s.nodes, ...copies]),
         selection: top.map((id) => newIds.get(id) as string),
+      };
+    }
+
+    case 'copySelection': {
+      if (state.selection.length === 0) return state;
+      const copying = selectionWithDescendants(state.nodes, state.selection);
+      return { ...state, clipboard: state.nodes.filter((n) => copying.has(n.id)) };
+    }
+
+    case 'cutSelection': {
+      if (state.selection.length === 0) return state;
+      const removed = selectionWithDescendants(state.nodes, state.selection);
+      const s = pushHistory(state);
+      return {
+        ...s,
+        nodes: normalizeTree(s.nodes.filter((n) => !removed.has(n.id))),
+        selection: [],
+        clipboard: s.nodes.filter((n) => removed.has(n.id)),
+      };
+    }
+
+    case 'pasteClipboard': {
+      if (state.clipboard.length === 0) return state;
+      const inClipboard = new Set(state.clipboard.map((n) => n.id));
+      const top = state.clipboard.filter((n) => n.parentId === null || !inClipboard.has(n.parentId));
+      const { copies, newIds } = cloneOffset(state.clipboard, byIdOf(state.nodes));
+      const s = pushHistory(state);
+      return {
+        ...s,
+        nodes: normalizeTree([...s.nodes, ...copies]),
+        selection: top.map((n) => newIds.get(n.id) as string),
+        // The next paste offsets from this one, so repeated pastes cascade.
+        clipboard: copies,
       };
     }
 
@@ -345,6 +425,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ...initialEditorState(normalizeTree(action.nodes)),
         viewport: state.viewport,
         canvasSize: state.canvasSize,
+        clipboard: state.clipboard,
       };
   }
 }

@@ -33,6 +33,7 @@ describe('Undo, redo, delete, duplicate', () => {
     cy.pressKey('d', { metaKey: true });
     cy.get('[data-node-type=rect]').should('have.length', 2);
     cy.prop('x').should('have.value', '110');
+    cy.prop('name').should('have.value', 'Rectangle 2');
   });
 
   it('nudges with arrow keys', () => {

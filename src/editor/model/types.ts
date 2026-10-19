@@ -77,11 +77,14 @@ export interface GroupNode extends BaseNode {
 
 export type DesignNode = FrameNode | RectNode | EllipseNode | LineNode | TextNode | GroupNode;
 
-/** Fields any node type may carry; used for partial, type-agnostic updates. */
+/**
+ * Fields any node type may carry; used for partial, type-agnostic updates.
+ * Excludes `name`, which changes only through `renameNode` so names stay unique.
+ */
 export type NodePatch = Partial<
-  Omit<FrameNode, 'id' | 'type'> &
-    Omit<LineNode, 'id' | 'type'> &
-    Omit<TextNode, 'id' | 'type'>
+  Omit<FrameNode, 'id' | 'type' | 'name'> &
+    Omit<LineNode, 'id' | 'type' | 'name'> &
+    Omit<TextNode, 'id' | 'type' | 'name'>
 >;
 
 export interface Viewport {

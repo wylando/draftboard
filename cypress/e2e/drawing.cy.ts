@@ -33,6 +33,13 @@ describe('Drawing shapes', () => {
     cy.get('[data-node-type=frame]').should('have.length', 1);
     cy.get('[data-node-type=line]').should('have.length', 1);
     cy.get('[data-testid=layers-panel]').should('contain', 'Frame 1').and('contain', 'Rectangle 2');
+
+    // A freed number is reused; counting layers instead would give a second "Rectangle 2".
+    cy.canvasClick([525, 325]);
+    cy.prop('name').should('have.value', 'Rectangle 1');
+    cy.pressKey('Backspace');
+    cy.drawShape('rect', [500, 400], [550, 450]);
+    cy.prop('name').should('have.value', 'Rectangle 1');
   });
 
   it('creates and edits text', () => {

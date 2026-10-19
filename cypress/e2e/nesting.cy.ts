@@ -177,6 +177,7 @@ describe('Loading older or damaged documents', () => {
         { ...base, id: 'old', type: 'rect', name: 'Old rect', x: 10, y: 10, width: 50, height: 50 },
         { ...base, id: 'a', type: 'frame', name: 'Frame A', parentId: 'b', cornerRadius: 0, x: 100, y: 100, width: 50, height: 50 },
         { ...base, id: 'b', type: 'frame', name: 'Frame B', parentId: 'a', cornerRadius: 0, x: 200, y: 100, width: 50, height: 50 },
+        { ...base, id: 'dup', type: 'rect', name: 'OLD RECT', x: 300, y: 10, width: 50, height: 50 },
       ],
     };
     cy.visit('/', {
@@ -187,6 +188,9 @@ describe('Loading older or damaged documents', () => {
     });
     layer('Old rect').should('have.attr', 'aria-level', '1');
     cy.get('[data-node-type=frame]').should('have.length', 2);
-    cy.get('[data-testid=layers-panel] [role=treeitem][aria-level=1]').should('have.length', 2);
+    cy.get('[data-testid=layers-panel] [role=treeitem][aria-level=1]').should('have.length', 3);
+    // A repeated name (in any case) is repaired on load; the first layer in tree order keeps it.
+    cy.get('[data-testid=layer-old]').should('contain', 'Old rect').and('not.contain', 'Old rect 2');
+    cy.get('[data-testid=layer-dup]').should('contain', 'OLD RECT 2');
   });
 });
