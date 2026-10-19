@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useDialogs } from '../../design-system';
+import { useLatest } from '../../shared/useLatest';
 import { useEditor } from '../EditorContext';
 import { useCanvasGestures, type Marquee } from '../hooks/useCanvasGestures';
 import { byIdOf, childrenByParent, isEffectivelyVisible } from '../model/tree';
@@ -34,6 +36,7 @@ export function Canvas() {
   const [marquee, setMarquee] = useState<Marquee | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [spacePressed, setSpacePressed] = useState(false);
+  const dialogOpen = useLatest(useDialogs().isOpen);
 
   // Track canvas size for zoom-to-center and zoom-to-fit.
   useEffect(() => {
@@ -52,7 +55,8 @@ export function Canvas() {
   useEffect(() => {
     const isTyping = (t: EventTarget | null) => t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement;
     const down = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && !isTyping(e.target)) {
+      // Inside an open dialog, Space must press the focused button, so don't cancel it.
+      if (e.code === 'Space' && !isTyping(e.target) && !dialogOpen.current) {
         e.preventDefault();
         setSpacePressed(true);
       }
@@ -64,7 +68,7 @@ export function Canvas() {
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
     };
-  }, []);
+  }, [dialogOpen]);
 
   const onEditText = useCallback((id: string) => setEditingId(id), []);
   const { onPointerDown, onDoubleClick } = useCanvasGestures({

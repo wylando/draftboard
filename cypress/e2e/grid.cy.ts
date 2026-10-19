@@ -14,8 +14,9 @@ describe('Canvas grid', () => {
 
   it('switches to lines in Settings and keeps the choice after a reload', () => {
     openCanvasSettings();
-    cy.get('[data-testid=grid-style-lines] input').check();
-    cy.get('[data-testid=grid-style-lines] input').should('be.checked');
+    cy.get('[data-testid=grid-style-lines]').click();
+    cy.get('[data-testid=grid-style-lines]').should('have.attr', 'data-state', 'checked');
+    cy.get('[data-testid=grid-style-dots]').should('have.attr', 'data-state', 'unchecked');
     cy.get('[data-testid=close-settings]').click();
     cy.get('[data-testid=canvas]').should('have.attr', 'data-grid', 'lines');
     cy.get('[data-testid=canvas] pattern path').should('exist');
@@ -27,7 +28,7 @@ describe('Canvas grid', () => {
 
   it('can be turned off', () => {
     openCanvasSettings();
-    cy.get('[data-testid=grid-style-none] input').check();
+    cy.get('[data-testid=grid-style-none]').click();
     cy.get('[data-testid=close-settings]').click();
     cy.get('[data-testid=canvas]').should('have.attr', 'data-grid', 'none');
     cy.get('[data-testid=canvas-grid]').should('not.exist');

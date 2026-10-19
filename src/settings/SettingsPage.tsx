@@ -1,6 +1,8 @@
+import { Tabs } from '@ark-ui/react/tabs';
 import { useState } from 'react';
-import { css } from 'styled-system/css';
-import { Button, icons, NavItem } from '../design-system';
+import { css, cx } from 'styled-system/css';
+import { tabs } from 'styled-system/recipes';
+import { Button, icons } from '../design-system';
 import { CanvasSection } from './CanvasSection';
 import { GettingStartedSection } from './GettingStartedSection';
 import { ShortcutsSection } from './ShortcutsSection';
@@ -25,20 +27,18 @@ const headerClass = css({
   color: 'text.onToolbar',
 });
 const titleClass = css({ textStyle: 'body.largeStrong' });
-const bodyClass = css({ flex: '1', display: 'flex', minHeight: '0' });
+const tabsClasses = tabs();
+const bodyClass = css({ flex: '1' });
 const navClass = css({
-  flex: 'none',
   width: 'sidebarWidth',
   padding: '3',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '1',
   borderRightWidth: '1px',
   borderRightStyle: 'solid',
   borderRightColor: 'border',
 });
-const contentClass = css({
+const mainClass = css({
   flex: '1',
+  minWidth: '0',
   overflowY: 'auto',
   paddingBlock: '6',
   paddingInline: '6',
@@ -57,22 +57,40 @@ export function SettingsPage({ onClose }: { onClose: () => void }) {
         </Button>
         <span className={titleClass}>Settings</span>
       </header>
-      <div className={bodyClass}>
-        <nav className={navClass} aria-label="Settings sections">
+      {/* Only the open section is mounted, so hidden sections never answer queries. */}
+      <Tabs.Root
+        className={cx(tabsClasses.root, bodyClass)}
+        orientation="vertical"
+        value={section}
+        onValueChange={({ value }) => setSection(value as SectionId)}
+        lazyMount
+        unmountOnExit
+      >
+        <Tabs.List className={cx(tabsClasses.list, navClass)} aria-label="Settings sections">
           {SECTIONS.map((s) => (
-            <NavItem key={s.id} current={section === s.id} data-testid={`nav-${s.id}`} onClick={() => setSection(s.id)}>
+            <Tabs.Trigger key={s.id} value={s.id} className={tabsClasses.trigger} data-testid={`nav-${s.id}`}>
               {s.label}
-            </NavItem>
+            </Tabs.Trigger>
           ))}
-        </nav>
-        <main className={contentClass}>
-          <div className={innerClass}>
-            {section === 'shortcuts' && <ShortcutsSection />}
-            {section === 'canvas' && <CanvasSection />}
-            {section === 'guide' && <GettingStartedSection />}
-          </div>
+        </Tabs.List>
+        <main className={mainClass}>
+          <Tabs.Content value="shortcuts" className={tabsClasses.content}>
+            <div className={innerClass}>
+              <ShortcutsSection />
+            </div>
+          </Tabs.Content>
+          <Tabs.Content value="canvas" className={tabsClasses.content}>
+            <div className={innerClass}>
+              <CanvasSection />
+            </div>
+          </Tabs.Content>
+          <Tabs.Content value="guide" className={tabsClasses.content}>
+            <div className={innerClass}>
+              <GettingStartedSection />
+            </div>
+          </Tabs.Content>
         </main>
-      </div>
+      </Tabs.Root>
     </div>
   );
 }

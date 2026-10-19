@@ -4,7 +4,7 @@ import { useEditor, useSelectedNodes } from '../EditorContext';
 import { useViewportControls } from '../hooks/useViewportControls';
 import { nameTaken } from '../model/nodes';
 import type { Box, DesignNode, NodePatch } from '../model/types';
-import { emptyHint, fieldError, sidebarRight, twoColumnGrid } from '../styles';
+import { emptyHint, sidebarRight, twoColumnGrid } from '../styles';
 import { CANVAS_FONT_FAMILY, measureText } from '../textMetrics';
 
 function useUpdate(node: DesignNode) {
@@ -39,6 +39,7 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
         <TextInput
           value={node.name}
           testId="prop-name"
+          error={nameError !== null ? `Another layer is already named “${nameError}”.` : undefined}
           onCommit={(value) => {
             const name = value.trim();
             if (nameTaken(state.nodes, name, node.id)) {
@@ -49,11 +50,6 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
             dispatch({ type: 'renameNode', id: node.id, name });
           }}
         />
-        {nameError !== null && (
-          <p className={fieldError} role="alert">
-            Another layer is already named “{nameError}”.
-          </p>
-        )}
       </Section>
 
       <Section title="Position & size">

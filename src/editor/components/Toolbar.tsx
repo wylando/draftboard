@@ -1,5 +1,6 @@
+import { ToggleGroup } from '@ark-ui/react/toggle-group';
 import { useRef, type ReactElement } from 'react';
-import { Button, IconButton, icons } from '../../design-system';
+import { Button, IconButton, icons, useDialogs } from '../../design-system';
 import { useEditor } from '../EditorContext';
 import { useViewportControls } from '../hooks/useViewportControls';
 import type { ToolId } from '../model/types';
@@ -8,6 +9,7 @@ import { COMMANDS, type CommandId } from '../../settings/keybindings/commands';
 import { formatBindingText } from '../../settings/keybindings/keys';
 import { useKeybindings } from '../../settings/keybindings/KeybindingsContext';
 import { css } from 'styled-system/css';
+import { iconButton } from 'styled-system/recipes';
 
 const toolbarClass = css({
   flex: 'none',
@@ -22,6 +24,7 @@ const toolbarClass = css({
 const groupClass = css({ display: 'flex', alignItems: 'center', gap: '1' });
 const brandClass = css({ paddingInlineStart: '2', paddingInlineEnd: '3', textStyle: 'body.largeStrong' });
 const zoomClass = css({ minWidth: 'zoomLabel' });
+const toolItemClass = iconButton({ tone: 'dark' });
 
 const TOOLS: Array<{ id: ToolId; command: CommandId; icon: () => ReactElement }> = [
   { id: 'select', command: 'tool.select', icon: icons.select },
@@ -47,29 +50,55 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const { zoom, zoomIn, zoomOut, zoomToFit } = useViewportControls();
   const fileInput = useRef<HTMLInputElement>(null);
   const title = useCommandTitle();
+  const dialogs = useDialogs();
 
   const onImport = async (file: File | undefined) => {
     if (!file) return;
     const nodes = parseDocument(await file.text());
-    if (nodes) dispatch({ type: 'loadDocument', nodes });
-    else window.alert('That file is not a valid Draftboard document.');
+    if (!nodes) {
+      await dialogs.alert({ title: "Can't open this file", description: 'That file is not a valid Draftboard document.' });
+      return;
+    }
+    // Loading clears undo history, so replacing a non-empty design can't be taken back.
+    if (state.nodes.length > 0) {
+      const replace = await dialogs.confirm({
+        title: 'Replace the current design?',
+        description: 'Importing replaces everything on the canvas and clears undo history. Export first to keep a copy.',
+        confirmLabel: 'Replace',
+      });
+      if (!replace) return;
+    }
+    dispatch({ type: 'loadDocument', nodes });
   };
 
   return (
     <header className={toolbarClass} data-testid="toolbar">
       <div className={groupClass}>
         <span className={brandClass}>Draftboard</span>
-        {TOOLS.map((t) => (
-          <IconButton
-            key={t.id}
-            tone="dark"
-            label={title(t.command)}
-            data-testid={`tool-${t.id}`}
-            icon={<t.icon />}
-            active={state.tool === t.id}
-            onClick={() => dispatch({ type: 'setTool', tool: t.id })}
-          />
-        ))}
+        {/* Exactly one tool is always active, so the group can't be emptied. */}
+        <ToggleGroup.Root
+          className={groupClass}
+          aria-label="Tools"
+          value={[state.tool]}
+          deselectable={false}
+          onValueChange={({ value }) => {
+            const tool = value[0] as ToolId | undefined;
+            if (tool) dispatch({ type: 'setTool', tool });
+          }}
+        >
+          {TOOLS.map((t) => (
+            <ToggleGroup.Item
+              key={t.id}
+              value={t.id}
+              className={toolItemClass}
+              aria-label={title(t.command)}
+              title={title(t.command)}
+              data-testid={`tool-${t.id}`}
+            >
+              <t.icon />
+            </ToggleGroup.Item>
+          ))}
+        </ToggleGroup.Root>
       </div>
 
       <div className={groupClass}>
@@ -103,6 +132,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
           type="file"
           accept="application/json,.json"
           hidden
+          data-testid="import-file"
           onChange={(e) => {
             void onImport(e.target.files?.[0]);
             e.target.value = '';

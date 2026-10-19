@@ -98,6 +98,11 @@ describe('Layers tree', () => {
     cy.prop('name').clear().type('frame 1{enter}');
     cy.prop('name').should('have.value', 'Ellipse 1');
     nameError('properties-panel').should('contain', 'frame 1');
+    // The refusal is tied to the field for assistive technology.
+    cy.prop('name').should('have.attr', 'aria-invalid', 'true');
+    nameError('properties-panel')
+      .invoke('attr', 'id')
+      .then((id) => cy.prop('name').should('have.attr', 'aria-describedby').and('contain', id));
 
     // Changing the case of a layer's own name is not a clash.
     layerRow('Ellipse 1').dblclick();

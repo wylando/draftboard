@@ -1,3 +1,4 @@
+import { Field } from '@ark-ui/react/field';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { field } from 'styled-system/recipes';
 import { useLatest } from '../../shared/useLatest';
@@ -6,15 +7,28 @@ const classes = field();
 
 interface FieldShellProps {
   label?: ReactNode;
+  /** Shown under the field; also marks the input invalid and describes it. */
+  error?: ReactNode;
   children: ReactNode;
 }
 
-function FieldShell({ label, children }: FieldShellProps) {
+/**
+ * Ark's Field wires the label, aria-invalid and aria-describedby to the input.
+ * The whole box is the label, so clicking anywhere in it focuses the input.
+ */
+function FieldShell({ label, error, children }: FieldShellProps) {
+  const invalid = error !== undefined && error !== null;
   return (
-    <label className={classes.root}>
-      {label !== undefined && <span className={classes.label}>{label}</span>}
-      {children}
-    </label>
+    <Field.Root className={classes.root} invalid={invalid}>
+      <Field.Label className={classes.control}>
+        {label !== undefined && <span className={classes.label}>{label}</span>}
+        {children}
+      </Field.Label>
+      {/* role="alert" so the refusal is announced as soon as it appears. */}
+      <Field.ErrorText className={classes.errorText} role="alert">
+        {error}
+      </Field.ErrorText>
+    </Field.Root>
   );
 }
 
@@ -62,7 +76,7 @@ export function NumberInput({ label, value, onCommit, min, max, testId }: Number
 
   return (
     <FieldShell label={label}>
-      <input
+      <Field.Input
         className={classes.input}
         inputMode="decimal"
         value={draft}
@@ -79,16 +93,17 @@ const identity = (v: string) => v;
 
 export interface TextInputProps {
   label?: ReactNode;
+  error?: ReactNode;
   value: string;
   onCommit: (value: string) => void;
   testId?: string;
 }
 
-export function TextInput({ label, value, onCommit, testId }: TextInputProps) {
+export function TextInput({ label, error, value, onCommit, testId }: TextInputProps) {
   const [draft, setDraft] = useDraft(value, identity);
   return (
-    <FieldShell label={label}>
-      <input
+    <FieldShell label={label} error={error}>
+      <Field.Input
         className={classes.input}
         value={draft}
         data-testid={testId}
@@ -156,7 +171,7 @@ export function ColorInput({ value, onCommit, testId }: ColorInputProps) {
         data-testid={testId && `${testId}-swatch`}
         onChange={(e) => setSwatch(e.target.value)}
       />
-      <input
+      <Field.Input
         className={classes.input}
         value={draft}
         data-testid={testId}

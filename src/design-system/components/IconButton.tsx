@@ -6,17 +6,15 @@ export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
   /** Required: icon-only buttons need an accessible name. */
   label: string;
   icon: ReactNode;
-  active?: boolean;
   tone?: 'light' | 'dark';
 }
 
-export function IconButton({ label, icon, active, tone, className, type = 'button', ...rest }: IconButtonProps) {
+export function IconButton({ label, icon, tone, className, type = 'button', ...rest }: IconButtonProps) {
   return (
     <button
       type={type}
       aria-label={label}
       title={label}
-      aria-pressed={active === undefined ? undefined : active}
       className={cx(iconButton({ tone }), className)}
       {...rest}
     >

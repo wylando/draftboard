@@ -11,7 +11,8 @@ describe('Drawing shapes', () => {
     cy.prop('h').should('have.value', '100');
     cy.get('[data-testid=layers-panel]').should('contain', 'Rectangle 1');
     // drawShape already waits for data-tool=select; this checks the toolbar follows.
-    cy.get('[data-testid=tool-select]').should('have.attr', 'aria-pressed', 'true');
+    cy.get('[data-testid=tool-select]').should('have.attr', 'aria-checked', 'true');
+    cy.get('[data-testid=tool-rect]').should('have.attr', 'aria-checked', 'false');
   });
 
   it('places a default-size shape on click using a keyboard shortcut', () => {

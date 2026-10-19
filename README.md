@@ -12,6 +12,7 @@ Draw, arrange and fine-tune shapes on an infinite canvas: no account, no cloud, 
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)
 ![Panda CSS](https://img.shields.io/badge/Panda_CSS-2-F6E458)
+![Ark UI](https://img.shields.io/badge/Ark_UI-5-EB5E41)
 ![Cypress](https://img.shields.io/badge/tested_with-Cypress-69D3A7?logo=cypress&logoColor=white)
 
 [Features](#-features) ·
@@ -36,7 +37,8 @@ Draw, arrange and fine-tune shapes on an infinite canvas: no account, no cloud, 
 - ↩️ **Full undo / redo** for every edit and gesture.
 - 🔍 **Smooth viewport**: wheel to pan, ⌘/Ctrl + wheel to zoom around the pointer, Space-drag to pan, plus zoom to 100% and zoom to fit.
 - ⌨️ **Fully remappable shortcuts**: rebind any command, give one command several keys, and resolve conflicts from a built-in Settings page.
-- 💾 **Autosave**: your document saves to the browser as you work. Export or import it as JSON at any time. If a loaded document repeats a layer name, later layers get the next free name.
+- 💾 **Autosave**: your document saves to the browser as you work. Export or import it as JSON at any time. Importing over a non-empty design asks first, because it replaces the canvas and clears undo history. If a loaded document repeats a layer name, later layers get the next free name.
+- 💬 **Accessible dialogs**: confirmations and errors open in a modal dialog (focus trapped, Escape to cancel) instead of browser pop-ups. Editor shortcuts pause while one is open.
 - 📴 **100% offline**: no CDNs, web fonts, analytics or remote assets. Once dependencies are installed, nothing leaves your machine.
 
 ## 🚀 Quick start
@@ -88,7 +90,7 @@ Then open **http://localhost:5173**. That's it.
 
 ### Saving your work
 
-Documents autosave to `localStorage`. Use the toolbar to **export** a document as JSON or **import** one back. Storage is scoped to the browser and the address, which is why the dev server always runs on port `5173`.
+Documents autosave to `localStorage`. Use the toolbar to **export** a document as JSON or **import** one back. If the canvas isn't empty, Draftboard asks before an import replaces it. Storage is scoped to the browser and the address, which is why the dev server always runs on port `5173`.
 
 ## 🛠 Development
 
@@ -111,6 +113,7 @@ Documents autosave to `localStorage`. Use the toolbar to **export** a document a
 - **[React 19](https://react.dev)** + **[TypeScript](https://www.typescriptlang.org)** (strict mode)
 - **[Vite](https://vite.dev)** for dev and build
 - **[Panda CSS](https://panda-css.com)** for type-safe design tokens and recipes
+- **[Ark UI](https://ark-ui.com)** headless components (dialog, tabs, radio group, toggle group, field), styled with Panda recipes
 - **SVG** rendering for every shape on the canvas
 - **[Cypress](https://www.cypress.io)** end-to-end tests that drive the canvas with real pointer events
 
@@ -119,7 +122,7 @@ Documents autosave to `localStorage`. Use the toolbar to **export** a document a
 ```
 src/
 ├── app/              # Hash-based routing (editor ↔ settings), no router dependency
-├── design-system/    # Panda theme (tokens, semantic tokens, recipes), UI primitives, icons
+├── design-system/    # Panda theme (tokens, semantic tokens, recipes), UI primitives (some on Ark UI), dialogs, icons
 ├── editor/
 │   ├── model/        # Document types, node factories, reducer with undo history
 │   ├── hooks/        # Pointer gestures, keyboard shortcuts, viewport
@@ -139,9 +142,11 @@ The theme lives in [`src/design-system/theme/`](src/design-system/theme/):
 - `tokens.ts`: primitive values
 - `semanticTokens.ts`: the tokens components actually use. **Remap these to re-theme the app.**
 - `textStyles.ts`: type styles
-- `recipes/`: component styles
+- `recipes/`: component styles. Components built on [Ark UI](https://ark-ui.com) get a slot recipe whose slots match Ark's parts (for example `dialog`: backdrop, positioner, content, title, description, actions), and each part gets its slot class.
 
 `strictTokens` is on, so components can only use defined tokens and a stray hex value fails the typecheck.
+
+For messages and yes/no questions, call `useDialogs()` (`alert` / `confirm`, both return promises) rather than `window.alert` or `window.confirm`. For a custom modal, render `<Dialog>`.
 
 ### Continuous integration
 
