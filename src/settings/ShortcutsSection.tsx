@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { css } from 'styled-system/css';
-import { Button, Kbd, SearchInput } from '../design-system';
+import { Button, Kbd, SearchInput, useDialogs } from '../design-system';
 import { CATEGORY_LABELS, COMMAND_IDS, COMMANDS, FIXED_INTERACTIONS, type CommandCategory, type CommandId } from './keybindings/commands';
 import { formatBindingText, RESERVED_BINDINGS, type Binding } from './keybindings/keys';
 import { useKeybindings } from './keybindings/KeybindingsContext';
@@ -28,6 +28,7 @@ const IDLE: RowStatus = { kind: 'idle' };
 
 export function ShortcutsSection() {
   const { bindings, commandFor, assign, resetAll, isCustomized } = useKeybindings();
+  const dialogs = useDialogs();
   const [query, setQuery] = useState('');
   const [active, setActive] = useState<{ id: CommandId; status: RowStatus } | null>(null);
 
@@ -83,7 +84,20 @@ export function ShortcutsSection() {
             testId="shortcut-search"
           />
         </div>
-        <Button data-testid="reset-all" disabled={!anyCustomized} onClick={resetAll}>
+        <Button
+          data-testid="reset-all"
+          disabled={!anyCustomized}
+          onClick={async () => {
+            // A recording captures every key first, so stop it before the dialog needs the keyboard.
+            setActive(null);
+            const confirmed = await dialogs.confirm({
+              title: 'Reset all shortcuts?',
+              description: 'Every command goes back to its default keys. Your custom shortcuts are removed.',
+              confirmLabel: 'Reset all',
+            });
+            if (confirmed) resetAll();
+          }}
+        >
           Reset all to defaults
         </Button>
       </div>

@@ -144,7 +144,7 @@ export function GettingStartedSection() {
           items={[
             ['Autosave', 'Your design saves in this browser as you work and reopens next time.'],
             ['Export', 'Downloads the design as a .json file, for backups or moving to another computer.'],
-            ['Import', 'Opens a previously exported .json file, replacing the current design.'],
+            ['Import', 'Opens a previously exported .json file, replacing the current design. If the canvas has anything on it, you are asked first: importing also clears undo history.'],
           ]}
         />
       </Block>

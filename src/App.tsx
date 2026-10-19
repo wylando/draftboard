@@ -1,4 +1,5 @@
 import { css } from 'styled-system/css';
+import { DialogProvider } from './design-system';
 import { useHashRoute } from './app/useHashRoute';
 import { EditorProvider, useEditor } from './editor/EditorContext';
 import { Canvas } from './editor/components/Canvas';
@@ -39,11 +40,13 @@ export function App() {
     <KeybindingsProvider>
       <PreferencesProvider>
         <EditorProvider>
-          {route === 'settings' ? (
-            <SettingsPage onClose={() => navigate('editor')} />
-          ) : (
-            <Editor onOpenSettings={() => navigate('settings')} />
-          )}
+          <DialogProvider>
+            {route === 'settings' ? (
+              <SettingsPage onClose={() => navigate('editor')} />
+            ) : (
+              <Editor onOpenSettings={() => navigate('settings')} />
+            )}
+          </DialogProvider>
         </EditorProvider>
       </PreferencesProvider>
     </KeybindingsProvider>

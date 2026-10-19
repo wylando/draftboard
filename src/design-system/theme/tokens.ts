@@ -74,6 +74,10 @@ export const tokens = defineTokens({
     elevation100: { value: '0 1px 3px 0 #00000026, 0 0 0.5px 0 #0000004d' },
     elevation200: { value: '0 1px 3px 0 #0000001a, 0 3px 8px 0 #0000001a, 0 0 0.5px 0 #0000002e' },
   },
+  /** Ours: dialogs and other overlays sit above the editor chrome. */
+  zIndex: {
+    overlay: { value: 1000 },
+  },
   sizes: {
     0: { value: '0' },
     toolbarHeight: { value: '48px' },
@@ -87,6 +91,9 @@ export const tokens = defineTokens({
     zoomLabel: { value: '48px' },
     kbd: { value: '20px' },
     content: { value: '760px' },
+    /** Width of a dialog (alert or confirm). */
+    dialog: { value: '400px' },
+    radio: { value: '14px' },
     full: { value: '100%' },
   },
 });

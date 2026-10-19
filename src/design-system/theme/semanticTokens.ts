@@ -17,6 +17,8 @@ export const semanticTokens = defineSemanticTokens({
       toolbar: { value: '{colors.grey.900}' },
       toolbarHover: { value: '{colors.grey.700}' },
       canvas: { value: '{colors.grey.100}' },
+      /** Dims the app behind a modal dialog. */
+      backdrop: { value: '#00000066' },
     },
     text: {
       DEFAULT: { value: '{colors.black.800}' },

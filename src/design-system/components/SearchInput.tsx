@@ -14,7 +14,7 @@ export interface SearchInputProps {
 
 export function SearchInput({ value, onChange, placeholder, label, testId }: SearchInputProps) {
   return (
-    <label className={classes.root}>
+    <label className={classes.control}>
       <span className={classes.label}>
         <icons.search />
       </span>

@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useDialogs } from '../../design-system';
 import type { CommandId } from '../../settings/keybindings/commands';
 import { bindingFromEvent } from '../../settings/keybindings/keys';
 import { useKeybindings } from '../../settings/keybindings/KeybindingsContext';
@@ -112,11 +113,13 @@ function runCommand(id: CommandId, o: Options): void {
 /** Dispatches editor keyboard commands. Mounted only while the editor is on screen. */
 export function useKeyboardShortcuts(options: Options) {
   const { commandFor } = useKeybindings();
-  const latest = useLatest({ options, commandFor });
+  const { isOpen: dialogOpen } = useDialogs();
+  const latest = useLatest({ options, commandFor, dialogOpen });
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (isTypingTarget(e.target)) return;
+      // A modal dialog owns the keyboard: Escape closes it, Backspace mustn't delete the selection behind it.
+      if (latest.current.dialogOpen || isTypingTarget(e.target)) return;
       const binding = bindingFromEvent(e);
       const id = binding ? latest.current.commandFor(binding) : undefined;
       if (!id) return;

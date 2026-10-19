@@ -6,4 +6,6 @@ export { iconButtonRecipe } from './recipes/iconButton';
 export { fieldRecipe } from './recipes/field';
 export { panelRecipe, sectionRecipe } from './recipes/panel';
 export { kbdRecipe } from './recipes/kbd';
-export { navItemRecipe } from './recipes/navItem';
+export { tabsRecipe } from './recipes/tabs';
+export { dialogRecipe } from './recipes/dialog';
+export { radioGroupRecipe } from './recipes/radioGroup';

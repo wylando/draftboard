@@ -2,7 +2,7 @@ import { defineRecipe } from '@pandacss/dev';
 
 export const iconButtonRecipe = defineRecipe({
   className: 'icon-button',
-  description: 'Square icon-only button; `aria-pressed` marks the active state',
+  description: 'Square icon-only button; also styles Ark UI ToggleGroup items, where `data-state=on` marks the active one',
   jsx: ['IconButton'],
   base: {
     display: 'inline-flex',
@@ -15,7 +15,7 @@ export const iconButtonRecipe = defineRecipe({
     borderRadius: 'medium',
     bg: 'transparent',
     cursor: 'pointer',
-    '&[aria-pressed=true]': { bg: 'bg.brand', color: 'text.onBrand' },
+    '&[data-state=on]': { bg: 'bg.brand', color: 'text.onBrand' },
     _disabled: { opacity: '0.4', cursor: 'default' },
     _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.selected', outlineOffset: '1px' },
   },

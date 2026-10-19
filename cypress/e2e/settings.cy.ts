@@ -106,10 +106,30 @@ describe('Settings: keyboard shortcuts', () => {
     chip('tool.rect', 'B').should('not.exist');
     chip('tool.ellipse', 'E').should('exist');
 
+    // Resetting everything can't be undone, so it asks first.
     cy.get('[data-testid=reset-all]').click();
+    cy.get('[role=alertdialog]').should('contain', 'Reset all');
+    cy.get('[data-testid=dialog-cancel]').click();
+    chip('tool.ellipse', 'E').should('exist');
+
+    cy.get('[data-testid=reset-all]').click();
+    cy.get('[data-testid=dialog-confirm]').click();
     chip('tool.ellipse', 'E').should('not.exist');
     chip('tool.ellipse', 'O').should('exist');
     cy.get('[data-testid=reset-all]').should('be.disabled');
+  });
+
+  it('stops recording when Reset all asks for confirmation', () => {
+    record('tool.rect', 'b', 'KeyB');
+    cy.get('[data-testid="record-tool.ellipse"]').click();
+    row('tool.ellipse').find('[data-testid=recording-hint]').should('be.visible');
+    cy.get('[data-testid=reset-all]').click();
+    cy.get('[role=alertdialog]').should('be.visible');
+    row('tool.ellipse').find('[data-testid=recording-hint]').should('not.exist');
+    // The keyboard reaches the dialog instead of being recorded as a binding.
+    cy.focused().type('{esc}');
+    cy.get('[role=alertdialog]').should('not.exist');
+    chip('tool.rect', 'B').should('exist');
   });
 
   it('filters by command name', () => {

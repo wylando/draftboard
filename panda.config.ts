@@ -1,13 +1,15 @@
 import { defineConfig } from '@pandacss/dev';
 import {
   buttonRecipe,
+  dialogRecipe,
   fieldRecipe,
   iconButtonRecipe,
   kbdRecipe,
-  navItemRecipe,
   panelRecipe,
+  radioGroupRecipe,
   sectionRecipe,
   semanticTokens,
+  tabsRecipe,
   textStyles,
   tokens,
 } from './src/design-system/theme';
@@ -34,9 +36,14 @@ export default defineConfig({
       iconButton: iconButtonRecipe,
       panel: panelRecipe,
       kbd: kbdRecipe,
-      navItem: navItemRecipe,
     },
-    slotRecipes: { field: fieldRecipe, section: sectionRecipe },
+    slotRecipes: {
+      field: fieldRecipe,
+      section: sectionRecipe,
+      dialog: dialogRecipe,
+      tabs: tabsRecipe,
+      radioGroup: radioGroupRecipe,
+    },
   },
   globalCss: {
     'html, body, #root': { height: 'full', margin: '0' },

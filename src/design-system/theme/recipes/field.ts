@@ -1,12 +1,20 @@
 import { defineSlotRecipe } from '@pandacss/dev';
 
-/** Shared shell for NumberInput / TextInput / ColorInput. */
+/**
+ * Shared shell for NumberInput / TextInput / ColorInput (Ark UI Field) and
+ * SearchInput. `root` stacks the bordered `control` above any error text.
+ */
 export const fieldRecipe = defineSlotRecipe({
   className: 'field',
   description: 'Compact labelled input',
-  slots: ['root', 'label', 'input', 'swatch'],
+  slots: ['root', 'control', 'label', 'input', 'swatch', 'errorText'],
   base: {
     root: {
+      display: 'grid',
+      gap: '1',
+      minWidth: '0',
+    },
+    control: {
       display: 'flex',
       alignItems: 'center',
       gap: '1',
@@ -48,6 +56,10 @@ export const fieldRecipe = defineSlotRecipe({
       cursor: 'pointer',
       '&::-webkit-color-swatch-wrapper': { padding: '0' },
       '&::-webkit-color-swatch': { border: 'none', borderRadius: '[1px]' },
+    },
+    errorText: {
+      margin: '0',
+      color: 'text.danger',
     },
   },
 });
