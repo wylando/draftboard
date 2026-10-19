@@ -148,7 +148,7 @@ export function normalizeTree(input: readonly DesignNode[]): DesignNode[] {
     const p = n.parentId ?? null;
     parentOf.set(n.id, p !== null && p !== n.id && isContainer(byId.get(p)) ? p : null);
   }
-  // Break cycles: walk up from each node; if we come back to it, detach it.
+  // Detach any node caught in a parent cycle.
   for (const n of input) {
     const seen = new Set<string>([n.id]);
     let p = parentOf.get(n.id) ?? null;

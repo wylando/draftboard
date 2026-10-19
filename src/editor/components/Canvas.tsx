@@ -38,7 +38,6 @@ export function Canvas() {
   const [spacePressed, setSpacePressed] = useState(false);
   const dialogOpen = useLatest(useDialogs().isOpen);
 
-  // Track canvas size for zoom-to-center and zoom-to-fit.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -51,7 +50,6 @@ export function Canvas() {
     return () => observer.disconnect();
   }, [dispatch]);
 
-  // Holding space temporarily switches to panning.
   useEffect(() => {
     const isTyping = (t: EventTarget | null) => t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement;
     const down = (e: KeyboardEvent) => {
