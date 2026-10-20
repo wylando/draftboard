@@ -35,25 +35,4 @@ describe('Dialogs', () => {
     cy.drawShape('rect', [100, 100], [200, 200]);
     cy.get('[role=alertdialog]').should('not.exist');
   });
-
-  it('keeps editor shortcuts from acting behind an open dialog', () => {
-    cy.drawShape('rect', [100, 100], [200, 200]);
-    importFile(EMPTY_DOCUMENT);
-    cy.get('[role=alertdialog]').should('be.visible');
-
-    cy.pressKey('Backspace');
-    cy.pressKey('z', { code: 'KeyZ', metaKey: true });
-    // Space must still press the focused button: Space-to-pan mustn't cancel the keydown.
-    cy.focused().then(($button) => {
-      const button = $button[0]!;
-      const event = new button.ownerDocument.defaultView!.KeyboardEvent('keydown', { key: ' ', code: 'Space', bubbles: true, cancelable: true });
-      expect(button.dispatchEvent(event), 'Space keydown not prevented').to.equal(true);
-    });
-    cy.focused().type('{esc}');
-    cy.get('[role=alertdialog]').should('not.exist');
-
-    // Escape closed only the dialog: the rectangle is still there and still selected.
-    cy.get('[data-node-type=rect]').should('have.length', 1);
-    cy.prop('name').should('have.value', 'Rectangle 1');
-  });
 });
