@@ -117,7 +117,6 @@ function reorderSiblings(nodes: DesignNode[], selected: Set<string>, direction: 
   return next;
 }
 
-/** Applies `patches`, then restores tree invariants (group bounds, empty groups). */
 function patchNodes(nodes: DesignNode[], patches: Record<string, NodePatch>): DesignNode[] | null {
   let changed = false;
   const next = nodes.map((n) => {
@@ -129,7 +128,6 @@ function patchNodes(nodes: DesignNode[], patches: Record<string, NodePatch>): De
   return changed ? normalizeTree(next) : null;
 }
 
-/** The selection's top-level layers plus all their descendants. */
 function selectionWithDescendants(nodes: DesignNode[], selection: string[]): Set<string> {
   const top = topLevelIds(byIdOf(nodes), selection);
   return new Set([...top, ...descendantIds(nodes, top)]);

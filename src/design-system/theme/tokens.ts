@@ -91,7 +91,6 @@ export const tokens = defineTokens({
     zoomLabel: { value: '48px' },
     kbd: { value: '20px' },
     content: { value: '760px' },
-    /** Width of a dialog (alert or confirm). */
     dialog: { value: '400px' },
     radio: { value: '14px' },
     full: { value: '100%' },

@@ -72,7 +72,6 @@ export function bindingFromEvent(
   return parts.join('+');
 }
 
-/** Validates a stored binding string (used when loading saved settings). */
 export function isValidBinding(value: unknown): value is Binding {
   if (typeof value !== 'string' || value.length === 0) return false;
   const parts = value.split('+');

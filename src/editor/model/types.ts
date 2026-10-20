@@ -1,10 +1,8 @@
-/** Node types the user can draw with a tool. */
 export type DrawableType = 'frame' | 'rect' | 'ellipse' | 'line' | 'text';
 
 /** Groups are made from a selection (Group command), never drawn. */
 export type NodeType = DrawableType | 'group';
 
-/** Frames and groups can hold children. */
 export type ContainerType = 'frame' | 'group';
 
 export type ToolId = 'select' | 'hand' | DrawableType;

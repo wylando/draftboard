@@ -38,7 +38,6 @@ const report = (node, message) => {
   errors.push(`${file}:${line + 1}:${character + 1}  ${message}`);
 };
 
-/** Whether a literal attribute value is acceptable for this attribute. */
 function valueOk(name, value) {
   if (/url\(|javascript:|data:|<|&|\\/i.test(value)) return false;
   switch (name) {

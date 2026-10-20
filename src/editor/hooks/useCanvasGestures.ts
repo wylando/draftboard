@@ -97,7 +97,6 @@ export function useCanvasGestures({ containerRef, state, dispatch, spacePressed,
           if (!g.nodeId && dist < DRAG_THRESHOLD) return;
           let end = world;
           if (e.shiftKey) {
-            // Constrain to a square (or 45° line).
             const size = Math.max(Math.abs(world.x - g.startWorld.x), Math.abs(world.y - g.startWorld.y));
             end = {
               x: g.startWorld.x + Math.sign(world.x - g.startWorld.x || 1) * size,
@@ -126,7 +125,6 @@ export function useCanvasGestures({ containerRef, state, dispatch, spacePressed,
           let dx = world.x - g.startWorld.x;
           let dy = world.y - g.startWorld.y;
           if (e.shiftKey) {
-            // Lock to the dominant axis.
             if (Math.abs(dx) > Math.abs(dy)) dy = 0;
             else dx = 0;
           }
@@ -226,7 +224,6 @@ export function useCanvasGestures({ containerRef, state, dispatch, spacePressed,
       const rotateEl = target.closest('[data-rotate-handle]');
       let gesture: Gesture | null = null;
 
-      // Middle button, hand tool, or held space → pan.
       if (e.button === 1 || tool === 'hand' || spacePressed) {
         gesture = { kind: 'pan', start: screen, startViewport: viewport };
       } else if (e.button !== 0) {
