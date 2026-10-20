@@ -8,7 +8,9 @@ import {
 } from 'react';
 import {
   boxFromPoints,
+  boxCenter,
   boxesIntersect,
+  dragRotation,
   HANDLES,
   resizeBox,
   rotatedBounds,
@@ -25,12 +27,15 @@ import type { Box, DesignNode, DrawableType, NodePatch, Point, Viewport } from '
 /** Screen-pixel distance before a press becomes a drag. */
 const DRAG_THRESHOLD = 3;
 const WHEEL_ZOOM_SPEED = 0.01;
+/** Design choice: Shift snaps a corner rotation to this many degrees. */
+const ROTATION_SNAP = 15;
 
 type Gesture =
   | { kind: 'pan'; start: Point; startViewport: Viewport }
   | { kind: 'create'; nodeType: DrawableType; start: Point; startWorld: Point; nodeId: string | null }
   | { kind: 'move'; start: Point; startWorld: Point; origins: Map<string, Point>; moved: boolean }
   | { kind: 'resize'; start: Point; startWorld: Point; node: DesignNode; handle: HandleDir; moved: boolean }
+  | { kind: 'rotate'; start: Point; startWorld: Point; node: DesignNode; moved: boolean }
   | { kind: 'marquee'; start: Point; startWorld: Point; base: string[]; moved: boolean };
 
 export interface Marquee {
@@ -141,6 +146,17 @@ export function useCanvasGestures({ containerRef, state, dispatch, spacePressed,
           dispatch({ type: 'transformNode', id: g.node.id, box });
           return;
         }
+        case 'rotate': {
+          if (!g.moved && dist < 1) return;
+          if (!g.moved) {
+            dispatch({ type: 'checkpoint' });
+            g.moved = true;
+          }
+          const snap = e.shiftKey ? ROTATION_SNAP : undefined;
+          const rotation = dragRotation(g.node.rotation, boxCenter(g.node), g.startWorld, world, snap);
+          dispatch({ type: 'transformNode', id: g.node.id, box: { rotation } });
+          return;
+        }
         case 'marquee': {
           if (!g.moved && dist < DRAG_THRESHOLD) return;
           g.moved = true;
@@ -205,6 +221,7 @@ export function useCanvasGestures({ containerRef, state, dispatch, spacePressed,
       const target = e.target as Element;
       const nodeEl = target.closest('[data-node-id]');
       const handleEl = target.closest('[data-handle]');
+      const rotateEl = target.closest('[data-rotate-handle]');
       let gesture: Gesture | null = null;
 
       if (e.button === 1 || tool === 'hand' || spacePressed) {
@@ -217,6 +234,9 @@ export function useCanvasGestures({ containerRef, state, dispatch, spacePressed,
         const node = nodes.find((n) => n.id === selection[0]);
         const dir = HANDLES.find((h) => h.id === handleEl.getAttribute('data-handle'));
         if (node && dir) gesture = { kind: 'resize', start: screen, startWorld: world, node, handle: dir, moved: false };
+      } else if (rotateEl && selection.length === 1) {
+        const node = nodes.find((n) => n.id === selection[0]);
+        if (node && node.type !== 'group') gesture = { kind: 'rotate', start: screen, startWorld: world, node, moved: false };
       } else if (nodeEl) {
         const byId = byIdOf(nodes);
         const hitId = nodeEl.getAttribute('data-node-id') ?? '';

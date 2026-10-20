@@ -7,28 +7,26 @@ import type { Box, DesignNode, NodePatch } from '../model/types';
 import { emptyHint, sidebarRight, twoColumnGrid } from '../styles';
 import { CANVAS_FONT_FAMILY, measureText } from '../textMetrics';
 
-function useUpdate(node: DesignNode) {
-  const { dispatch } = useEditor();
-  return (patch: NodePatch) => {
-    dispatch({ type: 'checkpoint' });
-    dispatch({ type: 'updateNodes', patches: { [node.id]: patch } });
-  };
-}
-
-/** Position and size go through transformNode so a frame's or group's children follow. */
-function useUpdateBox(node: DesignNode) {
-  const { dispatch } = useEditor();
-  return (box: Partial<Box & { rotation: number }>) => {
-    dispatch({ type: 'checkpoint' });
-    dispatch({ type: 'transformNode', id: node.id, box });
-  };
-}
-
 function SingleNodeProperties({ node }: { node: DesignNode }) {
   const { state, dispatch } = useEditor();
   const [nameError, setNameError] = useState<string | null>(null);
-  const update = useUpdate(node);
-  const updateBox = useUpdateBox(node);
+  const patch = (p: NodePatch) => dispatch({ type: 'updateNodes', patches: { [node.id]: p } });
+  const update = (p: NodePatch) => {
+    dispatch({ type: 'checkpoint' });
+    patch(p);
+  };
+  // Position and size go through transformNode so a frame's or group's children follow.
+  const transform = (box: Partial<Box & { rotation: number }>) => dispatch({ type: 'transformNode', id: node.id, box });
+  // A typed number checkpoints before applying. A scrub checkpoints once when it
+  // starts and applies every tick transiently, so it is one undo step as well.
+  const edits = (apply: (value: number) => void) => ({
+    onCommit: (value: number) => {
+      dispatch({ type: 'checkpoint' });
+      apply(value);
+    },
+    onScrubStart: () => dispatch({ type: 'checkpoint' }),
+    onScrubChange: apply,
+  });
   const isGroup = node.type === 'group';
   const hasFill = node.type !== 'line' && !isGroup;
   const hasRadius = node.type === 'rect' || node.type === 'frame';
@@ -54,16 +52,16 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
 
       <Section title="Position & size">
         <div className={twoColumnGrid}>
-          <NumberInput label="X" value={node.x} onCommit={(x) => updateBox({ x })} testId="prop-x" />
-          <NumberInput label="Y" value={node.y} onCommit={(y) => updateBox({ y })} testId="prop-y" />
-          <NumberInput label="W" value={node.width} min={node.type === 'line' ? 0 : 1} onCommit={(width) => updateBox({ width })} testId="prop-w" />
-          <NumberInput label="H" value={node.height} min={node.type === 'line' ? 0 : 1} onCommit={(height) => updateBox({ height })} testId="prop-h" />
+          <NumberInput label="X" value={node.x} {...edits((x) => transform({ x }))} testId="prop-x" />
+          <NumberInput label="Y" value={node.y} {...edits((y) => transform({ y }))} testId="prop-y" />
+          <NumberInput label="W" value={node.width} min={node.type === 'line' ? 0 : 1} {...edits((width) => transform({ width }))} testId="prop-w" />
+          <NumberInput label="H" value={node.height} min={node.type === 'line' ? 0 : 1} {...edits((height) => transform({ height }))} testId="prop-h" />
           {/* A group's box is derived from its children, so it has no rotation of its own. */}
           {!isGroup && (
-            <NumberInput label="°" value={node.rotation} onCommit={(rotation) => updateBox({ rotation })} testId="prop-rotation" />
+            <NumberInput label="°" value={node.rotation} {...edits((rotation) => transform({ rotation }))} testId="prop-rotation" />
           )}
           {hasRadius && (
-            <NumberInput label="R" value={node.cornerRadius} min={0} onCommit={(cornerRadius) => update({ cornerRadius })} testId="prop-radius" />
+            <NumberInput label="R" value={node.cornerRadius} min={0} {...edits((cornerRadius) => patch({ cornerRadius }))} testId="prop-radius" />
           )}
         </div>
       </Section>
@@ -80,7 +78,7 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
             value={node.fontSize}
             min={1}
             testId="prop-font-size"
-            onCommit={(fontSize) => update({ fontSize, ...measureText(node.text, fontSize, CANVAS_FONT_FAMILY) })}
+            {...edits((fontSize) => patch({ fontSize, ...measureText(node.text, fontSize, CANVAS_FONT_FAMILY) }))}
           />
         </Section>
       )}
@@ -95,7 +93,7 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
         <Section title="Stroke">
           <div className={twoColumnGrid}>
             <ColorInput value={node.stroke} onCommit={(stroke) => update({ stroke })} testId="prop-stroke" />
-            <NumberInput label="W" value={node.strokeWidth} min={0} onCommit={(strokeWidth) => update({ strokeWidth })} testId="prop-stroke-width" />
+            <NumberInput label="W" value={node.strokeWidth} min={0} {...edits((strokeWidth) => patch({ strokeWidth }))} testId="prop-stroke-width" />
           </div>
         </Section>
       )}
@@ -106,7 +104,7 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
           value={Math.round(node.opacity * 100)}
           min={0}
           max={100}
-          onCommit={(pct) => update({ opacity: pct / 100 })}
+          {...edits((pct) => patch({ opacity: pct / 100 }))}
           testId="prop-opacity"
         />
       </Section>

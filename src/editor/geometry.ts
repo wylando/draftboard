@@ -132,6 +132,26 @@ export function resizeBox(start: Box, rotation: number, handle: HandleDir, world
   return { x: c1.x - width / 2, y: c1.y - height / 2, width, height };
 }
 
+/** Degrees in (-180, 180], so a full turn reads as 0 rather than 360. */
+export function normalizeDegrees(degrees: number): number {
+  const d = ((degrees % 360) + 360) % 360;
+  return d > 180 ? d - 360 : d;
+}
+
+/** Without `snap`, rounds to whole degrees, as a move gesture rounds to whole pixels. */
+export function dragRotation(
+  startRotation: number,
+  center: Point,
+  startPointer: Point,
+  pointer: Point,
+  snap?: number,
+): number {
+  const angle = (p: Point) => (Math.atan2(p.y - center.y, p.x - center.x) * 180) / Math.PI;
+  const raw = startRotation + angle(pointer) - angle(startPointer);
+  const step = snap ?? 1;
+  return normalizeDegrees(Math.round(raw / step) * step);
+}
+
 /** Whether a world point lies inside a box rotated about its center. */
 export function pointInRotatedBox(b: Box, rotation: number, p: Point): boolean {
   const local = rotation % 360 === 0 ? p : rotatePoint(p, -rotation, boxCenter(b));

@@ -33,6 +33,8 @@ declare global {
       pressKey(key: string, opts?: { code?: string; shiftKey?: boolean; metaKey?: boolean; altKey?: boolean }): Chainable<void>;
       /** Read a node's committed property value from the properties panel. */
       prop(name: string): Chainable<JQuery<HTMLInputElement>>;
+      /** Dispatch a pointer event at the subject's center, offset by `by` pixels. */
+      pointer(type: 'pointerdown' | 'pointermove' | 'pointerup', by?: Pt, opts?: PointerOpts): Chainable<JQuery<HTMLElement>>;
     }
   }
 }
@@ -42,33 +44,41 @@ Cypress.Commands.add('visitEmpty', () => {
   cy.get('[data-testid=canvas]').should('be.visible');
 });
 
+function dispatchPointer(target: Element, type: string, clientX: number, clientY: number, opts: PointerOpts) {
+  const button = opts.button ?? 0;
+  target.dispatchEvent(
+    new target.ownerDocument.defaultView!.PointerEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      clientX,
+      clientY,
+      pointerId: 1,
+      pointerType: 'mouse',
+      isPrimary: true,
+      button,
+      buttons: type === 'pointerup' ? 0 : 1 << button,
+      shiftKey: opts.shiftKey ?? false,
+      metaKey: opts.metaKey ?? false,
+      ctrlKey: opts.ctrlKey ?? false,
+    }),
+  );
+}
+
 Cypress.Commands.add('canvasPointer', (type, at, opts = {}) => {
   cy.get('[data-testid=canvas]').then(($canvas) => {
     const rect = $canvas[0]!.getBoundingClientRect();
     const clientX = rect.left + at[0];
     const clientY = rect.top + at[1];
-    const doc = $canvas[0]!.ownerDocument;
-    const win = doc.defaultView!;
-    const target = doc.elementFromPoint(clientX, clientY) ?? $canvas[0]!;
-    const button = opts.button ?? 0;
-    target.dispatchEvent(
-      new win.PointerEvent(type, {
-        bubbles: true,
-        cancelable: true,
-        composed: true,
-        clientX,
-        clientY,
-        pointerId: 1,
-        pointerType: 'mouse',
-        isPrimary: true,
-        button,
-        buttons: type === 'pointerup' ? 0 : 1 << button,
-        shiftKey: opts.shiftKey ?? false,
-        metaKey: opts.metaKey ?? false,
-        ctrlKey: opts.ctrlKey ?? false,
-      }),
-    );
+    const target = $canvas[0]!.ownerDocument.elementFromPoint(clientX, clientY) ?? $canvas[0]!;
+    dispatchPointer(target, type, clientX, clientY, opts);
   });
+});
+
+Cypress.Commands.add('pointer', { prevSubject: 'element' }, (subject, type, by: Pt = [0, 0], opts = {}) => {
+  const rect = subject[0]!.getBoundingClientRect();
+  dispatchPointer(subject[0]!, type, rect.left + rect.width / 2 + by[0], rect.top + rect.height / 2 + by[1], opts);
+  return cy.wrap(subject, { log: false });
 });
 
 Cypress.Commands.add('canvasClick', (at, opts = {}) => {

@@ -26,6 +26,22 @@ describe('Selecting, moving and resizing', () => {
     cy.prop('x').should('have.value', '300');
   });
 
+  it('rotates by dragging just outside a corner, as one undo step', () => {
+    // The selected rect is centered at (350, 150); its NE rotate zone sits just past (400, 100).
+    cy.get('[data-testid=rotate-ne]').should('exist');
+    cy.canvasDrag([410, 90], [410, 210]);
+    cy.prop('rotation').should('have.value', '90');
+    cy.get('[data-node-type=rect]').last().should('have.attr', 'transform').and('contain', 'rotate(90 ');
+    cy.pressKey('z', { code: 'KeyZ', metaKey: true });
+    cy.prop('rotation').should('have.value', '0');
+  });
+
+  it('Shift snaps a corner rotation to 15° steps', () => {
+    // Unsnapped, this drag turns the rect about 52°.
+    cy.canvasDrag([410, 90], [430, 160], { shiftKey: true });
+    cy.prop('rotation').should('have.value', '45');
+  });
+
   it('marquee-selects multiple shapes', () => {
     cy.canvasDrag([50, 50], [450, 250]);
     cy.get('[data-testid=properties-panel]').should('contain', '2 layers selected');

@@ -85,6 +85,12 @@ export const FIXED_INTERACTIONS: Array<{ label: string; input: string; descripti
   { label: 'Move into a frame', input: 'Drag a layer onto a frame', description: 'Dropping a layer over a frame puts it inside; dropping it outside takes it out.' },
   { label: 'Nest or reorder layers', input: 'Drag in Layers panel', description: 'Drop above or below a layer to reorder, or onto a frame or group to put it inside.' },
   { label: 'Constrain', input: 'Shift while drawing / dragging', description: 'Squares, circles, 45° lines, or lock a move to one axis.' },
+  { label: 'Rotate', input: 'Drag just outside a corner', description: 'Rotate the selected layer about its center. Hold Shift to snap to 15° steps.' },
   { label: 'Edit text', input: 'Double-click a text layer', description: 'Edit its content in place.' },
   { label: 'Rename layer', input: 'Double-click in Layers panel', description: 'Edit the layer name.' },
+  {
+    label: 'Scrub a value',
+    input: 'Drag a field label',
+    description: 'Drag a number field’s label sideways to change it. Shift for steps of 10, Alt for 0.1.',
+  },
 ];
