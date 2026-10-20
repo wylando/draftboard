@@ -9,3 +9,4 @@ export { kbdRecipe } from './recipes/kbd';
 export { tabsRecipe } from './recipes/tabs';
 export { dialogRecipe } from './recipes/dialog';
 export { radioGroupRecipe } from './recipes/radioGroup';
+export { toggleSwitchRecipe } from './recipes/toggleSwitch';

@@ -7,16 +7,21 @@ import {
   type RefObject,
 } from 'react';
 import {
+  alignmentGuides,
   boxFromPoints,
   boxCenter,
   boxesIntersect,
+  boxLines,
   dragRotation,
   HANDLES,
   resizeBox,
   rotatedBounds,
   screenToWorld,
+  snapOffset,
+  unionBoxes,
   zoomAt,
   type HandleDir,
+  type SnapGuide,
 } from '../geometry';
 import { useLatest } from '../../shared/useLatest';
 import type { EditorAction, EditorState } from '../model/editorReducer';
@@ -29,12 +34,36 @@ const DRAG_THRESHOLD = 3;
 const WHEEL_ZOOM_SPEED = 0.01;
 /** Design choice: Shift snaps a corner rotation to this many degrees. */
 const ROTATION_SNAP = 15;
+/** Design choice: screen-pixel distance at which an edge or center snaps to another layer's. */
+const SNAP_DISTANCE = 6;
+const NO_GUIDES: SnapGuide[] = [];
 
 type Gesture =
   | { kind: 'pan'; start: Point; startViewport: Viewport }
-  | { kind: 'create'; nodeType: DrawableType; start: Point; startWorld: Point; nodeId: string | null }
-  | { kind: 'move'; start: Point; startWorld: Point; origins: Map<string, Point>; moved: boolean }
-  | { kind: 'resize'; start: Point; startWorld: Point; node: DesignNode; handle: HandleDir; moved: boolean }
+  | { kind: 'create'; nodeType: DrawableType; start: Point; startWorld: Point; nodeId: string | null; targets: SnapTargets }
+  | {
+      kind: 'move';
+      start: Point;
+      startWorld: Point;
+      origins: Map<string, Point>;
+      /** The moving top-level layers as they were at the start of the drag. */
+      tops: DesignNode[];
+      /** Their combined bounds at the start of the drag. */
+      bounds: Box;
+      targets: SnapTargets;
+      moved: boolean;
+      /** World pointer position at the latest move; a cancel drops the selection here. */
+      last: Point;
+    }
+  | {
+      kind: 'resize';
+      start: Point;
+      startWorld: Point;
+      node: DesignNode;
+      handle: HandleDir;
+      targets: SnapTargets;
+      moved: boolean;
+    }
   | { kind: 'rotate'; start: Point; startWorld: Point; node: DesignNode; moved: boolean }
   | { kind: 'marquee'; start: Point; startWorld: Point; base: string[]; moved: boolean };
 
@@ -47,7 +76,9 @@ interface Options {
   state: EditorState;
   dispatch: (action: EditorAction) => void;
   spacePressed: boolean;
+  snapToLayers: boolean;
   onMarquee: (marquee: Marquee | null) => void;
+  onGuides: (guides: SnapGuide[]) => void;
   onEditText: (id: string) => void;
 }
 
@@ -55,11 +86,69 @@ const isShapeTool = (tool: string): tool is DrawableType =>
   tool === 'frame' || tool === 'rect' || tool === 'ellipse' || tool === 'line' || tool === 'text';
 
 /**
+ * World boxes a gesture can snap to: layers you can see on screen, except the
+ * `changing` layers and the groups whose bounds follow them.
+ */
+function snapCandidates(nodes: DesignNode[], changing: Set<string>, viewport: Viewport, canvasSize: { width: number; height: number }): Box[] {
+  const byId = byIdOf(nodes);
+  const following = new Set<string>();
+  for (const id of changing) {
+    for (let p = byId.get(id)?.parentId; p; ) {
+      const parent = byId.get(p);
+      if (parent?.type !== 'group') break;
+      following.add(parent.id);
+      p = parent.parentId;
+    }
+  }
+  const view = boxFromPoints(screenToWorld({ x: 0, y: 0 }, viewport), screenToWorld({ x: canvasSize.width, y: canvasSize.height }, viewport));
+  // Frames clip their children, so a child wholly outside an ancestor frame can't be seen.
+  const clippedAway = (n: DesignNode, b: Box) => {
+    for (let p = n.parentId ? byId.get(n.parentId) : undefined; p; p = p.parentId ? byId.get(p.parentId) : undefined) {
+      if (p.type === 'frame' && !boxesIntersect(b, rotatedBounds(p, p.rotation))) return true;
+    }
+    return false;
+  };
+  return nodes
+    .filter((n) => !changing.has(n.id) && !following.has(n.id) && isEffectivelyVisible(byId, n))
+    .flatMap((n) => {
+      const b = rotatedBounds(n, n.rotation);
+      return boxesIntersect(b, view) && !clippedAway(n, b) ? [b] : [];
+    });
+}
+
+/**
+ * Snap targets for one gesture. Only layers on screen count, so the boxes are
+ * recomputed whenever the canvas pans or zooms mid-drag.
+ */
+interface SnapTargets {
+  changing: Set<string>;
+  viewport: Viewport | null;
+  boxes: Box[];
+}
+
+function targetBoxes(t: SnapTargets, { nodes, viewport, canvasSize }: EditorState): Box[] {
+  if (t.viewport !== viewport) {
+    t.boxes = snapCandidates(nodes, t.changing, viewport, canvasSize);
+    t.viewport = viewport;
+  }
+  return t.boxes;
+}
+
+/**
  * Pointer state machine for the canvas. Listens on window during a drag so
  * releasing outside the canvas still ends the gesture (no pointer capture
  * needed, which also keeps synthetic test events working).
  */
-export function useCanvasGestures({ containerRef, state, dispatch, spacePressed, onMarquee, onEditText }: Options) {
+export function useCanvasGestures({
+  containerRef,
+  state,
+  dispatch,
+  spacePressed,
+  snapToLayers,
+  onMarquee,
+  onGuides,
+  onEditText,
+}: Options) {
   const stateRef = useLatest(state);
   const gestureRef = useRef<Gesture | null>(null);
 
@@ -76,9 +165,12 @@ export function useCanvasGestures({ containerRef, state, dispatch, spacePressed,
       const g = gestureRef.current;
       if (!g) return;
       const { viewport, nodes } = stateRef.current;
+      const boxes = (t: SnapTargets) => targetBoxes(t, stateRef.current);
       const screen = toLocal(e);
       const world = screenToWorld(screen, viewport);
       const dist = Math.hypot(screen.x - g.start.x, screen.y - g.start.y);
+      const snap = snapToLayers && !(e.metaKey || e.ctrlKey);
+      const threshold = SNAP_DISTANCE / viewport.zoom;
 
       switch (g.kind) {
         case 'pan': {
@@ -95,20 +187,49 @@ export function useCanvasGestures({ containerRef, state, dispatch, spacePressed,
         case 'create': {
           if (g.nodeType === 'text') return;
           if (!g.nodeId && dist < DRAG_THRESHOLD) return;
+          let start = g.startWorld;
           let end = world;
+          let guides = NO_GUIDES;
           if (e.shiftKey) {
-            const size = Math.max(Math.abs(world.x - g.startWorld.x), Math.abs(world.y - g.startWorld.y));
+            const size = Math.max(Math.abs(world.x - start.x), Math.abs(world.y - start.y));
             end = {
-              x: g.startWorld.x + Math.sign(world.x - g.startWorld.x || 1) * size,
-              y: g.startWorld.y + Math.sign(world.y - g.startWorld.y || 1) * size,
+              x: start.x + Math.sign(world.x - start.x || 1) * size,
+              y: start.y + Math.sign(world.y - start.y || 1) * size,
             };
+          } else if (snap) {
+            // Snapping either axis alone would break Shift's square, so it only applies unconstrained.
+            // Both corners snap on every move, so ⌘/Ctrl pressed mid-drag releases the start corner too.
+            const candidates = boxes(g.targets);
+            const snapPoint = (p: Point): Point => ({
+              x: p.x + (snapOffset([p.x], candidates, 'x', threshold) ?? 0),
+              y: p.y + (snapOffset([p.y], candidates, 'y', threshold) ?? 0),
+            });
+            const snappedStart = snapPoint(start);
+            const snappedEnd = snapPoint(end);
+            // Two corners snapped onto one line would leave a shape too thin to see. On such an
+            // axis only the dragged corner snaps, or neither does when the press was already on the line.
+            const min = minSizeFor(g.nodeType);
+            const pick = (axis: 'x' | 'y'): [number, number] => {
+              if (Math.abs(snappedEnd[axis] - snappedStart[axis]) >= min) return [snappedStart[axis], snappedEnd[axis]];
+              if (Math.abs(snappedEnd[axis] - start[axis]) >= min) return [start[axis], snappedEnd[axis]];
+              return [start[axis], end[axis]];
+            };
+            const [sx, ex] = pick('x');
+            const [sy, ey] = pick('y');
+            start = { x: sx, y: sy };
+            end = { x: ex, y: ey };
+            guides = alignmentGuides(boxFromPoints(start, end), { x: [start.x, end.x], y: [start.y, end.y] }, candidates);
           }
-          const box = boxFromPoints(g.startWorld, end);
-          const flipped = end.x - g.startWorld.x >= 0 !== end.y - g.startWorld.y >= 0;
+          onGuides(guides);
+          const box = boxFromPoints(start, end);
+          const flipped = end.x - start.x >= 0 !== end.y - start.y >= 0;
           if (!g.nodeId) {
             const node = createNode(g.nodeType, box, nodes);
             if (node.type === 'line') node.flipped = flipped;
             g.nodeId = node.id;
+            g.targets.changing.add(node.id);
+            // The parent comes from where the user pressed, not the snapped corner: a corner
+            // snapped onto a frame's edge would otherwise nest a shape drawn beside the frame.
             dispatch({ type: 'addNode', node, parentAt: g.startWorld });
           } else {
             const patch: NodePatch = g.nodeType === 'line' ? { ...box, flipped } : box;
@@ -122,17 +243,31 @@ export function useCanvasGestures({ containerRef, state, dispatch, spacePressed,
             dispatch({ type: 'checkpoint' });
             g.moved = true;
           }
+          g.last = world;
           let dx = world.x - g.startWorld.x;
           let dy = world.y - g.startWorld.y;
+          let lockX = false;
+          let lockY = false;
           if (e.shiftKey) {
-            if (Math.abs(dx) > Math.abs(dy)) dy = 0;
-            else dx = 0;
+            if (Math.abs(dx) > Math.abs(dy)) [dy, lockY] = [0, true];
+            else [dx, lockX] = [0, true];
           }
+          const candidates = snap ? boxes(g.targets) : [];
+          const shifted = { ...g.bounds, x: g.bounds.x + dx, y: g.bounds.y + dy };
+          const sx = snap && !lockX ? snapOffset(boxLines(shifted, 'x'), candidates, 'x', threshold) : null;
+          const sy = snap && !lockY ? snapOffset(boxLines(shifted, 'y'), candidates, 'y', threshold) : null;
+          // Moves land on whole pixels, except on a snapped axis, where the target line may sit on a half pixel.
+          const place = (v: number, d: number, offset: number | null) => (offset === null ? Math.round(v + d) : v + d + offset);
           const patches: Record<string, NodePatch> = {};
           g.origins.forEach((o, id) => {
-            patches[id] = { x: Math.round(o.x + dx), y: Math.round(o.y + dy) };
+            patches[id] = { x: place(o.x, dx, sx), y: place(o.y, dy, sy) };
           });
           dispatch({ type: 'updateNodes', patches });
+          // Guides measure where the layers actually land, after each one's own rounding.
+          const moved = snap
+            ? unionBoxes(g.tops.map((n) => rotatedBounds({ ...n, x: place(n.x, dx, sx), y: place(n.y, dy, sy) }, n.rotation)))
+            : null;
+          onGuides(moved ? alignmentGuides(moved, { x: boxLines(moved, 'x'), y: boxLines(moved, 'y') }, candidates) : NO_GUIDES);
           return;
         }
         case 'resize': {
@@ -142,7 +277,32 @@ export function useCanvasGestures({ containerRef, state, dispatch, spacePressed,
             g.moved = true;
           }
           const delta = { x: world.x - g.startWorld.x, y: world.y - g.startWorld.y };
-          const box = resizeBox(g.node, g.node.rotation, g.handle, delta, minSizeFor(g.node.type));
+          const minSize = minSizeFor(g.node.type);
+          let box = resizeBox(g.node, g.node.rotation, g.handle, delta, minSize);
+          let guides = NO_GUIDES;
+          // A rotated layer's edges don't run along the axes, so they can't line up with a guide.
+          if (snap && g.node.rotation === 0) {
+            const candidates = boxes(g.targets);
+            const lines: { x: number[]; y: number[] } = { x: [], y: [] };
+            if (g.handle.dx !== 0) {
+              const edge = g.handle.dx < 0 ? box.x : box.x + box.width;
+              const off = snapOffset([edge], candidates, 'x', threshold);
+              if (off !== null && box.width + g.handle.dx * off >= minSize) {
+                box = g.handle.dx < 0 ? { ...box, x: box.x + off, width: box.width - off } : { ...box, width: box.width + off };
+              }
+              lines.x.push(g.handle.dx < 0 ? box.x : box.x + box.width);
+            }
+            if (g.handle.dy !== 0) {
+              const edge = g.handle.dy < 0 ? box.y : box.y + box.height;
+              const off = snapOffset([edge], candidates, 'y', threshold);
+              if (off !== null && box.height + g.handle.dy * off >= minSize) {
+                box = g.handle.dy < 0 ? { ...box, y: box.y + off, height: box.height - off } : { ...box, height: box.height + off };
+              }
+              lines.y.push(g.handle.dy < 0 ? box.y : box.y + box.height);
+            }
+            guides = alignmentGuides(box, lines, candidates);
+          }
+          onGuides(guides);
           dispatch({ type: 'transformNode', id: g.node.id, box });
           return;
         }
@@ -173,13 +333,14 @@ export function useCanvasGestures({ containerRef, state, dispatch, spacePressed,
         }
       }
     },
-    [dispatch, onMarquee, stateRef, toLocal],
+    [dispatch, onGuides, onMarquee, snapToLayers, stateRef, toLocal],
   );
 
   const handleUp = useCallback((e: PointerEvent) => {
     const g = gestureRef.current;
     gestureRef.current = null;
     if (!g) return;
+    onGuides(NO_GUIDES);
 
     if (g.kind === 'move' && g.moved) {
       // Same undo step as the move: the drag already checkpointed.
@@ -196,22 +357,39 @@ export function useCanvasGestures({ containerRef, state, dispatch, spacePressed,
       dispatch({ type: 'setTool', tool: 'select' });
     }
     if (g.kind === 'marquee') onMarquee(null);
-  }, [dispatch, onEditText, onMarquee, stateRef, toLocal]);
+  }, [dispatch, onEditText, onGuides, onMarquee, stateRef, toLocal]);
+
+  // A cancelled pointer (a pen or touch interruption) reports no real release point, so the
+  // gesture stops where it stands: a press never becomes a click-to-place, and a move drops
+  // where the pointer last was, so a layer dragged out of its frame isn't left clipped away.
+  const handleCancel = useCallback(() => {
+    const g = gestureRef.current;
+    gestureRef.current = null;
+    if (!g) return;
+    onGuides(NO_GUIDES);
+    if (g.kind === 'move' && g.moved) dispatch({ type: 'dropSelectionAt', point: g.last });
+    if (g.kind === 'marquee') onMarquee(null);
+    if (g.kind === 'create' && g.nodeId) dispatch({ type: 'setTool', tool: 'select' });
+  }, [dispatch, onGuides, onMarquee]);
 
   // Window-level listeners stay registered for the hook's lifetime and read the
   // latest handlers from refs, so a re-render mid-drag can never orphan them.
   const moveRef = useLatest(handleMove);
   const upRef = useLatest(handleUp);
+  const cancelRef = useLatest(handleCancel);
   useEffect(() => {
     const move = (e: PointerEvent) => moveRef.current(e);
     const up = (e: PointerEvent) => upRef.current(e);
+    const cancel = () => cancelRef.current();
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
     return () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
     };
-  }, [moveRef, upRef]);
+  }, [cancelRef, moveRef, upRef]);
 
   const onPointerDown = useCallback(
     (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -229,11 +407,17 @@ export function useCanvasGestures({ containerRef, state, dispatch, spacePressed,
       } else if (e.button !== 0) {
         return;
       } else if (isShapeTool(tool)) {
-        gesture = { kind: 'create', nodeType: tool, start: screen, startWorld: world, nodeId: null };
+        const targets = { changing: new Set<string>(), viewport: null, boxes: [] };
+        gesture = { kind: 'create', nodeType: tool, start: screen, startWorld: world, nodeId: null, targets };
       } else if (handleEl && selection.length === 1) {
         const node = nodes.find((n) => n.id === selection[0]);
         const dir = HANDLES.find((h) => h.id === handleEl.getAttribute('data-handle'));
-        if (node && dir) gesture = { kind: 'resize', start: screen, startWorld: world, node, handle: dir, moved: false };
+        if (node && dir) {
+          // A group's children scale with it, so they can't be snap targets; a frame's stay put.
+          const changing = new Set([node.id, ...(node.type === 'group' ? descendantIds(nodes, [node.id]) : [])]);
+          const targets = { changing, viewport: null, boxes: [] };
+          gesture = { kind: 'resize', start: screen, startWorld: world, node, handle: dir, targets, moved: false };
+        }
       } else if (rotateEl && selection.length === 1) {
         const node = nodes.find((n) => n.id === selection[0]);
         if (node && node.type !== 'group') gesture = { kind: 'rotate', start: screen, startWorld: world, node, moved: false };
@@ -254,7 +438,11 @@ export function useCanvasGestures({ containerRef, state, dispatch, spacePressed,
           const moving = new Set([...top, ...descendantIds(nodes, top)]);
           const origins = new Map<string, Point>();
           for (const n of nodes) if (moving.has(n.id)) origins.set(n.id, { x: n.x, y: n.y });
-          gesture = { kind: 'move', start: screen, startWorld: world, origins, moved: false };
+          const tops = top.flatMap((t) => byId.get(t) ?? []);
+          const bounds = unionBoxes(tops.map((n) => rotatedBounds(n, n.rotation)));
+          if (bounds) {
+            gesture = { kind: 'move', start: screen, startWorld: world, origins, tops, bounds, targets: { changing: moving, viewport: null, boxes: [] }, moved: false, last: world };
+          }
         }
       } else {
         const base = e.shiftKey ? selection : [];

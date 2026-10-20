@@ -93,6 +93,9 @@ export const tokens = defineTokens({
     content: { value: '760px' },
     dialog: { value: '400px' },
     radio: { value: '14px' },
+    switchWidth: { value: '28px' },
+    switchHeight: { value: '16px' },
+    switchThumb: { value: '12px' },
     full: { value: '100%' },
   },
 });

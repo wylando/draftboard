@@ -20,7 +20,7 @@ declare global {
       /** Fresh editor with empty storage. */
       visitEmpty(): Chainable<void>;
       /** Dispatch a pointer event at canvas-relative coordinates. */
-      canvasPointer(type: 'pointerdown' | 'pointermove' | 'pointerup', at: Pt, opts?: PointerOpts): Chainable<void>;
+      canvasPointer(type: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercancel', at: Pt, opts?: PointerOpts): Chainable<void>;
       /** Press and release at one point without moving. */
       canvasClick(at: Pt, opts?: PointerOpts): Chainable<void>;
       /** Dispatch a dblclick at canvas-relative coordinates. */
