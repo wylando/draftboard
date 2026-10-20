@@ -1,10 +1,13 @@
 import { boxCenter, rotatedBounds } from '../geometry';
 import { createId } from './names';
 import { tableRowTop, TABLE_ROW_HEIGHT } from './table';
-import type { Anchor, Box, ConnectorNode, DesignNode, Point } from './types';
+import type { Anchor, Box, Cardinality, ConnectorNode, DesignNode, Point } from './types';
 
-/** Design choice: how far a route leaves its side before its first turn, in world px. */
-const STUB = 16;
+/**
+ * Design choice: how far a route leaves its side before its first turn, in
+ * world px. Longer than an end marker reaches, so the marker never sits on a bend.
+ */
+export const STUB = 24;
 
 type Side = 'left' | 'right' | 'top' | 'bottom';
 
@@ -14,8 +17,81 @@ const NORMAL: Record<Side, Point> = { left: { x: -1, y: 0 }, right: { x: 1, y: 0
 export const CONNECTOR_COLOR = '#757575';
 const CONNECTOR_LOOSE_FILL = '#ffffff';
 
-export function createConnector(from: Anchor, to: Anchor, name: string): ConnectorNode {
+const isTableNode = (a: Anchor, byId: ReadonlyMap<string, DesignNode>) => a.kind === 'node' && byId.get(a.nodeId)?.type === 'table';
+
+/**
+ * What a new link between `from` and `to` means, by design choice: column to
+ * column is a many-to-one foreign key, table to table one-to-many, anything
+ * else plain (no markers).
+ */
+export function relationDefaults(
+  from: Anchor,
+  to: Anchor,
+  byId: ReadonlyMap<string, DesignNode>,
+): Pick<ConnectorNode, 'fromCardinality' | 'toCardinality' | 'isForeignKey'> {
+  const kind = linkKind(from, to, byId);
+  if (kind === 'columns') return { fromCardinality: 'many', toCardinality: 'one', isForeignKey: true };
+  if (kind === 'tables') return { fromCardinality: 'one', toCardinality: 'many', isForeignKey: false };
+  return { fromCardinality: 'none', toCardinality: 'none', isForeignKey: false };
+}
+
+export const isMany = (c: Cardinality) => c === 'many' || c === 'oneOrMany';
+
+/** The kind of link, which decides its defaults: between columns, between whole tables, or anything else. */
+export function linkKind(from: Anchor, to: Anchor, byId: ReadonlyMap<string, DesignNode>): 'columns' | 'tables' | 'plain' {
+  if (from.kind === 'column' && to.kind === 'column') return 'columns';
+  return isTableNode(from, byId) && isTableNode(to, byId) ? 'tables' : 'plain';
+}
+
+/** Whether an end can carry a cardinality: it sits on a table or one of its rows. */
+export const relationalEnd = (a: Anchor, byId: ReadonlyMap<string, DesignNode>) => a.kind === 'column' || isTableNode(a, byId);
+
+/** Many-to-many only between whole tables: between columns it can't be one column's reference. */
+export const allowsManyToMany = (from: Anchor, to: Anchor, byId: ReadonlyMap<string, DesignNode>) =>
+  isTableNode(from, byId) && isTableNode(to, byId);
+
+const CYCLE: Cardinality[] = ['one', 'zeroOrOne', 'many', 'oneOrMany', 'none'];
+
+/** The next cardinality in the cycle, skipping the many ones when they would make a link many-to-many it can't be. */
+export function nextCardinality(current: Cardinality, other: Cardinality, manyToMany: boolean): Cardinality {
+  let i = CYCLE.indexOf(current);
+  for (let step = 0; step < CYCLE.length; step++) {
+    i = (i + 1) % CYCLE.length;
+    const next = CYCLE[i] as Cardinality;
+    if (manyToMany || !isMany(other) || !isMany(next)) return next;
+  }
+  return current;
+}
+
+/** Live foreign keys, by table: the `from` column of every column-to-column connector marked as one. */
+export function foreignKeyColumns(nodes: readonly DesignNode[]): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>();
+  for (const n of nodes) {
+    if (n.type !== 'connector' || !n.isForeignKey || n.from.kind !== 'column' || n.to.kind !== 'column') continue;
+    const set = out.get(n.from.tableId) ?? new Set<string>();
+    set.add(n.from.columnId);
+    out.set(n.from.tableId, set);
+  }
+  return out;
+}
+
+const normalType = (t: string) => t.trim().toLowerCase().replace(/\s+/g, ' ');
+
+/** Whether a foreign key's column types differ (ignoring case and spacing); false for anything else. */
+export function typeMismatch(c: ConnectorNode, byId: ReadonlyMap<string, DesignNode>): boolean {
+  if (!c.isForeignKey || c.from.kind !== 'column' || c.to.kind !== 'column') return false;
+  const column = (a: Extract<Anchor, { kind: 'column' }>) => {
+    const t = byId.get(a.tableId);
+    return t?.type === 'table' ? t.columns.find((col) => col.id === a.columnId) : undefined;
+  };
+  const a = column(c.from);
+  const b = column(c.to);
+  return !!a && !!b && normalType(a.dataType) !== normalType(b.dataType);
+}
+
+export function createConnector(from: Anchor, to: Anchor, name: string, byId: ReadonlyMap<string, DesignNode>): ConnectorNode {
   return {
+    ...relationDefaults(from, to, byId),
     id: createId(),
     type: 'connector',
     name,
@@ -192,6 +268,9 @@ export function routeConnector(connector: ConnectorNode, byId: ReadonlyMap<strin
     anchorLive(anchor, byId) ? anchor : { kind: 'point', x: last?.x ?? 0, y: last?.y ?? 0, broken: true };
   const from = loosen(connector.from, connector.points[0]);
   const to = loosen(connector.to, connector.points[connector.points.length - 1]);
+  // Many-to-many only between whole tables, whatever a loaded document says.
+  const toCardinality =
+    isMany(connector.fromCardinality) && isMany(connector.toCardinality) && !allowsManyToMany(from, to, byId) ? 'one' : connector.toCardinality;
   const points = routeBetween(from, to, connector.routing, byId);
   const xs = points.map((p) => p.x);
   const ys = points.map((p) => p.y);
@@ -201,6 +280,7 @@ export function routeConnector(connector: ConnectorNode, byId: ReadonlyMap<strin
   const same =
     from === connector.from &&
     to === connector.to &&
+    toCardinality === connector.toCardinality &&
     connector.rotation === 0 &&
     connector.parentId === null &&
     box.x === connector.x &&
@@ -209,7 +289,7 @@ export function routeConnector(connector: ConnectorNode, byId: ReadonlyMap<strin
     box.height === connector.height &&
     points.length === connector.points.length &&
     points.every((p, i) => p.x === connector.points[i]?.x && p.y === connector.points[i]?.y);
-  return same ? connector : { ...connector, ...box, from, to, points, rotation: 0, parentId: null };
+  return same ? connector : { ...connector, ...box, from, to, toCardinality, points, rotation: 0, parentId: null };
 }
 
 /** `connector` with its loose ends moved by (dx, dy); attached ends follow their targets on their own. */
@@ -271,7 +351,11 @@ const isNumber = (v: unknown): v is number => typeof v === 'number' && Number.is
  */
 export function repairConnectorData(
   data: Record<string, unknown>,
-): Pick<ConnectorNode, 'from' | 'to' | 'routing' | 'points' | 'x' | 'y' | 'width' | 'height'> {
+): Pick<
+  ConnectorNode,
+  'from' | 'to' | 'routing' | 'points' | 'x' | 'y' | 'width' | 'height' | 'fromCardinality' | 'toCardinality' | 'isForeignKey'
+> {
+  const cardinality = (v: unknown): Cardinality => (CYCLE.includes(v as Cardinality) ? (v as Cardinality) : 'none');
   const points = (Array.isArray(data.points) ? data.points : []).filter((p): p is Point => isRecord(p) && isNumber(p.x) && isNumber(p.y));
   const fallback = { x: isNumber(data.x) ? data.x : 0, y: isNumber(data.y) ? data.y : 0 };
   const anchor = (v: unknown, end: Point | undefined): Anchor => {
@@ -288,6 +372,10 @@ export function repairConnectorData(
     to: anchor(data.to, points[points.length - 1]),
     routing: data.routing === 'straight' ? 'straight' : 'orthogonal',
     points,
+    // Saved before relationships existed: plain links, no markers.
+    fromCardinality: cardinality(data.fromCardinality),
+    toCardinality: cardinality(data.toCardinality),
+    isForeignKey: data.isForeignKey === true,
     // The box is derived from the route; this only keeps it a number until the first route.
     x: fallback.x,
     y: fallback.y,

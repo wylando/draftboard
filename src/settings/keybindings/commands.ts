@@ -111,6 +111,11 @@ export const FIXED_INTERACTIONS: Array<{ label: string; input: string; descripti
     description: 'Drop it on a table row, a table’s header, any layer, or empty canvas to leave it loose. Escape cancels by deselecting.',
   },
   {
+    label: 'Change cardinality',
+    input: 'Click a connector’s end marker',
+    description: 'Cycles that end through one, zero or one, many, one or many, and none. Many-to-many only between whole tables.',
+  },
+  {
     label: 'Pick or reorder a column',
     input: 'Click a row / drag its grip',
     description: 'In a selected table, click a row to pick that column (Delete removes it), or drag the grip left of a row to move it.',

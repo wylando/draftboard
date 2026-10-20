@@ -94,6 +94,8 @@ type Gesture =
   | { kind: 'rotate'; start: Point; startWorld: Point; node: DesignNode; moved: boolean }
   | { kind: 'reorder'; start: Point; tableId: string; columnId: string; slot: number | null }
   | { kind: 'connect'; start: Point; from: Anchor; moved: boolean }
+  /** A press on a connector's end marker: a click (no drag) cycles that end's cardinality. */
+  | { kind: 'marker'; start: Point; connectorId: string; end: 'from' | 'to'; moved: boolean }
   /** Dragging one end of the selected connector to re-attach it. */
   | { kind: 'reattach'; start: Point; connector: ConnectorNode; end: 'from' | 'to'; moved: boolean }
   | { kind: 'marquee'; start: Point; startWorld: Point; base: string[]; moved: boolean };
@@ -406,6 +408,9 @@ export function useCanvasGestures({
           onConnect({ from: g.from, to, moving: 'to', routing: 'orthogonal' });
           return;
         }
+        case 'marker':
+          if (dist >= DRAG_THRESHOLD) g.moved = true;
+          return;
         case 'reattach': {
           if (!g.moved && dist < DRAG_THRESHOLD) return;
           g.moved = true;
@@ -450,11 +455,13 @@ export function useCanvasGestures({
       const { nodes, viewport, tool } = stateRef.current;
       // Escape or another tool mid-drag switches the tool, which cancels the connector.
       if (g.moved && tool === 'connector') {
-        const to = anchorAt(elementsAt(e), screenToWorld(toLocal(e), viewport), byIdOf(nodes));
-        if (!linksToItself(g.from, to)) dispatch({ type: 'addNode', node: createConnector(g.from, to, nextName('connector', nodes)) });
+        const byId = byIdOf(nodes);
+        const to = anchorAt(elementsAt(e), screenToWorld(toLocal(e), viewport), byId);
+        if (!linksToItself(g.from, to)) dispatch({ type: 'addNode', node: createConnector(g.from, to, nextName('connector', nodes), byId) });
         dispatch({ type: 'setTool', tool: 'select' });
       }
     }
+    if (g.kind === 'marker' && !g.moved) dispatch({ type: 'cycleCardinality', id: g.connectorId, end: g.end });
     if (g.kind === 'reattach') {
       onConnect(null);
       const { nodes, viewport, selection } = stateRef.current;
@@ -532,6 +539,7 @@ export function useCanvasGestures({
       const rotateEl = target.closest('[data-rotate-handle]');
       const rowHandleEl = target.closest('[data-row-handle]');
       const endEl = target.closest('[data-connector-end]');
+      const markerEl = target.closest('[data-cardinality-end]');
       let gesture: Gesture | null = null;
 
       if (e.button === 1 || tool === 'hand' || spacePressed) {
@@ -543,6 +551,14 @@ export function useCanvasGestures({
       } else if (isShapeTool(tool)) {
         const targets = { changing: new Set<string>(), viewport: null, canvasSize: null, boxes: [] };
         gesture = { kind: 'create', nodeType: tool, start: screen, startWorld: world, nodeId: null, targets };
+      } else if (markerEl && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+        // Design choice: a click on an end marker cycles that end's cardinality (and selects the connector); a drag doesn't.
+        const connectorId = markerEl.closest('[data-node-id]')?.getAttribute('data-node-id');
+        const end = markerEl.getAttribute('data-cardinality-end');
+        if (connectorId && (end === 'from' || end === 'to')) {
+          dispatch({ type: 'select', ids: [connectorId] });
+          gesture = { kind: 'marker', start: screen, connectorId, end, moved: false };
+        }
       } else if (endEl && selection.length === 1) {
         const connector = nodes.find((n) => n.id === selection[0]);
         const end = endEl.getAttribute('data-connector-end');

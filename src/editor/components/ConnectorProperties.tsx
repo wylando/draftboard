@@ -1,12 +1,17 @@
+import { Switch } from '@ark-ui/react/switch';
 import { ToggleGroup } from '@ark-ui/react/toggle-group';
 import { useId } from 'react';
 import { Section } from '../../design-system';
 import { useEditor } from '../EditorContext';
+import { typeMismatch } from '../model/connector';
+import { byIdOf } from '../model/tree';
 import type { Anchor, ConnectorNode, DesignNode } from '../model/types';
 import { css } from 'styled-system/css';
-import { chipGroup } from 'styled-system/recipes';
+import { chipGroup, toggleSwitch } from 'styled-system/recipes';
 
 const chips = chipGroup();
+const switchClasses = toggleSwitch();
+const warningClass = css({ margin: '0', paddingBlock: '1', paddingInline: '2', borderRadius: 'small', bg: 'warning.bg', color: 'warning.ink' });
 const endsClass = css({ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: '2', rowGap: '1', margin: '0' });
 const termClass = css({ margin: '0', color: 'text.secondary' });
 const valueClass = css({ margin: '0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' });
@@ -25,10 +30,22 @@ function describe(anchor: Anchor, nodes: DesignNode[]): string {
   return `${node.name} · ${node.columns.find((c) => c.id === anchor.columnId)?.name ?? '?'}`;
 }
 
-/** The connector's ends and routing. Re-attach an end by dragging its handle on the canvas. */
+const columnType = (a: Anchor, nodes: DesignNode[]) => {
+  if (a.kind !== 'column') return '';
+  const table = nodes.find((n) => n.id === a.tableId);
+  return table?.type === 'table' ? (table.columns.find((c) => c.id === a.columnId)?.dataType ?? '') : '';
+};
+
+/**
+ * The connector's ends, routing and, between two columns, whether it is a
+ * foreign key. Re-attach an end by dragging its handle on the canvas; click an
+ * end's marker there to change its cardinality.
+ */
 export function ConnectorProperties({ connector }: { connector: ConnectorNode }) {
   const { state, dispatch } = useEditor();
   const routingLabel = useId();
+  const betweenColumns = connector.from.kind === 'column' && connector.to.kind === 'column';
+  const mismatch = typeMismatch(connector, byIdOf(state.nodes));
   return (
     <Section title="Connector" testId="section-connector">
       <dl className={endsClass}>
@@ -60,6 +77,25 @@ export function ConnectorProperties({ connector }: { connector: ConnectorNode })
           </ToggleGroup.Item>
         ))}
       </ToggleGroup.Root>
+      {betweenColumns && (
+        <Switch.Root
+          className={switchClasses.root}
+          checked={connector.isForeignKey}
+          onCheckedChange={({ checked }) => dispatch({ type: 'editConnector', id: connector.id, patch: { isForeignKey: checked } })}
+          data-testid="connector-fk"
+        >
+          <Switch.Control className={switchClasses.control}>
+            <Switch.Thumb className={switchClasses.thumb} />
+          </Switch.Control>
+          <Switch.Label className={switchClasses.label}>Foreign key</Switch.Label>
+          <Switch.HiddenInput />
+        </Switch.Root>
+      )}
+      {mismatch && (
+        <p className={warningClass} role="note" data-testid="connector-type-warning">
+          The columns’ types differ: {columnType(connector.from, state.nodes)} → {columnType(connector.to, state.nodes)}.
+        </p>
+      )}
     </Section>
   );
 }

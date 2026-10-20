@@ -4,14 +4,23 @@ import { useLatest } from '../../shared/useLatest';
 import { useEditor } from '../EditorContext';
 import { measureBetween, rotatedBounds, screenToWorld, unionBoxes, type Guides } from '../geometry';
 import { useCanvasGestures, type ConnectPreview, type Marquee } from '../hooks/useCanvasGestures';
-import { anchorAt, anchorBox, linksToItself, routeBetween, sameAnchor } from '../model/connector';
+import {
+  anchorAt,
+  anchorBox,
+  foreignKeyColumns,
+  linksToItself,
+  relationalEnd,
+  routeBetween,
+  sameAnchor,
+  typeMismatch,
+} from '../model/connector';
 import { SQL_DIALECTS, type RowDrop, type TableCell } from '../model/table';
 import { byIdOf, childrenByParent, enteredScopes, isEffectivelyVisible, selectTarget } from '../model/tree';
 import type { Anchor, DesignNode, TableNode, TextNode, Viewport } from '../model/types';
 import { CANVAS_FONT_FAMILY, measureText } from '../textMetrics';
 import { usePreferences } from '../../settings/preferences/PreferencesContext';
 import { CanvasGrid } from './CanvasGrid';
-import { FrameLabel, NodeView } from './NodeView';
+import { FrameLabel, NodeView, RelationsContext, type Relations } from './NodeView';
 import { SelectionOverlay } from './SelectionOverlay';
 import { TableCellEditor } from './TableCellEditor';
 import { TextEditor } from './TextEditor';
@@ -168,7 +177,18 @@ export function Canvas() {
 
   const { viewport, nodes, selection, tool } = state;
   const childrenOf = useMemo(() => childrenByParent(nodes), [nodes]);
-  const byId = byIdOf(nodes);
+  const byId = useMemo(() => byIdOf(nodes), [nodes]);
+  const relations = useMemo<Relations>(() => {
+    const mismatched = new Set<string>();
+    const relationalEnds = new Set<string>();
+    for (const n of nodes) {
+      if (n.type !== 'connector') continue;
+      if (typeMismatch(n, byId)) mismatched.add(n.id);
+      if (relationalEnd(n.from, byId)) relationalEnds.add(`${n.id}:from`);
+      if (relationalEnd(n.to, byId)) relationalEnds.add(`${n.id}:to`);
+    }
+    return { foreignKeys: foreignKeyColumns(nodes), mismatched, relationalEnds };
+  }, [nodes, byId]);
   const selectedSet = new Set(selection);
   const selected = nodes.filter((n) => selectedSet.has(n.id) && isEffectivelyVisible(byId, n));
   const picked = state.selectedColumn;
@@ -234,9 +254,11 @@ export function Canvas() {
           data-zoom={viewport.zoom}
           transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.zoom})`}
         >
-          {(childrenOf.get(null) ?? []).map((n) => (
-            <NodeView key={n.id} node={n} childrenOf={childrenOf} editingId={editingId} />
-          ))}
+          <RelationsContext.Provider value={relations}>
+            {(childrenOf.get(null) ?? []).map((n) => (
+              <NodeView key={n.id} node={n} childrenOf={childrenOf} editingId={editingId} />
+            ))}
+          </RelationsContext.Provider>
           {nodes.map((n) => (
             <FrameLabel key={`label-${n.id}`} node={n} zoom={viewport.zoom} />
           ))}

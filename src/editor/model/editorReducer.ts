@@ -2,7 +2,7 @@ import { boxCenter, mapBoxBetween, rotatePoint } from '../geometry';
 import type { Anchor, Box, ConnectorNode, DesignNode, NodePatch, Point, ToolId, Viewport } from './types';
 import { createId, nameKey, nameTaken, uniqueName } from './names';
 import { createGroup } from './nodes';
-import { linksToItself, sameAnchor, shiftLooseEnds } from './connector';
+import { allowsManyToMany, isMany, linkKind, linksToItself, nextCardinality, relationDefaults, sameAnchor, shiftLooseEnds } from './connector';
 import { applyTableEdit, type TableEdit } from './table';
 import { byIdOf, descendantIds, type ById, frameAt, isContainer, mapSiblings, normalizeTree, topLevelIds } from './tree';
 
@@ -43,8 +43,17 @@ export type EditorAction =
   | { type: 'updateNodes'; patches: Record<string, NodePatch> }
   /** Ignored when the trimmed name is empty, unchanged or held by another layer (ignoring case). */
   | { type: 'renameNode'; id: string; name: string }
-  /** Re-attaches a connector end or changes its routing, as one undo step. Ignored for a self-link or no change. */
-  | { type: 'editConnector'; id: string; patch: Partial<Pick<ConnectorNode, 'from' | 'to' | 'routing'>> }
+  /**
+   * Re-attaches a connector end or changes its routing, cardinality or foreign-key flag, as one undo
+   * step. Ignored for a self-link, no change, or a many-to-many link that isn't between whole tables.
+   */
+  | {
+      type: 'editConnector';
+      id: string;
+      patch: Partial<Pick<ConnectorNode, 'from' | 'to' | 'routing' | 'fromCardinality' | 'toCardinality' | 'isForeignKey'>>;
+    }
+  /** Steps one end's cardinality to the next allowed one, as one undo step. */
+  | { type: 'cycleCardinality'; id: string; end: 'from' | 'to' }
   /** One change to a table's columns or indexes, as one undo step. Ignored when `applyTableEdit` refuses it. */
   | { type: 'editTable'; id: string; edit: TableEdit }
   /**
@@ -317,11 +326,33 @@ function reduce(state: EditorState, action: EditorAction): EditorState {
     case 'editConnector': {
       const connector = state.nodes.find((n) => n.id === action.id);
       if (connector?.type !== 'connector') return state;
-      const next = { ...connector, ...action.patch };
-      const unchanged = sameAnchor(next.from, connector.from) && sameAnchor(next.to, connector.to) && next.routing === connector.routing;
+      const { patch } = action;
+      let next = { ...connector, ...patch };
+      const byId = byIdOf(state.nodes);
+      // Re-attached into another kind of link (columns, tables, plain): it takes that kind's meaning.
+      if (linkKind(next.from, next.to, byId) !== linkKind(connector.from, connector.to, byId)) {
+        next = { ...next, ...relationDefaults(next.from, next.to, byId) };
+      }
+      if (isMany(next.fromCardinality) && isMany(next.toCardinality) && !allowsManyToMany(next.from, next.to, byId)) {
+        if (patch.fromCardinality || patch.toCardinality) return state;
+        // A re-attach out of a table-to-table many-to-many: the moved end becomes one.
+        next = patch.from ? { ...next, fromCardinality: 'one' } : { ...next, toCardinality: 'one' };
+      }
+      const unchanged =
+        sameAnchor(next.from, connector.from) &&
+        sameAnchor(next.to, connector.to) &&
+        (['routing', 'fromCardinality', 'toCardinality', 'isForeignKey'] as const).every((k) => next[k] === connector[k]);
       if (unchanged || linksToItself(next.from, next.to)) return state;
       const s = pushHistory(state);
       return { ...s, nodes: normalizeTree(s.nodes.map((n) => (n.id === action.id ? next : n))) };
+    }
+
+    case 'cycleCardinality': {
+      const connector = state.nodes.find((n) => n.id === action.id);
+      if (connector?.type !== 'connector') return state;
+      const [own, other] = action.end === 'from' ? (['fromCardinality', 'toCardinality'] as const) : (['toCardinality', 'fromCardinality'] as const);
+      const next = nextCardinality(connector[own], connector[other], allowsManyToMany(connector.from, connector.to, byIdOf(state.nodes)));
+      return reduce(state, { type: 'editConnector', id: connector.id, patch: { [own]: next } });
     }
 
     case 'editTable': {
