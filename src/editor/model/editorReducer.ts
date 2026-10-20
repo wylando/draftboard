@@ -1,6 +1,8 @@
 import { boxCenter, mapBoxBetween, rotatePoint } from '../geometry';
 import type { Box, DesignNode, NodePatch, Point, ToolId, Viewport } from './types';
-import { createGroup, createId, nameKey, nameTaken, uniqueName } from './nodes';
+import { createId, nameKey, nameTaken, uniqueName } from './names';
+import { createGroup } from './nodes';
+import { applyTableEdit, type TableEdit } from './table';
 import { byIdOf, descendantIds, type ById, frameAt, isContainer, mapSiblings, normalizeTree, topLevelIds } from './tree';
 
 const HISTORY_LIMIT = 200;
@@ -34,6 +36,8 @@ export type EditorAction =
   | { type: 'updateNodes'; patches: Record<string, NodePatch> }
   /** Ignored when the trimmed name is empty, unchanged or held by another layer (ignoring case). */
   | { type: 'renameNode'; id: string; name: string }
+  /** One change to a table's columns or indexes, as one undo step. Ignored when `applyTableEdit` refuses it. */
+  | { type: 'editTable'; id: string; edit: TableEdit }
   /**
    * Transient. Sets a node's box and carries its children along: moving a
    * frame or group moves them, resizing a group scales them, resizing a frame
@@ -258,6 +262,14 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       if (!node || !name || name === node.name || nameTaken(state.nodes, name, node.id)) return state;
       const s = pushHistory(state);
       return { ...s, nodes: s.nodes.map((n) => (n.id === action.id ? { ...n, name } : n)) };
+    }
+
+    case 'editTable': {
+      const table = state.nodes.find((n) => n.id === action.id);
+      const next = table?.type === 'table' ? applyTableEdit(table, action.edit) : null;
+      if (!next) return state;
+      const s = pushHistory(state);
+      return { ...s, nodes: normalizeTree(s.nodes.map((n) => (n.id === action.id ? next : n))) };
     }
 
     case 'transformNode': {

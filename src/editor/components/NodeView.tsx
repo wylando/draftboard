@@ -1,6 +1,7 @@
 import { memo } from 'react';
-import type { DesignNode } from '../model/types';
-import { CANVAS_FONT_FAMILY, TEXT_LINE_HEIGHT } from '../textMetrics';
+import { TABLE_COLORS, TABLE_HEADER_HEIGHT, TABLE_ROW_HEIGHT } from '../model/table';
+import type { DesignNode, TableNode } from '../model/types';
+import { CANVAS_FONT_FAMILY, CANVAS_MONO_FAMILY, measureText, TEXT_LINE_HEIGHT } from '../textMetrics';
 import { css } from 'styled-system/css';
 import { token } from 'styled-system/tokens';
 
@@ -9,6 +10,137 @@ const noSelectClass = css({ userSelect: 'none' });
 
 /** Invisible stroke width (world px) that makes thin lines easy to grab. */
 const LINE_HIT_WIDTH = 8;
+
+/** Design choice: table typography and spacing in world px. */
+const TABLE = { radius: 8, pad: 12, gap: 8, nameSize: 13, columnSize: 12, typeSize: 11, badgeSize: 9, badgeWidth: 26 } as const;
+
+/** Whether `color` (#rrggbb) is dark enough that white text reads better on it than black. */
+function isDark(color: string): boolean {
+  const hex = /^#?([0-9a-f]{6})$/i.exec(color)?.[1];
+  if (!hex) return false;
+  const [r, g, b] = [0, 2, 4].map((i) => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  }) as [number, number, number];
+  // At this relative luminance black and white text have equal contrast.
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b < 0.179;
+}
+
+/** `text`, cut short with an ellipsis if it is wider than `max` world px. */
+function fitText(text: string, max: number, size: number, family: string, weight = 400): string {
+  const width = (t: string) => measureText(t, size, family, weight).width;
+  if (width(text) <= max) return text;
+  // Binary search for the longest prefix that fits with its ellipsis.
+  let lo = 0;
+  let hi = text.length - 1;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (width(`${text.slice(0, mid)}…`) <= max) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo > 0 ? `${text.slice(0, lo)}…` : '';
+}
+
+/**
+ * Header with the table's name on its accent, then one row per column: key
+ * badge, name, an index marker for indexed columns, and the type (with `?`
+ * when nullable) right-aligned. When name and type don't both fit, the type
+ * keeps what the name leaves (at least half the row) and the name the rest,
+ * each cut short with an ellipsis rather than overlapping.
+ */
+function TableShape({ node }: { node: TableNode }) {
+  const { width: w, height: h } = node;
+  const clipId = `table-clip-${node.id}`;
+  const indexed = new Set(node.indexes.flatMap((i) => i.columnIds));
+  const headerDark = isDark(node.accent);
+  const bodyDark = isDark(node.fill);
+  const ink = bodyDark ? TABLE_COLORS.onDark : TABLE_COLORS.text;
+  const muted = bodyDark ? TABLE_COLORS.onDarkMuted : TABLE_COLORS.muted;
+  const text = { fontFamily: CANVAS_FONT_FAMILY, dominantBaseline: 'central', className: noSelectClass } as const;
+  const nameX = TABLE.pad + TABLE.badgeWidth;
+  const rowSpace = w - TABLE.pad - nameX;
+  const idxWidth = measureText('idx', TABLE.badgeSize, CANVAS_FONT_FAMILY).width + TABLE.gap;
+  return (
+    <>
+      <clipPath id={clipId}>
+        <rect width={w} height={h} rx={TABLE.radius} />
+      </clipPath>
+      <g clipPath={`url(#${clipId})`}>
+        <rect data-testid="table-body" width={w} height={h} fill={node.fill} />
+        <rect data-testid="table-header" width={w} height={TABLE_HEADER_HEIGHT} fill={node.accent} />
+        <text
+          {...text}
+          data-testid="table-name"
+          x={TABLE.pad}
+          y={TABLE_HEADER_HEIGHT / 2}
+          fontSize={TABLE.nameSize}
+          fontWeight={600}
+          fill={headerDark ? TABLE_COLORS.onDark : TABLE_COLORS.text}
+        >
+          {fitText(node.name, w - 2 * TABLE.pad, TABLE.nameSize, CANVAS_FONT_FAMILY, 600)}
+        </text>
+        {node.columns.map((c, i) => {
+          const y = TABLE_HEADER_HEIGHT + i * TABLE_ROW_HEIGHT;
+          const mid = y + TABLE_ROW_HEIGHT / 2;
+          const badge = c.primaryKey ? 'PK' : c.unique ? 'UQ' : null;
+          const isIndexed = indexed.has(c.id);
+          const nameSpace = rowSpace - TABLE.gap - (isIndexed ? idxWidth : 0);
+          const nameWidth = measureText(c.name, TABLE.columnSize, CANVAS_FONT_FAMILY).width;
+          const type = fitText(`${c.dataType}${c.nullable ? '?' : ''}`, Math.max(rowSpace / 2, nameSpace - nameWidth), TABLE.typeSize, CANVAS_MONO_FAMILY);
+          const typeWidth = measureText(type, TABLE.typeSize, CANVAS_MONO_FAMILY).width;
+          const name = fitText(c.name, nameSpace - typeWidth, TABLE.columnSize, CANVAS_FONT_FAMILY);
+          return (
+            <g key={c.id} data-testid="table-column" data-column-id={c.id}>
+              {i > 0 && <line x1={0} x2={w} y1={y} y2={y} stroke={bodyDark ? muted : TABLE_COLORS.divider} strokeOpacity={bodyDark ? 0.4 : 1} />}
+              {badge && (
+                <text
+                  {...text}
+                  data-testid="column-badge"
+                  x={TABLE.pad}
+                  y={mid}
+                  fontSize={TABLE.badgeSize}
+                  fontWeight={700}
+                  fill={bodyDark ? TABLE_COLORS.onDarkBadge : TABLE_COLORS.badge}
+                >
+                  {badge}
+                </text>
+              )}
+              <text {...text} data-testid="column-name" x={nameX} y={mid} fontSize={TABLE.columnSize} fill={ink}>
+                {name}
+              </text>
+              {isIndexed && (
+                <text
+                  {...text}
+                  data-testid="column-index"
+                  x={nameX + measureText(name, TABLE.columnSize, CANVAS_FONT_FAMILY).width + 6}
+                  y={mid}
+                  fontSize={TABLE.badgeSize}
+                  fill={muted}
+                >
+                  idx
+                </text>
+              )}
+              <text
+                {...text}
+                data-testid="column-type"
+                x={w - TABLE.pad}
+                y={mid}
+                textAnchor="end"
+                fontFamily={CANVAS_MONO_FAMILY}
+                fontSize={TABLE.typeSize}
+                fill={muted}
+              >
+                {type}
+              </text>
+            </g>
+          );
+        })}
+      </g>
+      <line x1={0} x2={w} y1={TABLE_HEADER_HEIGHT} y2={TABLE_HEADER_HEIGHT} stroke={node.stroke} strokeWidth={node.strokeWidth} />
+      <rect width={w} height={h} rx={TABLE.radius} fill="none" stroke={node.strokeWidth > 0 ? node.stroke : 'none'} strokeWidth={node.strokeWidth} />
+    </>
+  );
+}
 
 function Shape({ node }: { node: DesignNode }) {
   const stroke = node.strokeWidth > 0 ? node.stroke : 'none';
@@ -43,6 +175,8 @@ function Shape({ node }: { node: DesignNode }) {
         </>
       );
     }
+    case 'table':
+      return <TableShape node={node} />;
     case 'text':
       return (
         <>

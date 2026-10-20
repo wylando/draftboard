@@ -1,4 +1,5 @@
 import { pointInRotatedBox, rotatedBounds, unionBoxes } from '../geometry';
+import { tableHeight } from './table';
 import type { DesignNode, Point } from './types';
 
 /**
@@ -138,7 +139,8 @@ export function mapSiblings(
  * - parents that are missing, not containers, or part of a cycle become null;
  * - the list is rewritten in preorder, keeping sibling order;
  * - empty groups are removed;
- * - each group's box is the union of its children, with rotation 0.
+ * - each group's box is the union of its children, with rotation 0;
+ * - each table is as tall as its header and rows, with rotation 0.
  * Nodes that need no change keep their identity, so memoized views skip them.
  */
 export function normalizeTree(input: readonly DesignNode[]): DesignNode[] {
@@ -180,6 +182,10 @@ export function normalizeTree(input: readonly DesignNode[]): DesignNode[] {
       if (!built) continue;
       direct.push(built[0] as DesignNode);
       sub.push(...built);
+    }
+    if (node.type === 'table') {
+      const height = tableHeight(node.columns.length);
+      return [node.height === height && node.rotation === 0 ? node : { ...node, height, rotation: 0 }, ...sub];
     }
     if (node.type !== 'group') return [node, ...sub];
     const bounds = unionBoxes(direct.map((c) => rotatedBounds(c, c.rotation)));

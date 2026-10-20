@@ -116,10 +116,16 @@ export const HANDLES: Array<HandleDir & { id: string; cursor: string }> = [
  * Resize a rotated box by dragging one handle by `worldDelta`, keeping the
  * opposite handle fixed in world space. Works for rotation 0 as a special case.
  */
-export function resizeBox(start: Box, rotation: number, handle: HandleDir, worldDelta: Point, minSize = 1): Box {
+export function resizeBox(
+  start: Box,
+  rotation: number,
+  handle: HandleDir,
+  worldDelta: Point,
+  minSize: { width: number; height: number } = { width: 1, height: 1 },
+): Box {
   const local = rotatePoint(worldDelta, -rotation);
-  const width = Math.max(minSize, start.width + handle.dx * local.x);
-  const height = Math.max(minSize, start.height + handle.dy * local.y);
+  const width = Math.max(minSize.width, start.width + handle.dx * local.x);
+  const height = Math.max(minSize.height, start.height + handle.dy * local.y);
 
   // World position of the anchor (the point opposite the dragged handle).
   const c0 = boxCenter(start);

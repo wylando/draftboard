@@ -31,6 +31,7 @@ Draw, arrange and fine-tune shapes on an infinite canvas: no account, no cloud, 
 - 🖱️ **Direct manipulation**: click, Shift-click or marquee-select. Move, resize with eight handles (rotated shapes too), rotate by dragging just outside a corner (Shift snaps to 15°), and constrain with Shift.
 - 📐 **Smart guides**: moving, resizing or drawing snaps to the edges and centers of other layers on screen, with a guide line for each match. Hold ⌘/Ctrl once a drag has started to skip it (held before the click, it deep-selects as usual), or turn it off under Settings → Canvas. A moved layer also snaps to a gap already used between layers in its row or column, or to the middle between two neighbours, with every equal gap marked. Resizing a rotated layer doesn't snap yet.
 - 📏 **Measure**: with a layer selected, hold Alt/Option and point at another layer to see the distances between them, including the space on each side when one encloses the other.
+- 🗃️ **Database tables**: sketch a schema with table layers: a header with the table name, one row per column with its type, and PK / UQ badges, `?` for nullable and an `idx` marker for indexed columns. Add, rename, retype, flag and delete columns, define indexes (their column order is shown), and pick a header color from 8 swatches or any hex, in the Design panel; each change is one undo step. Column and index names are unique per table, ignoring case, and a primary key is never nullable. Long names are cut short with an ellipsis; tables are at least 120 px wide. A damaged table in a saved or imported file is repaired rather than refused. Settings → Canvas → SQL dialect (PostgreSQL, MySQL, SQLite) picks the type suggestions and the new `id` type; types stay free text.
 - 🎛️ **Properties panel**: position, size, rotation, corner radius, fill, stroke, opacity, and text content and size. Type a value, or drag a number field's label sideways to scrub it (Shift ×10, Alt ×0.1); a whole scrub undoes in one step.
 - 🗂️ **Layers tree**: a code-editor-style tree with collapsible frames and groups and indent guides. Select, rename, show or hide any layer, and drag to reorder or nest. Layer names are unique, ignoring case: a rename to a name another layer has is refused with a short message.
 - 🪆 **Frames and groups**: shapes drawn or dropped on a frame go inside it and move with it. Group the selection (`⌘G`) to move and scale it as one; double-click to select inside a group.
@@ -68,6 +69,7 @@ Then open **http://localhost:5173**. That's it.
 | Ellipse   | `O` | Draw an ellipse. Hold Shift for a circle. |
 | Line      | `L` | Draw a straight line. Hold Shift to snap to 45°. |
 | Text      | `T` | Click to place text and start typing. Enter finishes; Shift+Enter adds a line. |
+| Table     | `D` | Place a database table with an `id` primary key; drag to set its width. |
 | Hand      | `H` | Drag to pan without selecting anything. |
 
 ### Default shortcuts

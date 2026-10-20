@@ -19,6 +19,12 @@ function Icon(props: SVGProps<SVGSVGElement>) {
 }
 
 export const icons = {
+  table: () => (
+    <Icon>
+      <rect x="2" y="2.5" width="12" height="11" rx="1.5" />
+      <path d="M2 6h12M2 9.75h12M7 6v7.5" />
+    </Icon>
+  ),
   select: () => (
     <Icon>
       <path d="M3.5 2.5l9 4.2-3.9 1.1-1.6 3.7z" />

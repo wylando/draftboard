@@ -1,4 +1,4 @@
-export type DrawableType = 'frame' | 'rect' | 'ellipse' | 'line' | 'text';
+export type DrawableType = 'frame' | 'rect' | 'ellipse' | 'line' | 'text' | 'table';
 
 /** Groups are made from a selection (Group command), never drawn. */
 export type NodeType = DrawableType | 'group';
@@ -73,11 +73,49 @@ export interface GroupNode extends BaseNode {
   type: 'group';
 }
 
-export type DesignNode = FrameNode | RectNode | EllipseNode | LineNode | TextNode | GroupNode;
+export interface Column {
+  /** Stable within its table, so links to the column survive renames and reorders. */
+  id: string;
+  /** Unique within its table, ignoring case. */
+  name: string;
+  /** Free text; the SQL dialect setting only suggests values. */
+  dataType: string;
+  primaryKey: boolean;
+  nullable: boolean;
+  unique: boolean;
+  default?: string;
+  note?: string;
+}
+
+export interface TableIndex {
+  id: string;
+  name: string;
+  /** In index order, which matters for a composite index. */
+  columnIds: string[];
+  unique: boolean;
+}
+
+/**
+ * A database table sketch. Its name is the layer name. Its height is derived
+ * from the column count by `normalizeTree`, and its rotation stays 0. Columns
+ * change only through the `editTable` action, which keeps names unique.
+ */
+export interface TableNode extends BaseNode {
+  type: 'table';
+  /** Array order is display order. */
+  columns: Column[];
+  indexes: TableIndex[];
+  /** Header color, for grouping tables by domain. */
+  accent: string;
+  note?: string;
+}
+
+export type DesignNode = FrameNode | RectNode | EllipseNode | LineNode | TextNode | GroupNode | TableNode;
 
 /**
  * Fields any node type may carry; used for partial, type-agnostic updates.
  * Excludes `name`, which changes only through `renameNode` so names stay unique.
+ * A table's own fields change only through `editTable`.
  */
 export type NodePatch = Partial<
   Omit<FrameNode, 'id' | 'type' | 'name'> &

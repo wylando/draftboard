@@ -1,7 +1,7 @@
 import { useState, type DragEvent, type ReactElement } from 'react';
 import { IconButton, icons, Panel, Section } from '../../design-system';
 import { useEditor } from '../EditorContext';
-import { nameTaken } from '../model/nodes';
+import { nameTaken } from '../model/names';
 import { ancestorIds, byIdOf, childrenByParent, isContainer, topLevelIds } from '../model/tree';
 import type { DesignNode, NodeType } from '../model/types';
 import { emptyHint, fieldError, sidebarLeft } from '../styles';
@@ -96,6 +96,7 @@ const TYPE_ICONS: Record<NodeType, () => ReactElement> = {
   ellipse: icons.ellipse,
   line: icons.line,
   text: icons.text,
+  table: icons.table,
 };
 
 interface Row {

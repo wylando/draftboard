@@ -4,6 +4,7 @@ import { useLatest } from '../../shared/useLatest';
 import { useEditor } from '../EditorContext';
 import { measureBetween, rotatedBounds, unionBoxes, type Guides } from '../geometry';
 import { useCanvasGestures, type Marquee } from '../hooks/useCanvasGestures';
+import { SQL_DIALECTS } from '../model/table';
 import { byIdOf, childrenByParent, enteredScopes, isEffectivelyVisible, selectTarget } from '../model/tree';
 import type { DesignNode, TextNode, Viewport } from '../model/types';
 import { CANVAS_FONT_FAMILY, measureText } from '../textMetrics';
@@ -32,7 +33,7 @@ const TOOL_CURSORS: Record<string, string> = {
 
 export function Canvas() {
   const { state, dispatch } = useEditor();
-  const { gridStyle, snapToLayers } = usePreferences().preferences;
+  const { gridStyle, snapToLayers, sqlDialect } = usePreferences().preferences;
   const containerRef = useRef<HTMLDivElement>(null);
   const [marquee, setMarquee] = useState<Marquee | null>(null);
   const [guides, setGuides] = useState<Guides>({ lines: [], spacing: [] });
@@ -92,6 +93,7 @@ export function Canvas() {
     dispatch,
     spacePressed,
     snapToLayers,
+    tableIdType: SQL_DIALECTS[sqlDialect].idType,
     onMarquee: setMarquee,
     onGuides: setGuides,
     onEditText,

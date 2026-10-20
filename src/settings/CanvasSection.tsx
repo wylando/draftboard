@@ -4,6 +4,7 @@ import { css, cx } from 'styled-system/css';
 import { radioGroup, toggleSwitch } from 'styled-system/recipes';
 import { usePreferences } from './preferences/PreferencesContext';
 import { GRID_STYLES, type GridStyle } from './preferences/storage';
+import { SQL_DIALECT_IDS, SQL_DIALECTS, type SqlDialect } from '../editor/model/table';
 
 const classes = radioGroup();
 const switchClasses = toggleSwitch();
@@ -54,6 +55,25 @@ export function CanvasSection() {
         Moving, resizing and drawing line up with other layers’ edges and centers. Hold ⌘/Ctrl once a drag has started to
         skip it for that drag.
       </p>
+
+      <RadioGroup.Root
+        className={classes.root}
+        value={preferences.sqlDialect}
+        onValueChange={({ value }) => value && setPreference('sqlDialect', value as SqlDialect)}
+      >
+        <RadioGroup.Label className={cx(classes.label, headingClass)} asChild>
+          <h2>SQL dialect</h2>
+        </RadioGroup.Label>
+        <p className={mutedClass}>Suggests column types for tables and types a new table’s id. Types stay free text.</p>
+        {SQL_DIALECT_IDS.map((id) => (
+          <RadioGroup.Item key={id} value={id} className={classes.item} data-testid={`sql-dialect-${id}`}>
+            <RadioGroup.ItemControl className={classes.itemControl} />
+            <RadioGroup.ItemText className={classes.itemText}>{SQL_DIALECTS[id].label}</RadioGroup.ItemText>
+            <span className={classes.itemDescription}>New ids are {SQL_DIALECTS[id].idType}.</span>
+            <RadioGroup.ItemHiddenInput />
+          </RadioGroup.Item>
+        ))}
+      </RadioGroup.Root>
     </section>
   );
 }

@@ -10,3 +10,4 @@ export { tabsRecipe } from './recipes/tabs';
 export { dialogRecipe } from './recipes/dialog';
 export { radioGroupRecipe } from './recipes/radioGroup';
 export { toggleSwitchRecipe } from './recipes/toggleSwitch';
+export { chipGroupRecipe } from './recipes/chipGroup';
