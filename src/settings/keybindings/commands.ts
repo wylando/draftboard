@@ -99,6 +99,16 @@ export const FIXED_INTERACTIONS: Array<{ label: string; input: string; descripti
   },
   { label: 'Rotate', input: 'Drag just outside a corner', description: 'Rotate the selected layer about its center. Hold Shift to snap to 15° steps.' },
   { label: 'Edit text', input: 'Double-click a text layer', description: 'Edit its content in place.' },
+  {
+    label: 'Edit a table',
+    input: 'Double-click a table',
+    description: 'Edit its name (header), or a column’s name (left half of a row) or type (right half). Tab moves on, Enter on the last row adds a column, Escape cancels.',
+  },
+  {
+    label: 'Pick or reorder a column',
+    input: 'Click a row / drag its grip',
+    description: 'In a selected table, click a row to pick that column (Delete removes it), or drag the grip left of a row to move it.',
+  },
   { label: 'Rename layer', input: 'Double-click in Layers panel', description: 'Edit the layer name.' },
   {
     label: 'Scrub a value',

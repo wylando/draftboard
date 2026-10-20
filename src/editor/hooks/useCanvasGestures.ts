@@ -28,6 +28,7 @@ import {
 import { useLatest } from '../../shared/useLatest';
 import type { EditorAction, EditorState } from '../model/editorReducer';
 import { createNode, DEFAULT_SIZE, minSizeFor } from '../model/nodes';
+import { TABLE_HEADER_HEIGHT, TABLE_ROW_HEIGHT, type RowDrop, type TableCell } from '../model/table';
 import { byIdOf, descendantIds, enteredScopes, isEffectivelyVisible, selectTarget, topLevelIds } from '../model/tree';
 import type { Box, DesignNode, DrawableType, NodePatch, Point, Viewport } from '../model/types';
 
@@ -59,6 +60,8 @@ type Gesture =
       moved: boolean;
       /** World pointer position at the latest move; a cancel drops the selection here. */
       last: Point;
+      /** A press on a row of the already-selected table: without a drag, it picks that column. */
+      clickColumn: { tableId: string; columnId: string } | null;
     }
   | {
       kind: 'resize';
@@ -70,6 +73,7 @@ type Gesture =
       moved: boolean;
     }
   | { kind: 'rotate'; start: Point; startWorld: Point; node: DesignNode; moved: boolean }
+  | { kind: 'reorder'; start: Point; tableId: string; columnId: string; slot: number | null }
   | { kind: 'marquee'; start: Point; startWorld: Point; base: string[]; moved: boolean };
 
 export interface Marquee {
@@ -87,6 +91,8 @@ interface Options {
   onMarquee: (marquee: Marquee | null) => void;
   onGuides: (guides: Guides) => void;
   onEditText: (id: string) => void;
+  onEditTable: (cell: TableCell) => void;
+  onRowDrop: (drop: RowDrop | null) => void;
 }
 
 const isShapeTool = (tool: string): tool is DrawableType =>
@@ -159,6 +165,8 @@ export function useCanvasGestures({
   onMarquee,
   onGuides,
   onEditText,
+  onEditTable,
+  onRowDrop,
 }: Options) {
   const stateRef = useLatest(state);
   const gestureRef = useRef<Gesture | null>(null);
@@ -350,6 +358,17 @@ export function useCanvasGestures({
           dispatch({ type: 'transformNode', id: g.node.id, box: { rotation } });
           return;
         }
+        case 'reorder': {
+          if (g.slot === null && dist < DRAG_THRESHOLD) return;
+          const table = nodes.find((n) => n.id === g.tableId);
+          if (table?.type !== 'table') return;
+          const slot = Math.round((world.y - table.y - TABLE_HEADER_HEIGHT) / TABLE_ROW_HEIGHT);
+          g.slot = Math.max(0, Math.min(table.columns.length, slot));
+          // Just above or below the row itself it wouldn't move, so no drop line.
+          const from = table.columns.findIndex((c) => c.id === g.columnId);
+          onRowDrop(g.slot === from || g.slot === from + 1 ? null : { tableId: table.id, index: g.slot });
+          return;
+        }
         case 'marquee': {
           if (!g.moved && dist < DRAG_THRESHOLD) return;
           g.moved = true;
@@ -366,7 +385,7 @@ export function useCanvasGestures({
         }
       }
     },
-    [dispatch, onGuides, onMarquee, snapToLayers, stateRef, tableIdType, toLocal],
+    [dispatch, onGuides, onMarquee, onRowDrop, snapToLayers, stateRef, tableIdType, toLocal],
   );
 
   const handleUp = useCallback((e: PointerEvent) => {
@@ -379,6 +398,17 @@ export function useCanvasGestures({
       // Same undo step as the move: the drag already checkpointed.
       dispatch({ type: 'dropSelectionAt', point: screenToWorld(toLocal(e), stateRef.current.viewport) });
     }
+    if (g.kind === 'move' && !g.moved && g.clickColumn) dispatch({ type: 'selectColumn', ...g.clickColumn });
+    if (g.kind === 'reorder') {
+      onRowDrop(null);
+      const table = stateRef.current.nodes.find((n) => n.id === g.tableId);
+      const from = table?.type === 'table' ? table.columns.findIndex((c) => c.id === g.columnId) : -1;
+      if (g.slot !== null && from >= 0) {
+        // A slot below the row's own position counts the row itself, which moves out first.
+        const toIndex = g.slot > from ? g.slot - 1 : g.slot;
+        dispatch({ type: 'editTable', id: g.tableId, edit: { kind: 'moveColumn', columnId: g.columnId, toIndex } });
+      }
+    }
     if (g.kind === 'create') {
       if (!g.nodeId) {
         // A click without a drag places a default-sized node at the pointer.
@@ -390,7 +420,7 @@ export function useCanvasGestures({
       dispatch({ type: 'setTool', tool: 'select' });
     }
     if (g.kind === 'marquee') onMarquee(null);
-  }, [dispatch, onEditText, onGuides, onMarquee, stateRef, tableIdType, toLocal]);
+  }, [dispatch, onEditText, onGuides, onMarquee, onRowDrop, stateRef, tableIdType, toLocal]);
 
   // A cancelled pointer (a pen or touch interruption) reports no real release point, so the
   // gesture stops where it stands: a press never becomes a click-to-place, and a move drops
@@ -402,8 +432,9 @@ export function useCanvasGestures({
     onGuides(NO_GUIDES);
     if (g.kind === 'move' && g.moved) dispatch({ type: 'dropSelectionAt', point: g.last });
     if (g.kind === 'marquee') onMarquee(null);
+    if (g.kind === 'reorder') onRowDrop(null);
     if (g.kind === 'create' && g.nodeId) dispatch({ type: 'setTool', tool: 'select' });
-  }, [dispatch, onGuides, onMarquee]);
+  }, [dispatch, onGuides, onMarquee, onRowDrop]);
 
   // Window-level listeners stay registered for the hook's lifetime and read the
   // latest handlers from refs, so a re-render mid-drag can never orphan them.
@@ -433,6 +464,7 @@ export function useCanvasGestures({
       const nodeEl = target.closest('[data-node-id]');
       const handleEl = target.closest('[data-handle]');
       const rotateEl = target.closest('[data-rotate-handle]');
+      const rowHandleEl = target.closest('[data-row-handle]');
       let gesture: Gesture | null = null;
 
       if (e.button === 1 || tool === 'hand' || spacePressed) {
@@ -442,6 +474,10 @@ export function useCanvasGestures({
       } else if (isShapeTool(tool)) {
         const targets = { changing: new Set<string>(), viewport: null, canvasSize: null, boxes: [] };
         gesture = { kind: 'create', nodeType: tool, start: screen, startWorld: world, nodeId: null, targets };
+      } else if (rowHandleEl && selection.length === 1) {
+        const columnId = rowHandleEl.getAttribute('data-row-handle');
+        const tableId = selection[0] as string;
+        if (columnId) gesture = { kind: 'reorder', start: screen, tableId, columnId, slot: null };
       } else if (handleEl && selection.length === 1) {
         const node = nodes.find((n) => n.id === selection[0]);
         const dir = HANDLES.find((h) => h.id === handleEl.getAttribute('data-handle'));
@@ -473,8 +509,13 @@ export function useCanvasGestures({
           for (const n of nodes) if (moving.has(n.id)) origins.set(n.id, { x: n.x, y: n.y });
           const tops = top.flatMap((t) => byId.get(t) ?? []);
           const bounds = unionBoxes(tops.map((n) => rotatedBounds(n, n.rotation)));
+          const columnId = target.closest('[data-column-id]')?.getAttribute('data-column-id');
+          const pickColumn =
+            columnId && !e.shiftKey && !e.metaKey && !e.ctrlKey && selection.length === 1 && selection[0] === id && byId.get(id)?.type === 'table';
+          const clickColumn = pickColumn ? { tableId: id, columnId } : null;
           if (bounds) {
-            gesture = { kind: 'move', start: screen, startWorld: world, origins, tops, bounds, targets: { changing: moving, viewport: null, canvasSize: null, boxes: [] }, moved: false, last: world };
+            const targets = { changing: moving, viewport: null, canvasSize: null, boxes: [] };
+            gesture = { kind: 'move', start: screen, startWorld: world, origins, tops, bounds, targets, moved: false, last: world, clickColumn };
           }
         }
       } else {
@@ -502,8 +543,18 @@ export function useCanvasGestures({
       if (!node) return;
       dispatch({ type: 'select', ids: [id] });
       if (node.type === 'text') onEditText(node.id);
+      if (node.type === 'table' && id === hitId) {
+        const target = e.target as Element;
+        const columnId = target.closest('[data-column-id]')?.getAttribute('data-column-id');
+        const world = screenToWorld(toLocal(e), stateRef.current.viewport);
+        // The drawn name or type wins; between them, design choice: the right half is the type.
+        const onType = target.closest('[data-testid=column-type]');
+        const onName = target.closest('[data-testid=column-name]');
+        const field = onType || (!onName && world.x > node.x + node.width / 2) ? 'column-type' : 'column-name';
+        onEditTable(columnId ? { tableId: id, field, columnId } : { tableId: id, field: 'table-name' });
+      }
     },
-    [dispatch, onEditText, stateRef],
+    [dispatch, onEditTable, onEditText, stateRef, toLocal],
   );
 
   // React registers wheel listeners as passive, so preventDefault needs a native listener.

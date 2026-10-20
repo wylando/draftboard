@@ -22,11 +22,24 @@ export const TABLE_COLORS = {
 /** Design choice: table layout in world px. */
 export const TABLE_HEADER_HEIGHT = 36;
 export const TABLE_ROW_HEIGHT = 28;
+/** Design choice: table typography and spacing in world px, shared by the canvas and the in-place editor. */
+export const TABLE_STYLE = { radius: 8, pad: 12, gap: 8, nameSize: 13, columnSize: 12, typeSize: 11, badgeSize: 9, badgeWidth: 26 } as const;
 
 /** Design choice: narrower than this, a row can't show a badge, a short name and a type. */
 export const MIN_TABLE_WIDTH = 120;
 
 export const tableHeight = (columnCount: number) => TABLE_HEADER_HEIGHT + TABLE_ROW_HEIGHT * columnCount;
+
+/** A cell of a table that can be edited in place on the canvas. */
+export type TableCell =
+  | { tableId: string; field: 'table-name' }
+  | { tableId: string; field: 'column-name' | 'column-type'; columnId: string };
+
+/** Where a dragged row would land: before the column now at `index`, or last when `index` is the column count. */
+export interface RowDrop {
+  tableId: string;
+  index: number;
+}
 
 export type SqlDialect = 'postgres' | 'mysql' | 'sqlite';
 
@@ -92,10 +105,19 @@ export const indexNameTaken = (table: TableNode, name: string, id: string) =>
 
 const sameIds = (a: string[], b: string[]) => a.length === b.length && a.every((id, i) => id === b[i]);
 
+/** Top of row `index` of `table`, in world px. */
+export const tableRowTop = (table: TableNode, index: number) => table.y + TABLE_HEADER_HEIGHT + index * TABLE_ROW_HEIGHT;
+
+/** The id of the `<datalist>` of the dialect's types, rendered by the Design panel. */
+export const COLUMN_TYPES_LIST_ID = 'column-types';
+
 export type TableEdit =
+  /** An empty name takes the next free `column_n`, chosen from the table as it is when the edit applies. */
   | { kind: 'addColumn'; column: Column }
   | { kind: 'updateColumn'; columnId: string; patch: Partial<Omit<Column, 'id'>> }
   | { kind: 'deleteColumn'; columnId: string }
+  /** `toIndex` is the column's position after the move. */
+  | { kind: 'moveColumn'; columnId: string; toIndex: number }
   | { kind: 'setAccent'; accent: string }
   | { kind: 'addIndex'; index: TableIndex }
   | { kind: 'updateIndex'; indexId: string; patch: Partial<Omit<TableIndex, 'id'>> }
@@ -110,8 +132,8 @@ export function applyTableEdit(table: TableNode, edit: TableEdit): TableNode | n
   const hasColumn = (id: string) => table.columns.some((c) => c.id === id);
   switch (edit.kind) {
     case 'addColumn': {
-      const name = edit.column.name.trim();
-      if (!name || columnNameTaken(table, name, edit.column.id)) return null;
+      const name = edit.column.name.trim() || nextColumnName(table);
+      if (columnNameTaken(table, name, edit.column.id) || hasColumn(edit.column.id)) return null;
       return { ...table, columns: [...table.columns, { ...edit.column, name }] };
     }
     case 'updateColumn': {
@@ -141,6 +163,16 @@ export function applyTableEdit(table: TableNode, edit: TableEdit): TableNode | n
         return columnIds.length > 0 ? [{ ...i, columnIds }] : [];
       });
       return { ...table, columns: table.columns.filter((c) => c.id !== edit.columnId), indexes };
+    }
+    case 'moveColumn': {
+      const from = table.columns.findIndex((c) => c.id === edit.columnId);
+      if (from < 0 || !Number.isInteger(edit.toIndex)) return null;
+      const to = Math.max(0, Math.min(table.columns.length - 1, edit.toIndex));
+      if (from === to) return null;
+      const columns = [...table.columns];
+      const [moved] = columns.splice(from, 1);
+      columns.splice(to, 0, moved as Column);
+      return { ...table, columns };
     }
     case 'setAccent':
       return edit.accent === table.accent ? null : { ...table, accent: edit.accent };

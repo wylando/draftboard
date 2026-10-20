@@ -19,6 +19,8 @@ export interface EditorState {
   future: DesignNode[][];
   /** Copied or cut layers with their descendants, in preorder. In memory only; not saved. */
   clipboard: DesignNode[];
+  /** A column picked inside the one selected table, so Delete removes the column rather than the table. */
+  selectedColumn: { tableId: string; columnId: string } | null;
 }
 
 export type EditorAction =
@@ -30,6 +32,10 @@ export type EditorAction =
   | { type: 'setViewport'; viewport: Viewport }
   | { type: 'setCanvasSize'; size: { width: number; height: number } }
   | { type: 'select'; ids: string[] }
+  /** Selects the table and picks one of its columns. */
+  | { type: 'selectColumn'; tableId: string; columnId: string }
+  /** Steps back one level: a drawing tool to Move, else a picked column to its table, else the selection to nothing. */
+  | { type: 'escape' }
   /** `parentAt`: put the node in the deepest frame under this world point. */
   | { type: 'addNode'; node: DesignNode; select?: boolean; parentAt?: Point }
   /** Transient: does not snapshot history. Pair with a prior checkpoint. */
@@ -86,6 +92,7 @@ export function initialEditorState(nodes: DesignNode[] = []): EditorState {
     past: [],
     future: [],
     clipboard: [],
+    selectedColumn: null,
   };
 }
 
@@ -200,7 +207,24 @@ function transformPatches(
   return patches;
 }
 
+/** The picked column, if it is still in the one selected table. */
+function livePick(state: EditorState): { tableId: string; columnId: string } | null {
+  const picked = state.selectedColumn;
+  if (!picked || state.selection.length !== 1 || state.selection[0] !== picked.tableId) return null;
+  const table = state.nodes.find((n) => n.id === picked.tableId);
+  return table?.type === 'table' && table.columns.some((c) => c.id === picked.columnId) ? picked : null;
+}
+
+/**
+ * A pick lives only while its table is the whole selection and the column
+ * exists, whichever action changed the selection or the document.
+ */
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
+  const next = reduce(state, action);
+  return next.selectedColumn && !livePick(next) ? { ...next, selectedColumn: null } : next;
+}
+
+function reduce(state: EditorState, action: EditorAction): EditorState {
   switch (action.type) {
     case 'checkpoint':
       return pushHistory(state);
@@ -239,7 +263,15 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return { ...state, canvasSize: action.size };
 
     case 'select':
-      return { ...state, selection: action.ids };
+      return { ...state, selection: action.ids, selectedColumn: null };
+
+    case 'escape':
+      if (state.tool !== 'select') return reduce(state, { type: 'setTool', tool: 'select' });
+      if (livePick(state)) return { ...state, selectedColumn: null };
+      return { ...state, selection: [], selectedColumn: null };
+
+    case 'selectColumn':
+      return { ...state, selection: [action.tableId], selectedColumn: { tableId: action.tableId, columnId: action.columnId } };
 
     case 'addNode': {
       const s = pushHistory(state);
@@ -366,6 +398,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     }
 
     case 'deleteSelection': {
+      // A picked column goes on its own; the table stays.
+      const picked = livePick(state);
+      if (picked) return reduce(state, { type: 'editTable', id: picked.tableId, edit: { kind: 'deleteColumn', columnId: picked.columnId } });
       if (state.selection.length === 0) return state;
       const removed = selectionWithDescendants(state.nodes, state.selection);
       const s = pushHistory(state);

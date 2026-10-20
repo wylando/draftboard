@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { TABLE_COLORS, TABLE_HEADER_HEIGHT, TABLE_ROW_HEIGHT } from '../model/table';
+import { TABLE_COLORS, TABLE_HEADER_HEIGHT, TABLE_ROW_HEIGHT, TABLE_STYLE } from '../model/table';
 import type { DesignNode, TableNode } from '../model/types';
 import { CANVAS_FONT_FAMILY, CANVAS_MONO_FAMILY, measureText, TEXT_LINE_HEIGHT } from '../textMetrics';
 import { css } from 'styled-system/css';
@@ -11,8 +11,6 @@ const noSelectClass = css({ userSelect: 'none' });
 /** Invisible stroke width (world px) that makes thin lines easy to grab. */
 const LINE_HIT_WIDTH = 8;
 
-/** Design choice: table typography and spacing in world px. */
-const TABLE = { radius: 8, pad: 12, gap: 8, nameSize: 13, columnSize: 12, typeSize: 11, badgeSize: 9, badgeWidth: 26 } as const;
 
 /** Whether `color` (#rrggbb) is dark enough that white text reads better on it than black. */
 function isDark(color: string): boolean {
@@ -57,13 +55,13 @@ function TableShape({ node }: { node: TableNode }) {
   const ink = bodyDark ? TABLE_COLORS.onDark : TABLE_COLORS.text;
   const muted = bodyDark ? TABLE_COLORS.onDarkMuted : TABLE_COLORS.muted;
   const text = { fontFamily: CANVAS_FONT_FAMILY, dominantBaseline: 'central', className: noSelectClass } as const;
-  const nameX = TABLE.pad + TABLE.badgeWidth;
-  const rowSpace = w - TABLE.pad - nameX;
-  const idxWidth = measureText('idx', TABLE.badgeSize, CANVAS_FONT_FAMILY).width + TABLE.gap;
+  const nameX = TABLE_STYLE.pad + TABLE_STYLE.badgeWidth;
+  const rowSpace = w - TABLE_STYLE.pad - nameX;
+  const idxWidth = measureText('idx', TABLE_STYLE.badgeSize, CANVAS_FONT_FAMILY).width + TABLE_STYLE.gap;
   return (
     <>
       <clipPath id={clipId}>
-        <rect width={w} height={h} rx={TABLE.radius} />
+        <rect width={w} height={h} rx={TABLE_STYLE.radius} />
       </clipPath>
       <g clipPath={`url(#${clipId})`}>
         <rect data-testid="table-body" width={w} height={h} fill={node.fill} />
@@ -71,50 +69,52 @@ function TableShape({ node }: { node: TableNode }) {
         <text
           {...text}
           data-testid="table-name"
-          x={TABLE.pad}
+          x={TABLE_STYLE.pad}
           y={TABLE_HEADER_HEIGHT / 2}
-          fontSize={TABLE.nameSize}
+          fontSize={TABLE_STYLE.nameSize}
           fontWeight={600}
           fill={headerDark ? TABLE_COLORS.onDark : TABLE_COLORS.text}
         >
-          {fitText(node.name, w - 2 * TABLE.pad, TABLE.nameSize, CANVAS_FONT_FAMILY, 600)}
+          {fitText(node.name, w - 2 * TABLE_STYLE.pad, TABLE_STYLE.nameSize, CANVAS_FONT_FAMILY, 600)}
         </text>
         {node.columns.map((c, i) => {
           const y = TABLE_HEADER_HEIGHT + i * TABLE_ROW_HEIGHT;
           const mid = y + TABLE_ROW_HEIGHT / 2;
           const badge = c.primaryKey ? 'PK' : c.unique ? 'UQ' : null;
           const isIndexed = indexed.has(c.id);
-          const nameSpace = rowSpace - TABLE.gap - (isIndexed ? idxWidth : 0);
-          const nameWidth = measureText(c.name, TABLE.columnSize, CANVAS_FONT_FAMILY).width;
-          const type = fitText(`${c.dataType}${c.nullable ? '?' : ''}`, Math.max(rowSpace / 2, nameSpace - nameWidth), TABLE.typeSize, CANVAS_MONO_FAMILY);
-          const typeWidth = measureText(type, TABLE.typeSize, CANVAS_MONO_FAMILY).width;
-          const name = fitText(c.name, nameSpace - typeWidth, TABLE.columnSize, CANVAS_FONT_FAMILY);
+          const nameSpace = rowSpace - TABLE_STYLE.gap - (isIndexed ? idxWidth : 0);
+          const nameWidth = measureText(c.name, TABLE_STYLE.columnSize, CANVAS_FONT_FAMILY).width;
+          const type = fitText(`${c.dataType}${c.nullable ? '?' : ''}`, Math.max(rowSpace / 2, nameSpace - nameWidth), TABLE_STYLE.typeSize, CANVAS_MONO_FAMILY);
+          const typeWidth = measureText(type, TABLE_STYLE.typeSize, CANVAS_MONO_FAMILY).width;
+          const name = fitText(c.name, nameSpace - typeWidth, TABLE_STYLE.columnSize, CANVAS_FONT_FAMILY);
           return (
             <g key={c.id} data-testid="table-column" data-column-id={c.id}>
+              {/* The whole row is hit, not just its glyphs, so a click or double-click anywhere in it finds the column. */}
+              <rect y={y} width={w} height={TABLE_ROW_HEIGHT} fill="transparent" />
               {i > 0 && <line x1={0} x2={w} y1={y} y2={y} stroke={bodyDark ? muted : TABLE_COLORS.divider} strokeOpacity={bodyDark ? 0.4 : 1} />}
               {badge && (
                 <text
                   {...text}
                   data-testid="column-badge"
-                  x={TABLE.pad}
+                  x={TABLE_STYLE.pad}
                   y={mid}
-                  fontSize={TABLE.badgeSize}
+                  fontSize={TABLE_STYLE.badgeSize}
                   fontWeight={700}
                   fill={bodyDark ? TABLE_COLORS.onDarkBadge : TABLE_COLORS.badge}
                 >
                   {badge}
                 </text>
               )}
-              <text {...text} data-testid="column-name" x={nameX} y={mid} fontSize={TABLE.columnSize} fill={ink}>
+              <text {...text} data-testid="column-name" x={nameX} y={mid} fontSize={TABLE_STYLE.columnSize} fill={ink}>
                 {name}
               </text>
               {isIndexed && (
                 <text
                   {...text}
                   data-testid="column-index"
-                  x={nameX + measureText(name, TABLE.columnSize, CANVAS_FONT_FAMILY).width + 6}
+                  x={nameX + measureText(name, TABLE_STYLE.columnSize, CANVAS_FONT_FAMILY).width + 6}
                   y={mid}
-                  fontSize={TABLE.badgeSize}
+                  fontSize={TABLE_STYLE.badgeSize}
                   fill={muted}
                 >
                   idx
@@ -123,11 +123,11 @@ function TableShape({ node }: { node: TableNode }) {
               <text
                 {...text}
                 data-testid="column-type"
-                x={w - TABLE.pad}
+                x={w - TABLE_STYLE.pad}
                 y={mid}
                 textAnchor="end"
                 fontFamily={CANVAS_MONO_FAMILY}
-                fontSize={TABLE.typeSize}
+                fontSize={TABLE_STYLE.typeSize}
                 fill={muted}
               >
                 {type}
@@ -137,7 +137,7 @@ function TableShape({ node }: { node: TableNode }) {
         })}
       </g>
       <line x1={0} x2={w} y1={TABLE_HEADER_HEIGHT} y2={TABLE_HEADER_HEIGHT} stroke={node.stroke} strokeWidth={node.strokeWidth} />
-      <rect width={w} height={h} rx={TABLE.radius} fill="none" stroke={node.strokeWidth > 0 ? node.stroke : 'none'} strokeWidth={node.strokeWidth} />
+      <rect width={w} height={h} rx={TABLE_STYLE.radius} fill="none" stroke={node.strokeWidth > 0 ? node.stroke : 'none'} strokeWidth={node.strokeWidth} />
     </>
   );
 }

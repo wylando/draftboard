@@ -1,5 +1,6 @@
 import { boxCenter, HANDLES, rotatedBounds, rotatePoint, unionBoxes, worldToScreen } from '../geometry';
 import type { Guides, SnapGuide, Span } from '../geometry';
+import { TABLE_ROW_HEIGHT, tableRowTop, type RowDrop } from '../model/table';
 import type { Box, DesignNode, Point, Viewport } from '../model/types';
 import { css } from 'styled-system/css';
 import { token } from 'styled-system/tokens';
@@ -13,6 +14,9 @@ const GUIDE_TEXT = token.var('colors.selection.guideText');
 
 const HANDLE_SIZE = 8;
 const ROTATE_ZONE_SIZE = 16;
+/** Row grips sit this far left of a selected table, outside it, so a press on a row still moves the table. */
+const ROW_GRIP = { offset: 16, width: 10, height: 16, minHeight: 6 } as const;
+const rowGripClass = css({ cursor: 'grab' });
 /** Half the size of the × drawn where a guide meets an aligned edge or center. */
 const GUIDE_MARK = 3;
 /** Distance labels: font size and pill height in screen px; width is estimated per character. */
@@ -100,12 +104,21 @@ interface Props {
   /** Alt-hover distances from the selection to `measureTarget`. */
   measures: { spans: Span[]; leaders: Span[] } | null;
   measureTarget: DesignNode | undefined;
+  /** Column picked inside the selected table, highlighted when it still exists. */
+  pickedColumnId: string | null;
+  rowDrop: RowDrop | null;
   hideHandles: boolean;
 }
 
 /** Drawn in screen space so outlines and handles stay a constant size at any zoom. */
-export function SelectionOverlay({ selected, viewport, marquee, guides, measures, measureTarget, hideHandles }: Props) {
+export function SelectionOverlay({ selected, viewport, marquee, guides, measures, measureTarget, pickedColumnId, rowDrop, hideHandles }: Props) {
   const single = selected.length === 1 ? selected[0] : undefined;
+  const table = single?.type === 'table' ? single : undefined;
+  const rowTop = (i: number) => (table ? tableRowTop(table, i) : 0);
+  // Zoomed out, a full-size grip would reach into the neighbouring rows' grips; far out, rows are too thin to grab.
+  const gripHeight = Math.min(ROW_GRIP.height, TABLE_ROW_HEIGHT * viewport.zoom - 2);
+  const showGrips = gripHeight >= ROW_GRIP.minHeight;
+  const pickedIndex = table && pickedColumnId ? table.columns.findIndex((c) => c.id === pickedColumnId) : -1;
   const group = selected.length > 1 ? unionBoxes(selected.map((n) => rotatedBounds(n, n.rotation))) : null;
 
   return (
@@ -215,6 +228,46 @@ export function SelectionOverlay({ selected, viewport, marquee, guides, measures
           data-distance={formatDistance(m.to - m.from)}
         />
       ))}
+
+      {table && pickedIndex >= 0 && (
+        <rect
+          data-testid="selected-column"
+          x={table.x * viewport.zoom + viewport.x}
+          y={rowTop(pickedIndex) * viewport.zoom + viewport.y}
+          width={table.width * viewport.zoom}
+          height={TABLE_ROW_HEIGHT * viewport.zoom}
+          fill={SELECTION_FILL}
+          stroke={SELECTION}
+          pointerEvents="none"
+        />
+      )}
+      {table &&
+        !hideHandles &&
+        showGrips &&
+        table.columns.map((c, i) => {
+          const p = worldToScreen({ x: table.x, y: rowTop(i) + TABLE_ROW_HEIGHT / 2 }, viewport);
+          const left = p.x - ROW_GRIP.offset;
+          return (
+            <g key={c.id} data-row-handle={c.id} data-testid="row-handle" className={rowGripClass}>
+              <rect x={left} y={p.y - gripHeight / 2} width={ROW_GRIP.width} height={gripHeight} fill="transparent" />
+              {(gripHeight >= ROW_GRIP.height ? [-4, 0, 4] : [0]).flatMap((dy) =>
+                [3, 7].map((dx) => <circle key={`${dx}-${dy}`} cx={left + dx} cy={p.y + dy} r={1} fill={SELECTION} pointerEvents="none" />),
+              )}
+            </g>
+          );
+        })}
+      {table && rowDrop?.tableId === table.id && (
+        <line
+          data-testid="row-drop-indicator"
+          x1={table.x * viewport.zoom + viewport.x}
+          x2={(table.x + table.width) * viewport.zoom + viewport.x}
+          y1={rowTop(rowDrop.index) * viewport.zoom + viewport.y}
+          y2={rowTop(rowDrop.index) * viewport.zoom + viewport.y}
+          stroke={SELECTION}
+          strokeWidth={2}
+          pointerEvents="none"
+        />
+      )}
 
       {marquee && (
         <rect

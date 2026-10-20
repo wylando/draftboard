@@ -68,9 +68,7 @@ function runCommand(id: CommandId, o: Options): void {
       return dispatch({ type: 'select', ids });
     }
     case 'edit.escape':
-      return state.tool !== 'select'
-        ? dispatch({ type: 'setTool', tool: 'select' })
-        : dispatch({ type: 'select', ids: [] });
+      return dispatch({ type: 'escape' });
     case 'arrange.forward':
       return dispatch({ type: 'reorderSelection', direction: 'forward' });
     case 'arrange.backward':
