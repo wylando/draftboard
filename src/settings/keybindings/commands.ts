@@ -106,6 +106,11 @@ export const FIXED_INTERACTIONS: Array<{ label: string; input: string; descripti
     description: 'Edit its name (header), or a column’s name (left half of a row) or type (right half). Tab moves on, Enter on the last row adds a column, Escape cancels.',
   },
   {
+    label: 'Re-attach a connector',
+    input: 'Drag a selected connector’s end',
+    description: 'Drop it on a table row, a table’s header, any layer, or empty canvas to leave it loose. Escape cancels by deselecting.',
+  },
+  {
     label: 'Pick or reorder a column',
     input: 'Click a row / drag its grip',
     description: 'In a selected table, click a row to pick that column (Delete removes it), or drag the grip left of a row to move it.',

@@ -218,6 +218,13 @@ export function shiftLooseEnds(connector: ConnectorNode, dx: number, dy: number)
   return { from: shift(connector.from), to: shift(connector.to) };
 }
 
+/** Whether two anchors attach to the same place. */
+export function sameAnchor(a: Anchor, b: Anchor): boolean {
+  if (a.kind === 'column') return b.kind === 'column' && a.tableId === b.tableId && a.columnId === b.columnId;
+  if (a.kind === 'node') return b.kind === 'node' && a.nodeId === b.nodeId;
+  return b.kind === 'point' && a.x === b.x && a.y === b.y && a.broken === b.broken;
+}
+
 const targetId = (a: Anchor) => (a.kind === 'column' ? a.tableId : a.kind === 'node' ? a.nodeId : null);
 
 /**

@@ -7,6 +7,7 @@ import { minSizeFor } from '../model/nodes';
 import type { Box, DesignNode, NodePatch } from '../model/types';
 import { emptyHint, sidebarRight, twoColumnGrid } from '../styles';
 import { CANVAS_FONT_FAMILY, measureText } from '../textMetrics';
+import { ConnectorProperties } from './ConnectorProperties';
 import { TableProperties } from './TableProperties';
 
 function SingleNodeProperties({ node }: { node: DesignNode }) {
@@ -77,6 +78,7 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
       )}
 
       {node.type === 'table' && <TableProperties table={node} />}
+      {node.type === 'connector' && <ConnectorProperties connector={node} />}
 
       {node.type === 'text' && (
         <Section title="Text">
