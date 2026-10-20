@@ -83,7 +83,7 @@ export function GettingStartedSection() {
           <li>
             Press <Shortcut binding={bindings['tool.rect'][0]} /> (Rectangle) and drag on the canvas.
           </li>
-          <li>The new layer is selected: drag it to move it, or drag a corner handle to resize.</li>
+          <li>The new layer is selected: drag it to move it, drag a corner handle to resize, or drag just outside a corner to rotate.</li>
           <li>Change its color under Fill in the Design panel; type a hex value and press Enter.</li>
           <li>
             Press <Shortcut binding={bindings['tool.text'][0]} /> and click to add text. Type, then press Enter.
