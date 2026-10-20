@@ -1,5 +1,13 @@
 import { Field } from '@ark-ui/react/field';
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from 'react';
 import { field } from 'styled-system/recipes';
 import { useLatest } from '../../shared/useLatest';
 
@@ -10,18 +18,25 @@ interface FieldShellProps {
   /** Shown under the field; also marks the input invalid and describes it. */
   error?: ReactNode;
   children: ReactNode;
+  /** Makes the label a scrub handle (NumberInput). */
+  onLabelPointerDown?: (e: ReactPointerEvent<HTMLSpanElement>) => void;
+  onClick?: (e: MouseEvent<HTMLLabelElement>) => void;
 }
 
 /**
  * Ark's Field wires the label, aria-invalid and aria-describedby to the input.
  * The whole box is the label, so clicking anywhere in it focuses the input.
  */
-function FieldShell({ label, error, children }: FieldShellProps) {
+function FieldShell({ label, error, children, onLabelPointerDown, onClick }: FieldShellProps) {
   const invalid = error !== undefined && error !== null;
   return (
     <Field.Root className={classes.root} invalid={invalid}>
-      <Field.Label className={classes.control}>
-        {label !== undefined && <span className={classes.label}>{label}</span>}
+      <Field.Label className={classes.control} onClick={onClick}>
+        {label !== undefined && (
+          <span className={classes.label} data-scrub={onLabelPointerDown ? '' : undefined} onPointerDown={onLabelPointerDown}>
+            {label}
+          </span>
+        )}
         {children}
       </Field.Label>
       {/* role="alert" so the refusal is announced as soon as it appears. */}
@@ -54,14 +69,44 @@ const formatNumber = (v: number) => String(Math.round(v * 100) / 100);
 export interface NumberInputProps {
   label?: ReactNode;
   value: number;
+  /** A typed edit, committed on Enter/blur. */
   onCommit: (value: number) => void;
+  /**
+   * Passing this makes the label scrubbable: dragging it sideways sends a value
+   * on every tick. Callers apply these without a history checkpoint;
+   * `onScrubStart` fires once, before the first of them, so a whole scrub is
+   * one undo step.
+   */
+  onScrubChange?: (value: number) => void;
+  onScrubStart?: () => void;
   min?: number;
   max?: number;
   testId?: string;
 }
 
-export function NumberInput({ label, value, onCommit, min, max, testId }: NumberInputProps) {
+/** Pixels the pointer must travel before a press on the label becomes a scrub, so a click still focuses the input. */
+const SCRUB_THRESHOLD = 3;
+
+/** Design choice: 1 unit per pixel; Shift for coarse (×10), Alt for fine (×0.1) steps. */
+function scrubStep(e: PointerEvent) {
+  if (e.shiftKey) return 10;
+  if (e.altKey) return 0.1;
+  return 1;
+}
+
+interface Scrub {
+  startX: number;
+  lastX: number;
+  /** Unrounded and clamped, so fine steps accumulate and reversing at a limit responds at once. */
+  current: number;
+  emitted: number;
+  moved: boolean;
+  started: boolean;
+}
+
+export function NumberInput({ label, value, onCommit, onScrubChange, onScrubStart, min, max, testId }: NumberInputProps) {
   const [draft, setDraft] = useDraft(value, formatNumber);
+  const clamp = (v: number) => Math.min(max ?? Infinity, Math.max(min ?? -Infinity, v));
 
   const commit = () => {
     const parsed = Number(draft);
@@ -69,13 +114,76 @@ export function NumberInput({ label, value, onCommit, min, max, testId }: Number
       setDraft(formatNumber(value));
       return;
     }
-    const clamped = Math.min(max ?? Infinity, Math.max(min ?? -Infinity, parsed));
+    const clamped = clamp(parsed);
     if (clamped !== value) onCommit(clamped);
     else setDraft(formatNumber(value));
   };
 
+  const scrub = useRef<Scrub | null>(null);
+  const suppressClick = useRef(false);
+
+  const onLabelPointerDown = (e: ReactPointerEvent<HTMLSpanElement>) => {
+    if (e.button !== 0 || !e.isPrimary) return;
+    suppressClick.current = false;
+    scrub.current = { startX: e.clientX, lastX: e.clientX, current: value, emitted: value, moved: false, started: false };
+  };
+
+  const valueRef = useLatest(value);
+  const onMove = (e: PointerEvent) => {
+    const s = scrub.current;
+    if (!s) return;
+    if (!s.moved) {
+      if (Math.abs(e.clientX - s.startX) < SCRUB_THRESHOLD) return;
+      // The press blurs this field's input, which may commit a typed draft after pointerdown; start from that.
+      s.moved = true;
+      s.current = s.emitted = valueRef.current;
+    }
+    const step = scrubStep(e);
+    s.current = clamp(s.current + (e.clientX - s.lastX) * step);
+    s.lastX = e.clientX;
+    const next = step < 1 ? Math.round(s.current * 10) / 10 : Math.round(s.current);
+    if (next === s.emitted) return;
+    if (!s.started) {
+      s.started = true;
+      onScrubStart?.();
+    }
+    s.emitted = next;
+    onScrubChange?.(next);
+  };
+
+  const onUp = () => {
+    // The label wraps the input, so the click that ends a drag would otherwise focus it.
+    if (scrub.current?.moved) suppressClick.current = true;
+    scrub.current = null;
+  };
+
+  const moveRef = useLatest(onMove);
+  const upRef = useLatest(onUp);
+  const scrubbable = onScrubChange !== undefined;
+  useEffect(() => {
+    if (!scrubbable) return;
+    const move = (e: PointerEvent) => moveRef.current(e);
+    const up = () => upRef.current();
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+    };
+  }, [scrubbable, moveRef, upRef]);
+
   return (
-    <FieldShell label={label}>
+    <FieldShell
+      label={label}
+      onLabelPointerDown={scrubbable ? onLabelPointerDown : undefined}
+      onClick={(e) => {
+        if (!suppressClick.current) return;
+        suppressClick.current = false;
+        e.preventDefault();
+      }}
+    >
       <Field.Input
         className={classes.input}
         inputMode="decimal"

@@ -29,7 +29,7 @@ Draw, arrange and fine-tune shapes on an infinite canvas: no account, no cloud, 
 
 - 🎨 **Drawing tools**: frames, rectangles, ellipses, lines and text. Drag to draw, or click to drop a default-size shape.
 - 🖱️ **Direct manipulation**: click, Shift-click or marquee-select. Move, resize with eight handles (rotated shapes too), rotate by dragging just outside a corner (Shift snaps to 15°), and constrain with Shift.
-- 🎛️ **Properties panel**: position, size, rotation, corner radius, fill, stroke, opacity, and text content and size.
+- 🎛️ **Properties panel**: position, size, rotation, corner radius, fill, stroke, opacity, and text content and size. Type a value, or drag a number field's label sideways to scrub it (Shift ×10, Alt ×0.1); a whole scrub undoes in one step.
 - 🗂️ **Layers tree**: a code-editor-style tree with collapsible frames and groups and indent guides. Select, rename, show or hide any layer, and drag to reorder or nest. Layer names are unique, ignoring case: a rename to a name another layer has is refused with a short message.
 - 🪆 **Frames and groups**: shapes drawn or dropped on a frame go inside it and move with it. Group the selection (`⌘G`) to move and scale it as one; double-click to select inside a group.
 - 🔲 **Canvas grid**: dots, lines or none, chosen under Settings → Canvas.

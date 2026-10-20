@@ -88,4 +88,9 @@ export const FIXED_INTERACTIONS: Array<{ label: string; input: string; descripti
   { label: 'Rotate', input: 'Drag just outside a corner', description: 'Rotate the selected layer about its center. Hold Shift to snap to 15° steps.' },
   { label: 'Edit text', input: 'Double-click a text layer', description: 'Edit its content in place.' },
   { label: 'Rename layer', input: 'Double-click in Layers panel', description: 'Edit the layer name.' },
+  {
+    label: 'Scrub a value',
+    input: 'Drag a field label',
+    description: 'Drag a number field’s label sideways to change it. Shift for steps of 10, Alt for 0.1.',
+  },
 ];
