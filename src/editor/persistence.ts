@@ -1,8 +1,9 @@
+import { repairConnectorData } from './model/connector';
 import { repairTableData } from './model/table';
 import type { DesignNode, NodeType } from './model/types';
 
 const STORAGE_KEY = 'draftboard:document:v1';
-const NODE_TYPES: ReadonlySet<NodeType> = new Set(['frame', 'rect', 'ellipse', 'line', 'text', 'group', 'table']);
+const NODE_TYPES: ReadonlySet<NodeType> = new Set(['frame', 'rect', 'ellipse', 'line', 'text', 'group', 'table', 'connector']);
 
 interface SavedDocument {
   version: 1;
@@ -19,7 +20,8 @@ function isNode(value: unknown): value is DesignNode {
     NODE_TYPES.has(n.type as NodeType) &&
     // Optional: documents saved before nesting have no parentId. normalizeTree repairs bad references.
     (n.parentId === undefined || n.parentId === null || typeof n.parentId === 'string') &&
-    ['x', 'y', 'width', 'height'].every((k) => typeof n[k] === 'number' && Number.isFinite(n[k]))
+    // A connector's box is derived from its route, so a missing one is repaired, not refused.
+    (n.type === 'connector' || ['x', 'y', 'width', 'height'].every((k) => typeof n[k] === 'number' && Number.isFinite(n[k])))
   );
 }
 
@@ -28,8 +30,13 @@ export function parseDocument(json: string): DesignNode[] | null {
     const data = JSON.parse(json) as Partial<SavedDocument>;
     if (data.version !== 1 || !Array.isArray(data.nodes)) return null;
     if (!data.nodes.every(isNode)) return null;
-    // A damaged table is repaired rather than refused, so it never costs the rest of the document.
-    return data.nodes.map((n) => (n.type === 'table' ? { ...n, ...repairTableData(n as unknown as Record<string, unknown>) } : n));
+    // A damaged table or connector is repaired rather than refused, so it never costs the rest of the document.
+    return data.nodes.map((n) => {
+      const raw = n as unknown as Record<string, unknown>;
+      if (n.type === 'table') return { ...n, ...repairTableData(raw) };
+      if (n.type === 'connector') return { ...n, ...repairConnectorData(raw) };
+      return n;
+    });
   } catch {
     return null;
   }

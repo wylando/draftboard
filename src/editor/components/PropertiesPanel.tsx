@@ -32,7 +32,8 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
   const isGroup = node.type === 'group';
   // A table's height follows its rows and it never rotates, like a group's box follows its children.
   const isTable = node.type === 'table';
-  const hasFill = node.type !== 'line' && !isGroup;
+  const isConnector = node.type === 'connector';
+  const hasFill = node.type !== 'line' && !isGroup && !isConnector;
   const hasRadius = node.type === 'rect' || node.type === 'frame';
 
   return (
@@ -54,23 +55,26 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
         />
       </Section>
 
-      <Section title="Position & size">
-        <div className={twoColumnGrid}>
-          <NumberInput label="X" value={node.x} {...edits((x) => transform({ x }))} testId="prop-x" />
-          <NumberInput label="Y" value={node.y} {...edits((y) => transform({ y }))} testId="prop-y" />
-          <NumberInput label="W" value={node.width} min={minSizeFor(node.type).width} {...edits((width) => transform({ width }))} testId="prop-w" />
-          {!isTable && (
-            <NumberInput label="H" value={node.height} min={minSizeFor(node.type).height} {...edits((height) => transform({ height }))} testId="prop-h" />
-          )}
-          {/* A group's box is derived from its children, so it has no rotation of its own. */}
-          {!isGroup && !isTable && (
-            <NumberInput label="°" value={node.rotation} {...edits((rotation) => transform({ rotation }))} testId="prop-rotation" />
-          )}
-          {hasRadius && (
-            <NumberInput label="R" value={node.cornerRadius} min={0} {...edits((cornerRadius) => patch({ cornerRadius }))} testId="prop-radius" />
-          )}
-        </div>
-      </Section>
+      {/* A connector's place and size come from its ends. */}
+      {!isConnector && (
+        <Section title="Position & size">
+          <div className={twoColumnGrid}>
+            <NumberInput label="X" value={node.x} {...edits((x) => transform({ x }))} testId="prop-x" />
+            <NumberInput label="Y" value={node.y} {...edits((y) => transform({ y }))} testId="prop-y" />
+            <NumberInput label="W" value={node.width} min={minSizeFor(node.type).width} {...edits((width) => transform({ width }))} testId="prop-w" />
+            {!isTable && (
+              <NumberInput label="H" value={node.height} min={minSizeFor(node.type).height} {...edits((height) => transform({ height }))} testId="prop-h" />
+            )}
+            {/* A group's box is derived from its children, so it has no rotation of its own. */}
+            {!isGroup && !isTable && (
+              <NumberInput label="°" value={node.rotation} {...edits((rotation) => transform({ rotation }))} testId="prop-rotation" />
+            )}
+            {hasRadius && (
+              <NumberInput label="R" value={node.cornerRadius} min={0} {...edits((cornerRadius) => patch({ cornerRadius }))} testId="prop-radius" />
+            )}
+          </div>
+        </Section>
+      )}
 
       {node.type === 'table' && <TableProperties table={node} />}
 

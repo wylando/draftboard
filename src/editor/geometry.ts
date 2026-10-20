@@ -423,3 +423,30 @@ export function measureBetween(a: Box, b: Box): { spans: Span[]; leaders: Span[]
   }
   return { spans, leaders };
 }
+
+/** Whether any segment of `points` passes through `box` (Liang–Barsky clipping per segment). */
+export function polylineHitsBox(points: Point[], box: Box): boolean {
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1] as Point;
+    const b = points[i] as Point;
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    let lo = 0;
+    let hi = 1;
+    const clips: Array<[number, number]> = [
+      [-dx, a.x - box.x],
+      [dx, box.x + box.width - a.x],
+      [-dy, a.y - box.y],
+      [dy, box.y + box.height - a.y],
+    ];
+    let inside = true;
+    for (const [p, q] of clips) {
+      if (p === 0) {
+        if (q < 0) inside = false;
+      } else if (p < 0) lo = Math.max(lo, q / p);
+      else hi = Math.min(hi, q / p);
+    }
+    if (inside && lo <= hi) return true;
+  }
+  return false;
+}

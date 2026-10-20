@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { TABLE_COLORS, TABLE_HEADER_HEIGHT, TABLE_ROW_HEIGHT, TABLE_STYLE } from '../model/table';
-import type { DesignNode, TableNode } from '../model/types';
+import { isBroken } from '../model/connector';
+import type { ConnectorNode, DesignNode, TableNode } from '../model/types';
 import { CANVAS_FONT_FAMILY, CANVAS_MONO_FAMILY, measureText, TEXT_LINE_HEIGHT } from '../textMetrics';
 import { css } from 'styled-system/css';
 import { token } from 'styled-system/tokens';
@@ -142,6 +143,52 @@ function TableShape({ node }: { node: TableNode }) {
   );
 }
 
+/**
+ * The route, plus a dot at each end: filled when attached, hollow when loose.
+ * Dashed when an end lost what it was attached to.
+ */
+function ConnectorShape({ node }: { node: ConnectorNode }) {
+  const local = node.points.map((p) => `${p.x - node.x},${p.y - node.y}`).join(' ');
+  const broken = isBroken(node);
+  const ends = [
+    { anchor: node.from, at: node.points[0] },
+    { anchor: node.to, at: node.points[node.points.length - 1] },
+  ];
+  return (
+    <>
+      <polyline points={local} fill="none" stroke="transparent" strokeWidth={LINE_HIT_WIDTH} />
+      <polyline
+        data-testid="connector-line"
+        data-route={node.points.map((p) => `${p.x},${p.y}`).join(' ')}
+        data-broken={String(broken)}
+        points={local}
+        fill="none"
+        stroke={node.stroke}
+        strokeWidth={node.strokeWidth}
+        strokeDasharray={broken ? '6 4' : undefined}
+        strokeLinejoin="round"
+      />
+      {/* With no stroke the line is hidden, so its end dots are too. */}
+      {node.strokeWidth > 0 && ends.map(
+        ({ anchor, at }, i) =>
+          at && (
+            <circle
+              key={i}
+              data-testid="connector-end"
+              data-attached={String(anchor.kind !== 'point')}
+              cx={at.x - node.x}
+              cy={at.y - node.y}
+              r={2 + node.strokeWidth}
+              fill={anchor.kind !== 'point' ? node.stroke : node.fill}
+              stroke={node.stroke}
+              strokeWidth={node.strokeWidth}
+            />
+          ),
+      )}
+    </>
+  );
+}
+
 function Shape({ node }: { node: DesignNode }) {
   const stroke = node.strokeWidth > 0 ? node.stroke : 'none';
   const { width: w, height: h } = node;
@@ -177,6 +224,8 @@ function Shape({ node }: { node: DesignNode }) {
     }
     case 'table':
       return <TableShape node={node} />;
+    case 'connector':
+      return <ConnectorShape node={node} />;
     case 'text':
       return (
         <>
@@ -222,6 +271,8 @@ export const NodeView = memo(function NodeView({ node, childrenOf, editingId }: 
       data-node-id={node.id}
       data-testid={`node-${node.id}`}
       data-node-type={node.type}
+      data-from={node.type === 'connector' ? node.from.kind : undefined}
+      data-to={node.type === 'connector' ? node.to.kind : undefined}
       transform={nodeTransform(node)}
       opacity={children.length === 0 ? node.opacity : undefined}
       visibility={node.id === editingId ? 'hidden' : undefined}

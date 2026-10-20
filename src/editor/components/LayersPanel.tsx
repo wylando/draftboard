@@ -97,6 +97,7 @@ const TYPE_ICONS: Record<NodeType, () => ReactElement> = {
   line: icons.line,
   text: icons.text,
   table: icons.table,
+  connector: icons.connector,
 };
 
 interface Row {

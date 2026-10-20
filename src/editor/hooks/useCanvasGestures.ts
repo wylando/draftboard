@@ -14,6 +14,7 @@ import {
   boxLines,
   dragRotation,
   HANDLES,
+  polylineHitsBox,
   resizeBox,
   rotatedBounds,
   screenToWorld,
@@ -27,10 +28,14 @@ import {
 } from '../geometry';
 import { useLatest } from '../../shared/useLatest';
 import type { EditorAction, EditorState } from '../model/editorReducer';
-import { createNode, DEFAULT_SIZE, minSizeFor } from '../model/nodes';
+import { anchorAt, createConnector, linksToItself } from '../model/connector';
+import { createNode, DEFAULT_SIZE, minSizeFor, nextName } from '../model/nodes';
 import { TABLE_HEADER_HEIGHT, TABLE_ROW_HEIGHT, type RowDrop, type TableCell } from '../model/table';
 import { byIdOf, descendantIds, enteredScopes, isEffectivelyVisible, selectTarget, topLevelIds } from '../model/tree';
-import type { Box, DesignNode, DrawableType, NodePatch, Point, Viewport } from '../model/types';
+import type { Anchor, Box, ConnectorNode, DesignNode, DrawableType, NodePatch, Point, Viewport } from '../model/types';
+
+/** Everything under the pointer, topmost first, so a connector end can look past handles and other connectors. */
+const elementsAt = (e: { clientX: number; clientY: number }) => document.elementsFromPoint(e.clientX, e.clientY);
 
 /** Screen-pixel distance before a press becomes a drag. */
 const DRAG_THRESHOLD = 3;
@@ -52,6 +57,8 @@ type Gesture =
       start: Point;
       startWorld: Point;
       origins: Map<string, Point>;
+      /** Moving connectors' ends as they were; only their loose ends move. */
+      connectorEnds: Map<string, Pick<ConnectorNode, 'from' | 'to'>>;
       /** The moving top-level layers as they were at the start of the drag. */
       tops: DesignNode[];
       /** Their combined bounds at the start of the drag. */
@@ -74,6 +81,7 @@ type Gesture =
     }
   | { kind: 'rotate'; start: Point; startWorld: Point; node: DesignNode; moved: boolean }
   | { kind: 'reorder'; start: Point; tableId: string; columnId: string; slot: number | null }
+  | { kind: 'connect'; start: Point; from: Anchor; moved: boolean }
   | { kind: 'marquee'; start: Point; startWorld: Point; base: string[]; moved: boolean };
 
 export interface Marquee {
@@ -93,6 +101,8 @@ interface Options {
   onEditText: (id: string) => void;
   onEditTable: (cell: TableCell) => void;
   onRowDrop: (drop: RowDrop | null) => void;
+  /** The connector being drawn, from its start to what is under the pointer; null when none. */
+  onConnect: (preview: { from: Anchor; to: Anchor } | null) => void;
 }
 
 const isShapeTool = (tool: string): tool is DrawableType =>
@@ -122,7 +132,8 @@ function snapCandidates(nodes: DesignNode[], changing: Set<string>, viewport: Vi
     return false;
   };
   return nodes
-    .filter((n) => !changing.has(n.id) && !following.has(n.id) && isEffectivelyVisible(byId, n))
+    // A connector's box is just its route's bounds, nothing to line up with.
+    .filter((n) => n.type !== 'connector' && !changing.has(n.id) && !following.has(n.id) && isEffectivelyVisible(byId, n))
     .flatMap((n) => {
       const b = rotatedBounds(n, n.rotation);
       return boxesIntersect(b, view) && !clippedAway(n, b) ? [b] : [];
@@ -167,6 +178,7 @@ export function useCanvasGestures({
   onEditText,
   onEditTable,
   onRowDrop,
+  onConnect,
 }: Options) {
   const stateRef = useLatest(state);
   const gestureRef = useRef<Gesture | null>(null);
@@ -296,6 +308,10 @@ export function useCanvasGestures({
           g.origins.forEach((o, id) => {
             patches[id] = { x: place(o.x, dx, sx), y: place(o.y, dy, sy) };
           });
+          const moveEnd = (a: Anchor): Anchor => (a.kind === 'point' ? { ...a, x: place(a.x, dx, sx), y: place(a.y, dy, sy) } : a);
+          g.connectorEnds.forEach((ends, id) => {
+            patches[id] = { from: moveEnd(ends.from), to: moveEnd(ends.to) };
+          });
           dispatch({ type: 'updateNodes', patches });
           // Guides measure where the layers actually land, after each one's own rounding.
           const moved = snap
@@ -369,6 +385,12 @@ export function useCanvasGestures({
           onRowDrop(g.slot === from || g.slot === from + 1 ? null : { tableId: table.id, index: g.slot });
           return;
         }
+        case 'connect': {
+          if (!g.moved && dist < DRAG_THRESHOLD) return;
+          g.moved = true;
+          onConnect({ from: g.from, to: anchorAt(elementsAt(e), world, byIdOf(nodes)) });
+          return;
+        }
         case 'marquee': {
           if (!g.moved && dist < DRAG_THRESHOLD) return;
           g.moved = true;
@@ -377,7 +399,8 @@ export function useCanvasGestures({
           // Groups have no body of their own: they are hit through their children.
           const hits = nodes
             .filter((n) => n.type !== 'group' && isEffectivelyVisible(byId, n))
-            .filter((n) => boxesIntersect(box, rotatedBounds(n, n.rotation)))
+            // A connector is caught by its line, not by the box around its route.
+            .filter((n) => (n.type === 'connector' ? polylineHitsBox(n.points, box) : boxesIntersect(box, rotatedBounds(n, n.rotation))))
             .map((n) => selectTarget(byId, n.id, new Set()));
           onMarquee({ box });
           dispatch({ type: 'select', ids: topLevelIds(byId, Array.from(new Set([...g.base, ...hits]))) });
@@ -385,7 +408,7 @@ export function useCanvasGestures({
         }
       }
     },
-    [dispatch, onGuides, onMarquee, onRowDrop, snapToLayers, stateRef, tableIdType, toLocal],
+    [dispatch, onConnect, onGuides, onMarquee, onRowDrop, snapToLayers, stateRef, tableIdType, toLocal],
   );
 
   const handleUp = useCallback((e: PointerEvent) => {
@@ -399,6 +422,16 @@ export function useCanvasGestures({
       dispatch({ type: 'dropSelectionAt', point: screenToWorld(toLocal(e), stateRef.current.viewport) });
     }
     if (g.kind === 'move' && !g.moved && g.clickColumn) dispatch({ type: 'selectColumn', ...g.clickColumn });
+    if (g.kind === 'connect') {
+      onConnect(null);
+      const { nodes, viewport, tool } = stateRef.current;
+      // Escape or another tool mid-drag switches the tool, which cancels the connector.
+      if (g.moved && tool === 'connector') {
+        const to = anchorAt(elementsAt(e), screenToWorld(toLocal(e), viewport), byIdOf(nodes));
+        if (!linksToItself(g.from, to)) dispatch({ type: 'addNode', node: createConnector(g.from, to, nextName('connector', nodes)) });
+        dispatch({ type: 'setTool', tool: 'select' });
+      }
+    }
     if (g.kind === 'reorder') {
       onRowDrop(null);
       const table = stateRef.current.nodes.find((n) => n.id === g.tableId);
@@ -420,7 +453,7 @@ export function useCanvasGestures({
       dispatch({ type: 'setTool', tool: 'select' });
     }
     if (g.kind === 'marquee') onMarquee(null);
-  }, [dispatch, onEditText, onGuides, onMarquee, onRowDrop, stateRef, tableIdType, toLocal]);
+  }, [dispatch, onConnect, onEditText, onGuides, onMarquee, onRowDrop, stateRef, tableIdType, toLocal]);
 
   // A cancelled pointer (a pen or touch interruption) reports no real release point, so the
   // gesture stops where it stands: a press never becomes a click-to-place, and a move drops
@@ -433,8 +466,9 @@ export function useCanvasGestures({
     if (g.kind === 'move' && g.moved) dispatch({ type: 'dropSelectionAt', point: g.last });
     if (g.kind === 'marquee') onMarquee(null);
     if (g.kind === 'reorder') onRowDrop(null);
+    if (g.kind === 'connect') onConnect(null);
     if (g.kind === 'create' && g.nodeId) dispatch({ type: 'setTool', tool: 'select' });
-  }, [dispatch, onGuides, onMarquee, onRowDrop]);
+  }, [dispatch, onConnect, onGuides, onMarquee, onRowDrop]);
 
   // Window-level listeners stay registered for the hook's lifetime and read the
   // latest handlers from refs, so a re-render mid-drag can never orphan them.
@@ -471,6 +505,8 @@ export function useCanvasGestures({
         gesture = { kind: 'pan', start: screen, startViewport: viewport };
       } else if (e.button !== 0) {
         return;
+      } else if (tool === 'connector') {
+        gesture = { kind: 'connect', start: screen, from: anchorAt(elementsAt(e), world, byIdOf(nodes)), moved: false };
       } else if (isShapeTool(tool)) {
         const targets = { changing: new Set<string>(), viewport: null, canvasSize: null, boxes: [] };
         gesture = { kind: 'create', nodeType: tool, start: screen, startWorld: world, nodeId: null, targets };
@@ -501,13 +537,23 @@ export function useCanvasGestures({
           nextSelection = [id];
         }
         dispatch({ type: 'select', ids: nextSelection });
-        if (nextSelection.includes(id)) {
+        // A connector attached at both ends goes where they go, so dragging it would only add an empty undo step.
+        const hit = byId.get(id);
+        const pinned = hit?.type === 'connector' && hit.from.kind !== 'point' && hit.to.kind !== 'point';
+        if (nextSelection.includes(id) && !pinned) {
           // Containers carry their children; a layer and its ancestor never move twice.
           const top = topLevelIds(byId, nextSelection);
           const moving = new Set([...top, ...descendantIds(nodes, top)]);
           const origins = new Map<string, Point>();
-          for (const n of nodes) if (moving.has(n.id)) origins.set(n.id, { x: n.x, y: n.y });
-          const tops = top.flatMap((t) => byId.get(t) ?? []);
+          const connectorEnds = new Map<string, Pick<ConnectorNode, 'from' | 'to'>>();
+          for (const n of nodes) {
+            if (!moving.has(n.id)) continue;
+            if (n.type === 'connector') connectorEnds.set(n.id, { from: n.from, to: n.to });
+            else origins.set(n.id, { x: n.x, y: n.y });
+          }
+          // Guides line up the layers themselves; a connector's route bounds would only mislead them.
+          const shapes = top.flatMap((t) => byId.get(t) ?? []);
+          const tops = shapes.some((n) => n.type !== 'connector') ? shapes.filter((n) => n.type !== 'connector') : shapes;
           const bounds = unionBoxes(tops.map((n) => rotatedBounds(n, n.rotation)));
           const columnId = target.closest('[data-column-id]')?.getAttribute('data-column-id');
           const pickColumn =
@@ -515,7 +561,7 @@ export function useCanvasGestures({
           const clickColumn = pickColumn ? { tableId: id, columnId } : null;
           if (bounds) {
             const targets = { changing: moving, viewport: null, canvasSize: null, boxes: [] };
-            gesture = { kind: 'move', start: screen, startWorld: world, origins, tops, bounds, targets, moved: false, last: world, clickColumn };
+            gesture = { kind: 'move', start: screen, startWorld: world, origins, connectorEnds, tops, bounds, targets, moved: false, last: world, clickColumn };
           }
         }
       } else {

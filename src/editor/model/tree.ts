@@ -1,4 +1,5 @@
 import { pointInRotatedBox, rotatedBounds, unionBoxes } from '../geometry';
+import { routeConnector } from './connector';
 import { tableHeight } from './table';
 import type { DesignNode, Point } from './types';
 
@@ -140,7 +141,9 @@ export function mapSiblings(
  * - the list is rewritten in preorder, keeping sibling order;
  * - empty groups are removed;
  * - each group's box is the union of its children, with rotation 0;
- * - each table is as tall as its header and rows, with rotation 0.
+ * - each table is as tall as its header and rows, with rotation 0;
+ * - each connector sits at the top level and is routed against the final
+ *   layers (see `routeConnector`).
  * Nodes that need no change keep their identity, so memoized views skip them.
  */
 export function normalizeTree(input: readonly DesignNode[]): DesignNode[] {
@@ -148,7 +151,8 @@ export function normalizeTree(input: readonly DesignNode[]): DesignNode[] {
   const parentOf = new Map<string, string | null>();
   for (const n of input) {
     const p = n.parentId ?? null;
-    parentOf.set(n.id, p !== null && p !== n.id && isContainer(byId.get(p)) ? p : null);
+    const nests = n.type !== 'connector' && p !== null && p !== n.id && isContainer(byId.get(p));
+    parentOf.set(n.id, nests ? p : null);
   }
   // Detach any node caught in a parent cycle.
   for (const n of input) {
@@ -201,5 +205,8 @@ export function normalizeTree(input: readonly DesignNode[]): DesignNode[] {
 
   const out: DesignNode[] = [];
   for (const root of children.get(null) ?? []) out.push(...(build(root) ?? []));
-  return out;
+  // Connectors last: their routes depend on where everything else ended up.
+  if (!out.some((n) => n.type === 'connector')) return out;
+  const final = byIdOf(out);
+  return out.map((n) => (n.type === 'connector' ? routeConnector(n, final) : n));
 }

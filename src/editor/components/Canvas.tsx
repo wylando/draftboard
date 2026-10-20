@@ -2,11 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as
 import { useDialogs } from '../../design-system';
 import { useLatest } from '../../shared/useLatest';
 import { useEditor } from '../EditorContext';
-import { measureBetween, rotatedBounds, unionBoxes, type Guides } from '../geometry';
+import { measureBetween, rotatedBounds, screenToWorld, unionBoxes, type Guides } from '../geometry';
 import { useCanvasGestures, type Marquee } from '../hooks/useCanvasGestures';
+import { anchorAt, anchorBox, routeBetween } from '../model/connector';
 import { SQL_DIALECTS, type RowDrop, type TableCell } from '../model/table';
 import { byIdOf, childrenByParent, enteredScopes, isEffectivelyVisible, selectTarget } from '../model/tree';
-import type { DesignNode, TableNode, TextNode, Viewport } from '../model/types';
+import type { Anchor, DesignNode, TableNode, TextNode, Viewport } from '../model/types';
 import { CANVAS_FONT_FAMILY, measureText } from '../textMetrics';
 import { usePreferences } from '../../settings/preferences/PreferencesContext';
 import { CanvasGrid } from './CanvasGrid';
@@ -57,7 +58,9 @@ export function Canvas() {
    * The layer under a resting pointer, with the viewport and nodes it was hit
    * against: once either changes, the layer may no longer be under the pointer.
    */
-  const [hover, setHover] = useState<{ hitId: string; viewport: Viewport; nodes: DesignNode[] } | null>(null);
+  /** With the Connector tool, `anchor` is what an end would attach to under the pointer. */
+  const [hover, setHover] = useState<{ hitId: string; anchor: Anchor | null; viewport: Viewport; nodes: DesignNode[] } | null>(null);
+  const [connectPreview, setConnectPreview] = useState<{ from: Anchor; to: Anchor } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [tableCell, setTableCell] = useState<TableCell | null>(null);
   /** Why the last cell edit wasn't saved, shown until the next press on the canvas. */
@@ -121,6 +124,7 @@ export function Canvas() {
       setTableCell(cell);
     },
     onRowDrop: setRowDrop,
+    onConnect: setConnectPreview,
   });
 
   const onHover = (e: ReactPointerEvent) => {
@@ -128,8 +132,22 @@ export function Canvas() {
     setAltPressed(e.altKey);
     const hitId = e.buttons === 0 ? (e.target as Element).closest('[data-node-id]')?.getAttribute('data-node-id') : null;
     const { viewport, nodes } = state;
+    // Found exactly as a release would find it, so the highlight never disagrees with the result.
+    // Only the Connector tool needs it; tracking rows otherwise would re-render on every row crossed.
+    const rect = containerRef.current?.getBoundingClientRect();
+    const world = screenToWorld({ x: e.clientX - (rect?.left ?? 0), y: e.clientY - (rect?.top ?? 0) }, viewport);
+    const found = state.tool === 'connector' && e.buttons === 0 ? anchorAt(document.elementsFromPoint(e.clientX, e.clientY), world, byIdOf(nodes)) : null;
+    const anchor = found?.kind === 'point' ? null : found;
+    const same = (a: Anchor | null, b: Anchor | null) =>
+      a === b ||
+      (a?.kind === 'column' && b?.kind === 'column' && a.tableId === b.tableId && a.columnId === b.columnId) ||
+      (a?.kind === 'node' && b?.kind === 'node' && a.nodeId === b.nodeId);
     setHover((prev) =>
-      !hitId ? null : prev?.hitId === hitId && prev.viewport === viewport && prev.nodes === nodes ? prev : { hitId, viewport, nodes },
+      !hitId && !anchor
+        ? null
+        : prev && prev.hitId === (hitId ?? '') && same(prev.anchor, anchor) && prev.viewport === viewport && prev.nodes === nodes
+          ? prev
+          : { hitId: hitId ?? '', anchor, viewport, nodes },
     );
   };
 
@@ -158,10 +176,23 @@ export function Canvas() {
   const selected = nodes.filter((n) => selectedSet.has(n.id) && isEffectivelyVisible(byId, n));
   const picked = state.selectedColumn;
   const cursor = spacePressed ? 'grab' : (TOOL_CURSORS[tool] ?? 'crosshair');
-  const hoverHit = hover && hover.viewport === viewport && hover.nodes === nodes ? hover.hitId : null;
+  const freshHover = hover && hover.viewport === viewport && hover.nodes === nodes ? hover : null;
+  const hoverHit = freshHover?.hitId ?? null;
+  // What a connector would attach to: under the drag, or under the resting pointer with the Connector tool.
+  // Escape or another tool mid-drag ends the drag's preview at once; the release then creates nothing.
+  const drawing = tool === 'connector' ? connectPreview : null;
+  const connectAnchor: Anchor | null = drawing ? drawing.to : tool === 'connector' ? (freshHover?.anchor ?? null) : null;
+  const connectBox = connectAnchor ? anchorBox(connectAnchor, byId) : null;
+  const connectTarget =
+    connectAnchor && connectBox && connectAnchor.kind !== 'point'
+      ? { kind: connectAnchor.kind, box: connectBox, columnId: connectAnchor.kind === 'column' ? connectAnchor.columnId : undefined }
+      : null;
+  const previewRoute = drawing ? routeBetween(drawing.from, drawing.to, 'orthogonal', byId) : null;
   const measureId = altPressed && hoverHit && editingId === null ? selectTarget(byId, hoverHit, enteredScopes(byId, selection, false)) : null;
-  const measureTarget = measureId && !selectedSet.has(measureId) ? byId.get(measureId) : undefined;
-  const selectionBox = unionBoxes(selected.map((n) => rotatedBounds(n, n.rotation)));
+  // A connector's box is only its route's bounds, so it is neither measured from nor to.
+  const measureNode = measureId && !selectedSet.has(measureId) ? byId.get(measureId) : undefined;
+  const measureTarget = measureNode?.type === 'connector' ? undefined : measureNode;
+  const selectionBox = unionBoxes(selected.filter((n) => n.type !== 'connector').map((n) => rotatedBounds(n, n.rotation)));
   const measures =
     measureTarget && selectionBox && isEffectivelyVisible(byId, measureTarget)
       ? measureBetween(selectionBox, rotatedBounds(measureTarget, measureTarget.rotation))
@@ -210,7 +241,9 @@ export function Canvas() {
           measureTarget={measures ? measureTarget : undefined}
           pickedColumnId={picked && picked.tableId === selection[0] && selection.length === 1 ? picked.columnId : null}
           rowDrop={rowDrop}
-          hideHandles={editingId !== null || editingTable !== undefined}
+          connectTarget={connectTarget}
+          connectPreview={previewRoute}
+          hideHandles={editingId !== null || editingTable !== undefined || tool === 'connector'}
         />
       </svg>
       {editingTable && tableCell && (

@@ -31,6 +31,7 @@ export const COMMANDS = {
   'tool.line': { label: 'Line', category: 'tools', defaults: ['L'], description: 'Draw a straight line. Hold Shift to snap to 45°.' },
   'tool.text': { label: 'Text', category: 'tools', defaults: ['T'], description: 'Click to place a text layer and start typing. Enter finishes; Shift+Enter adds a line.' },
   'tool.table': { label: 'Table', category: 'tools', defaults: ['D'], description: 'Click to place a database table with an id primary key, or drag to set its width. Edit its columns in the Design panel.' },
+  'tool.connector': { label: 'Connector', category: 'tools', defaults: ['C'], description: 'Drag from a table row, a table or any shape to another to link them; the line follows them. An end dropped on empty canvas stays loose.' },
   'tool.hand': { label: 'Hand', category: 'tools', defaults: ['H'], description: 'Drag to pan the canvas without selecting anything.' },
 
   'edit.undo': { label: 'Undo', category: 'edit', defaults: ['Mod+Z'], description: 'Undo the last change to the document.' },
