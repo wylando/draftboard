@@ -46,6 +46,8 @@ export const semanticTokens = defineSemanticTokens({
       fill: { value: '#0d99ff1a' },
       /** Smart guides while a layer snaps; set apart from the selection blue they cross. */
       guide: { value: '{colors.red.500}' },
+      /** Distance labels on the guide colour; dark, since white on it falls short of 4.5:1. */
+      guideText: { value: '{colors.black.800}' },
     },
   },
 });

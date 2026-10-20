@@ -91,6 +91,11 @@ export const FIXED_INTERACTIONS: Array<{ label: string; input: string; descripti
     description:
       'Move, resize or draw without lining up to other layers. Press it after the drag starts: held before the click, it deep-selects as usual. Turn snapping off for good in Settings → Canvas.',
   },
+  {
+    label: 'Measure distances',
+    input: 'Hold Alt/Option over a layer',
+    description: 'With a layer selected, shows the distance from it to the layer under the pointer.',
+  },
   { label: 'Rotate', input: 'Drag just outside a corner', description: 'Rotate the selected layer about its center. Hold Shift to snap to 15° steps.' },
   { label: 'Edit text', input: 'Double-click a text layer', description: 'Edit its content in place.' },
   { label: 'Rename layer', input: 'Double-click in Layers panel', description: 'Edit the layer name.' },

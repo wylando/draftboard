@@ -11,7 +11,10 @@ interface PointerOpts {
   /** Pass both metaKey and ctrlKey for "Mod": the app accepts either, so tests pass on macOS and Linux. */
   metaKey?: boolean;
   ctrlKey?: boolean;
+  altKey?: boolean;
   button?: number;
+  /** Buttons held during the event; defaults to the pressed `button` (none for pointerup). Pass 0 to hover. */
+  buttons?: number;
 }
 
 declare global {
@@ -57,10 +60,11 @@ function dispatchPointer(target: Element, type: string, clientX: number, clientY
       pointerType: 'mouse',
       isPrimary: true,
       button,
-      buttons: type === 'pointerup' ? 0 : 1 << button,
+      buttons: opts.buttons ?? (type === 'pointerup' ? 0 : 1 << button),
       shiftKey: opts.shiftKey ?? false,
       metaKey: opts.metaKey ?? false,
       ctrlKey: opts.ctrlKey ?? false,
+      altKey: opts.altKey ?? false,
     }),
   );
 }

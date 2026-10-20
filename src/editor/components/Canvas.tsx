@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useDialogs } from '../../design-system';
 import { useLatest } from '../../shared/useLatest';
 import { useEditor } from '../EditorContext';
-import type { SnapGuide } from '../geometry';
+import { measureBetween, rotatedBounds, unionBoxes, type Guides } from '../geometry';
 import { useCanvasGestures, type Marquee } from '../hooks/useCanvasGestures';
-import { byIdOf, childrenByParent, isEffectivelyVisible } from '../model/tree';
-import type { TextNode } from '../model/types';
+import { byIdOf, childrenByParent, enteredScopes, isEffectivelyVisible, selectTarget } from '../model/tree';
+import type { DesignNode, TextNode, Viewport } from '../model/types';
 import { CANVAS_FONT_FAMILY, measureText } from '../textMetrics';
 import { usePreferences } from '../../settings/preferences/PreferencesContext';
 import { CanvasGrid } from './CanvasGrid';
@@ -35,7 +35,13 @@ export function Canvas() {
   const { gridStyle, snapToLayers } = usePreferences().preferences;
   const containerRef = useRef<HTMLDivElement>(null);
   const [marquee, setMarquee] = useState<Marquee | null>(null);
-  const [guides, setGuides] = useState<SnapGuide[]>([]);
+  const [guides, setGuides] = useState<Guides>({ lines: [], spacing: [] });
+  const [altPressed, setAltPressed] = useState(false);
+  /**
+   * The layer under a resting pointer, with the viewport and nodes it was hit
+   * against: once either changes, the layer may no longer be under the pointer.
+   */
+  const [hover, setHover] = useState<{ hitId: string; viewport: Viewport; nodes: DesignNode[] } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [spacePressed, setSpacePressed] = useState(false);
   const dialogOpen = useLatest(useDialogs().isOpen);
@@ -60,13 +66,22 @@ export function Canvas() {
         e.preventDefault();
         setSpacePressed(true);
       }
+      // Option-typing accents in a field shouldn't flash measurements over the canvas.
+      if (e.key === 'Alt' && !isTyping(e.target)) setAltPressed(true);
     };
-    const up = (e: KeyboardEvent) => e.code === 'Space' && setSpacePressed(false);
+    const up = (e: KeyboardEvent) => {
+      if (e.code === 'Space') setSpacePressed(false);
+      if (e.key === 'Alt') setAltPressed(false);
+    };
+    // Switching windows with Alt held never delivers its keyup here.
+    const blur = () => setAltPressed(false);
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
+    window.addEventListener('blur', blur);
     return () => {
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
+      window.removeEventListener('blur', blur);
     };
   }, [dialogOpen]);
 
@@ -81,6 +96,16 @@ export function Canvas() {
     onGuides: setGuides,
     onEditText,
   });
+
+  const onHover = (e: ReactPointerEvent) => {
+    // Pointer events carry the real Alt state, which catches an Alt pressed outside the window.
+    setAltPressed(e.altKey);
+    const hitId = e.buttons === 0 ? (e.target as Element).closest('[data-node-id]')?.getAttribute('data-node-id') : null;
+    const { viewport, nodes } = state;
+    setHover((prev) =>
+      !hitId ? null : prev?.hitId === hitId && prev.viewport === viewport && prev.nodes === nodes ? prev : { hitId, viewport, nodes },
+    );
+  };
 
   const editingNode = state.nodes.find((n): n is TextNode => n.id === editingId && n.type === 'text');
 
@@ -99,6 +124,14 @@ export function Canvas() {
   const selectedSet = new Set(selection);
   const selected = nodes.filter((n) => selectedSet.has(n.id) && isEffectivelyVisible(byId, n));
   const cursor = spacePressed ? 'grab' : (TOOL_CURSORS[tool] ?? 'crosshair');
+  const hoverHit = hover && hover.viewport === viewport && hover.nodes === nodes ? hover.hitId : null;
+  const measureId = altPressed && hoverHit && editingId === null ? selectTarget(byId, hoverHit, enteredScopes(byId, selection, false)) : null;
+  const measureTarget = measureId && !selectedSet.has(measureId) ? byId.get(measureId) : undefined;
+  const selectionBox = unionBoxes(selected.map((n) => rotatedBounds(n, n.rotation)));
+  const measures =
+    measureTarget && selectionBox && isEffectivelyVisible(byId, measureTarget)
+      ? measureBetween(selectionBox, rotatedBounds(measureTarget, measureTarget.rotation))
+      : null;
 
   return (
     <div
@@ -109,6 +142,8 @@ export function Canvas() {
       data-grid={gridStyle}
       style={{ cursor }}
       onPointerDown={onPointerDown}
+      onPointerMove={onHover}
+      onPointerLeave={() => setHover(null)}
       onDoubleClick={onDoubleClick}
     >
       <svg className={svgClass} width="100%" height="100%">
@@ -130,6 +165,8 @@ export function Canvas() {
           viewport={viewport}
           marquee={marquee?.box ?? null}
           guides={guides}
+          measures={measures}
+          measureTarget={measures ? measureTarget : undefined}
           hideHandles={editingId !== null}
         />
       </svg>

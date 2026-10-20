@@ -18,10 +18,12 @@ import {
   rotatedBounds,
   screenToWorld,
   snapOffset,
+  snapSpacing,
+  spacingGuides,
   unionBoxes,
   zoomAt,
+  type Guides,
   type HandleDir,
-  type SnapGuide,
 } from '../geometry';
 import { useLatest } from '../../shared/useLatest';
 import type { EditorAction, EditorState } from '../model/editorReducer';
@@ -36,7 +38,10 @@ const WHEEL_ZOOM_SPEED = 0.01;
 const ROTATION_SNAP = 15;
 /** Design choice: screen-pixel distance at which an edge or center snaps to another layer's. */
 const SNAP_DISTANCE = 6;
-const NO_GUIDES: SnapGuide[] = [];
+const NO_GUIDES: Guides = { lines: [], spacing: [] };
+
+/** The smaller of two optional snap offsets. */
+const nearer = (a: number | null, b: number | null) => (a === null || (b !== null && Math.abs(b) < Math.abs(a)) ? b : a);
 
 type Gesture =
   | { kind: 'pan'; start: Point; startViewport: Viewport }
@@ -78,7 +83,7 @@ interface Options {
   spacePressed: boolean;
   snapToLayers: boolean;
   onMarquee: (marquee: Marquee | null) => void;
-  onGuides: (guides: SnapGuide[]) => void;
+  onGuides: (guides: Guides) => void;
   onEditText: (id: string) => void;
 }
 
@@ -123,13 +128,16 @@ function snapCandidates(nodes: DesignNode[], changing: Set<string>, viewport: Vi
 interface SnapTargets {
   changing: Set<string>;
   viewport: Viewport | null;
+  /** The canvas size the boxes were found for; it is 0×0 until the first layout. */
+  canvasSize: { width: number; height: number } | null;
   boxes: Box[];
 }
 
 function targetBoxes(t: SnapTargets, { nodes, viewport, canvasSize }: EditorState): Box[] {
-  if (t.viewport !== viewport) {
+  if (t.viewport !== viewport || t.canvasSize !== canvasSize) {
     t.boxes = snapCandidates(nodes, t.changing, viewport, canvasSize);
     t.viewport = viewport;
+    t.canvasSize = canvasSize;
   }
   return t.boxes;
 }
@@ -218,7 +226,8 @@ export function useCanvasGestures({
             const [sy, ey] = pick('y');
             start = { x: sx, y: sy };
             end = { x: ex, y: ey };
-            guides = alignmentGuides(boxFromPoints(start, end), { x: [start.x, end.x], y: [start.y, end.y] }, candidates);
+            const lines = alignmentGuides(boxFromPoints(start, end), { x: [start.x, end.x], y: [start.y, end.y] }, candidates);
+            guides = { lines, spacing: [] };
           }
           onGuides(guides);
           const box = boxFromPoints(start, end);
@@ -253,9 +262,12 @@ export function useCanvasGestures({
             else [dx, lockX] = [0, true];
           }
           const candidates = snap ? boxes(g.targets) : [];
+          const snapAxis = (box: Box, axis: 'x' | 'y') =>
+            nearer(snapOffset(boxLines(box, axis), candidates, axis, threshold), snapSpacing(box, candidates, axis, threshold));
           const shifted = { ...g.bounds, x: g.bounds.x + dx, y: g.bounds.y + dy };
-          const sx = snap && !lockX ? snapOffset(boxLines(shifted, 'x'), candidates, 'x', threshold) : null;
-          const sy = snap && !lockY ? snapOffset(boxLines(shifted, 'y'), candidates, 'y', threshold) : null;
+          const sy = snap && !lockY ? snapAxis(shifted, 'y') : null;
+          // Which layers share the mover's row depends on its y, so x spacing uses the snapped y.
+          const sx = snap && !lockX ? snapAxis({ ...shifted, y: shifted.y + (sy ?? 0) }, 'x') : null;
           // Moves land on whole pixels, except on a snapped axis, where the target line may sit on a half pixel.
           const place = (v: number, d: number, offset: number | null) => (offset === null ? Math.round(v + d) : v + d + offset);
           const patches: Record<string, NodePatch> = {};
@@ -267,7 +279,14 @@ export function useCanvasGestures({
           const moved = snap
             ? unionBoxes(g.tops.map((n) => rotatedBounds({ ...n, x: place(n.x, dx, sx), y: place(n.y, dy, sy) }, n.rotation)))
             : null;
-          onGuides(moved ? alignmentGuides(moved, { x: boxLines(moved, 'x'), y: boxLines(moved, 'y') }, candidates) : NO_GUIDES);
+          onGuides(
+            moved
+              ? {
+                  lines: alignmentGuides(moved, { x: boxLines(moved, 'x'), y: boxLines(moved, 'y') }, candidates),
+                  spacing: spacingGuides(moved, candidates),
+                }
+              : NO_GUIDES,
+          );
           return;
         }
         case 'resize': {
@@ -300,7 +319,7 @@ export function useCanvasGestures({
               }
               lines.y.push(g.handle.dy < 0 ? box.y : box.y + box.height);
             }
-            guides = alignmentGuides(box, lines, candidates);
+            guides = { lines: alignmentGuides(box, lines, candidates), spacing: [] };
           }
           onGuides(guides);
           dispatch({ type: 'transformNode', id: g.node.id, box });
@@ -407,7 +426,7 @@ export function useCanvasGestures({
       } else if (e.button !== 0) {
         return;
       } else if (isShapeTool(tool)) {
-        const targets = { changing: new Set<string>(), viewport: null, boxes: [] };
+        const targets = { changing: new Set<string>(), viewport: null, canvasSize: null, boxes: [] };
         gesture = { kind: 'create', nodeType: tool, start: screen, startWorld: world, nodeId: null, targets };
       } else if (handleEl && selection.length === 1) {
         const node = nodes.find((n) => n.id === selection[0]);
@@ -415,7 +434,7 @@ export function useCanvasGestures({
         if (node && dir) {
           // A group's children scale with it, so they can't be snap targets; a frame's stay put.
           const changing = new Set([node.id, ...(node.type === 'group' ? descendantIds(nodes, [node.id]) : [])]);
-          const targets = { changing, viewport: null, boxes: [] };
+          const targets = { changing, viewport: null, canvasSize: null, boxes: [] };
           gesture = { kind: 'resize', start: screen, startWorld: world, node, handle: dir, targets, moved: false };
         }
       } else if (rotateEl && selection.length === 1) {
@@ -441,7 +460,7 @@ export function useCanvasGestures({
           const tops = top.flatMap((t) => byId.get(t) ?? []);
           const bounds = unionBoxes(tops.map((n) => rotatedBounds(n, n.rotation)));
           if (bounds) {
-            gesture = { kind: 'move', start: screen, startWorld: world, origins, tops, bounds, targets: { changing: moving, viewport: null, boxes: [] }, moved: false, last: world };
+            gesture = { kind: 'move', start: screen, startWorld: world, origins, tops, bounds, targets: { changing: moving, viewport: null, canvasSize: null, boxes: [] }, moved: false, last: world };
           }
         }
       } else {
