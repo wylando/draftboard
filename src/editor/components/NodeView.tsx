@@ -185,7 +185,10 @@ function TableShape({ node }: { node: TableNode }) {
             <g key={c.id} data-testid="table-column" data-column-id={c.id}>
               {/* The whole row is hit, not just its glyphs, so a click or double-click anywhere in it finds the column. */}
               <rect y={y} width={w} height={TABLE_ROW_HEIGHT} fill="transparent" />
-              {i > 0 && <line x1={0} x2={w} y1={y} y2={y} stroke={bodyDark ? muted : TABLE_COLORS.divider} strokeOpacity={bodyDark ? 0.4 : 1} />}
+              {/* In the table's stroke, but at most a hairline: a heavy outline shouldn't make heavy rows. */}
+              {i > 0 && node.strokeWidth > 0 && (
+                <line data-testid="row-divider" x1={0} x2={w} y1={y} y2={y} stroke={node.stroke} strokeWidth={Math.min(node.strokeWidth, 1)} />
+              )}
               {badge && (
                 <text
                   {...text}
