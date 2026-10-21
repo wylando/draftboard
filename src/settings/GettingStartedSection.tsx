@@ -72,7 +72,7 @@ export function GettingStartedSection() {
           items={[
             ['Toolbar (top)', 'Tools on the left, undo/redo in the middle, then Import, Export, zoom and Settings.'],
             ['Layers (left)', 'Everything on the canvas as a tree, top layer first. Layers inside a frame or group are indented under it; click the arrow to fold them away. Click to select, Shift-click to add, double-click to rename, eye icon to hide, drag to reorder or move into a frame or group.'],
-            ['Canvas (center)', 'Where you draw. Scroll to pan, ⌘/Ctrl + scroll to zoom. Change the background grid (dots, lines or none) under Settings → Canvas.'],
+            ['Canvas (center)', 'Where you draw. Scroll to pan, ⌘/Ctrl + scroll to zoom. Change the background grid (dots, lines or none) and turn snapping on or off under Settings → Canvas.'],
             ['Design panel (right)', 'Properties of the selected layer. Shows a hint when nothing is selected.'],
           ]}
         />
@@ -84,6 +84,7 @@ export function GettingStartedSection() {
             Press <Shortcut binding={bindings['tool.rect'][0]} /> (Rectangle) and drag on the canvas.
           </li>
           <li>The new layer is selected: drag it to move it, drag a corner handle to resize, or drag just outside a corner to rotate.</li>
+          <li>Draw a second shape and drag it near the first: its edges and centers snap into line, and guide lines show what lined up. Hold ⌘/Ctrl once you’ve started dragging to place it freely.</li>
           <li>Change its color under Fill in the Design panel; type a hex value and press Enter.</li>
           <li>
             Press <Shortcut binding={bindings['tool.text'][0]} /> and click to add text. Type, then press Enter.

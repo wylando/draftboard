@@ -1,5 +1,6 @@
 import { boxCenter, HANDLES, rotatedBounds, rotatePoint, unionBoxes, worldToScreen } from '../geometry';
-import type { Box, DesignNode, Viewport } from '../model/types';
+import type { SnapGuide } from '../geometry';
+import type { Box, DesignNode, Point, Viewport } from '../model/types';
 import { css } from 'styled-system/css';
 import { token } from 'styled-system/tokens';
 
@@ -7,9 +8,12 @@ import { token } from 'styled-system/tokens';
 const SELECTION = token.var('colors.selection');
 const SELECTION_FILL = token.var('colors.selection.fill');
 const HANDLE_FILL = token.var('colors.bg');
+const GUIDE = token.var('colors.selection.guide');
 
 const HANDLE_SIZE = 8;
 const ROTATE_ZONE_SIZE = 16;
+/** Half the size of the × drawn where a guide meets an aligned edge or center. */
+const GUIDE_MARK = 3;
 
 // CSS has no rotate cursor keyword. Cursor images can't read CSS variables, so the
 // arrow uses fixed black-on-white, which stays visible on any canvas or theme.
@@ -31,15 +35,37 @@ function outline(node: DesignNode, vp: Viewport): string {
     .join(' ');
 }
 
+function GuideLine({ guide, viewport }: { guide: SnapGuide; viewport: Viewport }) {
+  const along = (m: number): Point =>
+    worldToScreen(guide.axis === 'x' ? { x: guide.at, y: m } : { x: m, y: guide.at }, viewport);
+  const start = along(Math.min(...guide.marks));
+  const end = along(Math.max(...guide.marks));
+  return (
+    <g data-testid="snap-guide" data-axis={guide.axis} data-at={guide.at} stroke={GUIDE} strokeWidth={1} pointerEvents="none">
+      <line x1={start.x} y1={start.y} x2={end.x} y2={end.y} />
+      {guide.marks.map((m, i) => {
+        const p = along(m);
+        return (
+          <path
+            key={i}
+            d={`M${p.x - GUIDE_MARK} ${p.y - GUIDE_MARK}L${p.x + GUIDE_MARK} ${p.y + GUIDE_MARK}M${p.x + GUIDE_MARK} ${p.y - GUIDE_MARK}L${p.x - GUIDE_MARK} ${p.y + GUIDE_MARK}`}
+          />
+        );
+      })}
+    </g>
+  );
+}
+
 interface Props {
   selected: DesignNode[];
   viewport: Viewport;
   marquee: Box | null;
+  guides: SnapGuide[];
   hideHandles: boolean;
 }
 
 /** Drawn in screen space so outlines and handles stay a constant size at any zoom. */
-export function SelectionOverlay({ selected, viewport, marquee, hideHandles }: Props) {
+export function SelectionOverlay({ selected, viewport, marquee, guides, hideHandles }: Props) {
   const single = selected.length === 1 ? selected[0] : undefined;
   const group = selected.length > 1 ? unionBoxes(selected.map((n) => rotatedBounds(n, n.rotation))) : null;
 
@@ -107,6 +133,10 @@ export function SelectionOverlay({ selected, viewport, marquee, hideHandles }: P
             />
           );
         })}
+
+      {guides.map((g) => (
+        <GuideLine key={`${g.axis}-${g.at}`} guide={g} viewport={viewport} />
+      ))}
 
       {marquee && (
         <rect

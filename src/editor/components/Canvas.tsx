@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDialogs } from '../../design-system';
 import { useLatest } from '../../shared/useLatest';
 import { useEditor } from '../EditorContext';
+import type { SnapGuide } from '../geometry';
 import { useCanvasGestures, type Marquee } from '../hooks/useCanvasGestures';
 import { byIdOf, childrenByParent, isEffectivelyVisible } from '../model/tree';
 import type { TextNode } from '../model/types';
@@ -31,9 +32,10 @@ const TOOL_CURSORS: Record<string, string> = {
 
 export function Canvas() {
   const { state, dispatch } = useEditor();
-  const { gridStyle } = usePreferences().preferences;
+  const { gridStyle, snapToLayers } = usePreferences().preferences;
   const containerRef = useRef<HTMLDivElement>(null);
   const [marquee, setMarquee] = useState<Marquee | null>(null);
+  const [guides, setGuides] = useState<SnapGuide[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [spacePressed, setSpacePressed] = useState(false);
   const dialogOpen = useLatest(useDialogs().isOpen);
@@ -74,7 +76,9 @@ export function Canvas() {
     state,
     dispatch,
     spacePressed,
+    snapToLayers,
     onMarquee: setMarquee,
+    onGuides: setGuides,
     onEditText,
   });
 
@@ -125,6 +129,7 @@ export function Canvas() {
           selected={selected}
           viewport={viewport}
           marquee={marquee?.box ?? null}
+          guides={guides}
           hideHandles={editingId !== null}
         />
       </svg>

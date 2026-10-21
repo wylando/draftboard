@@ -11,6 +11,7 @@ import {
   semanticTokens,
   tabsRecipe,
   textStyles,
+  toggleSwitchRecipe,
   tokens,
 } from './src/design-system/theme';
 
@@ -43,6 +44,7 @@ export default defineConfig({
       dialog: dialogRecipe,
       tabs: tabsRecipe,
       radioGroup: radioGroupRecipe,
+      toggleSwitch: toggleSwitchRecipe,
     },
   },
   globalCss: {

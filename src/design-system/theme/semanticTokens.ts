@@ -40,10 +40,12 @@ export const semanticTokens = defineSemanticTokens({
     },
     /** Canvas background grid (Settings → Canvas). */
     canvasGrid: { value: '{colors.grey.300}' },
-    /** Canvas chrome: selection outline, handles, marquee. */
+    /** Canvas chrome: selection outline, handles, marquee, smart guides. */
     selection: {
       DEFAULT: { value: '{colors.blue.500}' },
       fill: { value: '#0d99ff1a' },
+      /** Smart guides while a layer snaps; set apart from the selection blue they cross. */
+      guide: { value: '{colors.red.500}' },
     },
   },
 });

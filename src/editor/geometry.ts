@@ -188,3 +188,63 @@ export function gridSpacing(zoom: number, base = 16): number {
   while (s >= MIN_GRID_SPACING * 2) s /= 2;
   return s;
 }
+
+export type Axis = 'x' | 'y';
+
+/**
+ * A smart guide in world units: the line `axis = at`, with a mark at each
+ * aligned edge or center along it. The line spans from the first mark to the last.
+ */
+export interface SnapGuide {
+  axis: Axis;
+  at: number;
+  marks: number[];
+}
+
+/** Start edge, center and end edge of a box on one axis. */
+export function boxLines(b: Box, axis: Axis): number[] {
+  const start = axis === 'x' ? b.x : b.y;
+  const size = axis === 'x' ? b.width : b.height;
+  return [start, start + size / 2, start + size];
+}
+
+/**
+ * The shift that brings the closest of `values` onto a line of a candidate box,
+ * or null when none is within `threshold`.
+ */
+export function snapOffset(values: number[], candidates: Box[], axis: Axis, threshold: number): number | null {
+  let best: number | null = null;
+  let bestDist = threshold;
+  for (const c of candidates) {
+    for (const line of boxLines(c, axis)) {
+      for (const v of values) {
+        const dist = Math.abs(line - v);
+        if (dist <= bestDist) {
+          best = line - v;
+          bestDist = dist;
+        }
+      }
+    }
+  }
+  return best;
+}
+
+// Snapped values are exact, but an unsnapped axis is rounded before the check.
+const ALIGN_EPSILON = 0.01;
+
+/** One guide per `lines` value that some candidate's edge or center sits on. */
+export function alignmentGuides(subject: Box, lines: { x: number[]; y: number[] }, candidates: Box[]): SnapGuide[] {
+  const guides: SnapGuide[] = [];
+  for (const axis of ['x', 'y'] as const) {
+    const cross: Axis = axis === 'x' ? 'y' : 'x';
+    for (const at of new Set(lines[axis])) {
+      const aligned = candidates.filter((c) => boxLines(c, axis).some((l) => Math.abs(l - at) < ALIGN_EPSILON));
+      if (aligned.length === 0) continue;
+      const marks = [subject, ...aligned].flatMap((b) =>
+        cross === 'x' ? [b.x, b.x + b.width] : [b.y, b.y + b.height],
+      );
+      guides.push({ axis, at, marks });
+    }
+  }
+  return guides;
+}
