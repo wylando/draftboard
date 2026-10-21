@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useDialogs } from '../../design-system';
 import { useLatest } from '../../shared/useLatest';
 import { useEditor } from '../EditorContext';
@@ -77,6 +77,13 @@ export function Canvas() {
   const [rowDrop, setRowDrop] = useState<RowDrop | null>(null);
   const [spacePressed, setSpacePressed] = useState(false);
   const dialogOpen = useLatest(useDialogs().isOpen);
+
+  // Measured before the first paint as well: ResizeObserver reports only later, and until the size is
+  // known no layer counts as on screen, so a drag started straight after load would snap to nothing.
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (el) dispatch({ type: 'setCanvasSize', size: { width: el.clientWidth, height: el.clientHeight } });
+  }, [dispatch]);
 
   useEffect(() => {
     const el = containerRef.current;
