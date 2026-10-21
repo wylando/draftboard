@@ -19,6 +19,13 @@ function Icon(props: SVGProps<SVGSVGElement>) {
 }
 
 export const icons = {
+  connector: () => (
+    <Icon>
+      <path d="M4 11.5h4v-7h4" />
+      <circle cx="2.75" cy="11.5" r="1.25" />
+      <circle cx="13.25" cy="4.5" r="1.25" />
+    </Icon>
+  ),
   table: () => (
     <Icon>
       <rect x="2" y="2.5" width="12" height="11" rx="1.5" />

@@ -1,11 +1,11 @@
 export type DrawableType = 'frame' | 'rect' | 'ellipse' | 'line' | 'text' | 'table';
 
-/** Groups are made from a selection (Group command), never drawn. */
-export type NodeType = DrawableType | 'group';
+/** Groups are made from a selection (Group command), connectors by linking two ends; neither is drawn as a box. */
+export type NodeType = DrawableType | 'group' | 'connector';
 
 export type ContainerType = 'frame' | 'group';
 
-export type ToolId = 'select' | 'hand' | DrawableType;
+export type ToolId = 'select' | 'hand' | 'connector' | DrawableType;
 
 export interface Point {
   x: number;
@@ -110,7 +110,31 @@ export interface TableNode extends BaseNode {
   note?: string;
 }
 
-export type DesignNode = FrameNode | RectNode | EllipseNode | LineNode | TextNode | GroupNode | TableNode;
+/** Where a connector end is attached. */
+export type Anchor =
+  /** A row of a table: the end sits on the row's left or right edge. */
+  | { kind: 'column'; tableId: string; columnId: string }
+  /** A whole layer (a table or any shape): the end sits mid-side. */
+  | { kind: 'node'; nodeId: string }
+  /** A loose end in world px; `broken` when the layer or column it was attached to went away. */
+  | { kind: 'point'; x: number; y: number; broken?: boolean };
+
+/**
+ * A line between two anchors. `normalizeTree` routes it from its anchors on
+ * every change, writes the route to `points` and its bounds to the box, keeps
+ * it at the top level with rotation 0, and turns an end whose target is gone
+ * into a broken loose end where the route last ended.
+ */
+export interface ConnectorNode extends BaseNode {
+  type: 'connector';
+  from: Anchor;
+  to: Anchor;
+  routing: 'orthogonal' | 'straight';
+  /** The route in world px, first point at `from`. */
+  points: Point[];
+}
+
+export type DesignNode = FrameNode | RectNode | EllipseNode | LineNode | TextNode | GroupNode | TableNode | ConnectorNode;
 
 /**
  * Fields any node type may carry; used for partial, type-agnostic updates.
@@ -120,7 +144,8 @@ export type DesignNode = FrameNode | RectNode | EllipseNode | LineNode | TextNod
 export type NodePatch = Partial<
   Omit<FrameNode, 'id' | 'type' | 'name'> &
     Omit<LineNode, 'id' | 'type' | 'name'> &
-    Omit<TextNode, 'id' | 'type' | 'name'>
+    Omit<TextNode, 'id' | 'type' | 'name'> &
+    Pick<ConnectorNode, 'from' | 'to'>
 >;
 
 export interface Viewport {

@@ -10,6 +10,7 @@ const LABELS: Record<NodeType, string> = {
   text: 'Text',
   group: 'Group',
   table: 'Table',
+  connector: 'Connector',
 };
 
 /** Lowest free "<Label> <n>" name, so a deleted layer's number is reused. */

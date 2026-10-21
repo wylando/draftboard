@@ -107,12 +107,30 @@ interface Props {
   /** Column picked inside the selected table, highlighted when it still exists. */
   pickedColumnId: string | null;
   rowDrop: RowDrop | null;
+  /** What a connector end would attach to, while drawing one or hovering with the Connector tool. */
+  connectTarget: { kind: 'column' | 'node'; box: Box; columnId?: string } | null;
+  /** The route of the connector being drawn, in world px. */
+  connectPreview: Point[] | null;
   hideHandles: boolean;
 }
 
 /** Drawn in screen space so outlines and handles stay a constant size at any zoom. */
-export function SelectionOverlay({ selected, viewport, marquee, guides, measures, measureTarget, pickedColumnId, rowDrop, hideHandles }: Props) {
-  const single = selected.length === 1 ? selected[0] : undefined;
+export function SelectionOverlay({
+  selected,
+  viewport,
+  marquee,
+  guides,
+  measures,
+  measureTarget,
+  pickedColumnId,
+  rowDrop,
+  connectTarget,
+  connectPreview,
+  hideHandles,
+}: Props) {
+  // A connector's shape comes from its ends: it gets a highlight along its route, never box handles.
+  const single = selected.length === 1 && selected[0]?.type !== 'connector' ? selected[0] : undefined;
+  const toScreen = (points: Point[]) => points.map((p) => worldToScreen(p, viewport)).map((p) => `${p.x},${p.y}`).join(' ');
   const table = single?.type === 'table' ? single : undefined;
   const rowTop = (i: number) => (table ? tableRowTop(table, i) : 0);
   // Zoomed out, a full-size grip would reach into the neighbouring rows' grips; far out, rows are too thin to grab.
@@ -123,9 +141,13 @@ export function SelectionOverlay({ selected, viewport, marquee, guides, measures
 
   return (
     <g data-testid="selection-overlay">
-      {selected.map((n) => (
-        <polygon key={n.id} points={outline(n, viewport)} fill="none" stroke={SELECTION} strokeWidth={1} pointerEvents="none" />
-      ))}
+      {selected.map((n) =>
+        n.type === 'connector' ? (
+          <polyline key={n.id} points={toScreen(n.points)} fill="none" stroke={SELECTION} strokeWidth={3} strokeOpacity={0.5} pointerEvents="none" />
+        ) : (
+          <polygon key={n.id} points={outline(n, viewport)} fill="none" stroke={SELECTION} strokeWidth={1} pointerEvents="none" />
+        ),
+      )}
 
       {group && (
         <rect
@@ -267,6 +289,38 @@ export function SelectionOverlay({ selected, viewport, marquee, guides, measures
           strokeWidth={2}
           pointerEvents="none"
         />
+      )}
+
+      {connectPreview && (
+        <polyline data-testid="connect-preview" points={toScreen(connectPreview)} fill="none" stroke={SELECTION} strokeDasharray="4 3" pointerEvents="none" />
+      )}
+      {connectTarget && (
+        <g data-testid="connect-target" data-target-kind={connectTarget.kind} data-column-id={connectTarget.columnId} pointerEvents="none">
+          <rect
+            x={connectTarget.box.x * viewport.zoom + viewport.x}
+            y={connectTarget.box.y * viewport.zoom + viewport.y}
+            width={connectTarget.box.width * viewport.zoom}
+            height={connectTarget.box.height * viewport.zoom}
+            fill={SELECTION_FILL}
+            stroke={SELECTION}
+          />
+          {/* Where an end can sit: a row's two edges, or a layer's four sides. */}
+          {(connectTarget.kind === 'column'
+            ? [
+                { x: connectTarget.box.x, y: connectTarget.box.y + connectTarget.box.height / 2 },
+                { x: connectTarget.box.x + connectTarget.box.width, y: connectTarget.box.y + connectTarget.box.height / 2 },
+              ]
+            : [
+                { x: connectTarget.box.x + connectTarget.box.width / 2, y: connectTarget.box.y },
+                { x: connectTarget.box.x + connectTarget.box.width, y: connectTarget.box.y + connectTarget.box.height / 2 },
+                { x: connectTarget.box.x + connectTarget.box.width / 2, y: connectTarget.box.y + connectTarget.box.height },
+                { x: connectTarget.box.x, y: connectTarget.box.y + connectTarget.box.height / 2 },
+              ]
+          ).map((p) => {
+            const s = worldToScreen(p, viewport);
+            return <circle key={`${p.x},${p.y}`} cx={s.x} cy={s.y} r={4} fill={HANDLE_FILL} stroke={SELECTION} />;
+          })}
+        </g>
       )}
 
       {marquee && (

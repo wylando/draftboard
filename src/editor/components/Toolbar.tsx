@@ -4,6 +4,7 @@ import { Button, IconButton, icons, useDialogs } from '../../design-system';
 import { useEditor } from '../EditorContext';
 import { useViewportControls } from '../hooks/useViewportControls';
 import type { ToolId } from '../model/types';
+import { isBroken } from '../model/connector';
 import { downloadDocument, parseDocument } from '../persistence';
 import { COMMANDS, type CommandId } from '../../settings/keybindings/commands';
 import { formatBindingText } from '../../settings/keybindings/keys';
@@ -24,6 +25,7 @@ const toolbarClass = css({
 const groupClass = css({ display: 'flex', alignItems: 'center', gap: '1' });
 const brandClass = css({ paddingInlineStart: '2', paddingInlineEnd: '3', textStyle: 'body.largeStrong' });
 const zoomClass = css({ minWidth: 'zoomLabel' });
+const problemsClass = css({ color: 'text.danger' });
 const toolItemClass = iconButton({ tone: 'dark' });
 
 const TOOLS: Array<{ id: ToolId; command: CommandId; icon: () => ReactElement }> = [
@@ -34,6 +36,7 @@ const TOOLS: Array<{ id: ToolId; command: CommandId; icon: () => ReactElement }>
   { id: 'line', command: 'tool.line', icon: icons.line },
   { id: 'text', command: 'tool.text', icon: icons.text },
   { id: 'table', command: 'tool.table', icon: icons.table },
+  { id: 'connector', command: 'tool.connector', icon: icons.connector },
   { id: 'hand', command: 'tool.hand', icon: icons.hand },
 ];
 
@@ -52,6 +55,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const title = useCommandTitle();
   const dialogs = useDialogs();
+  const broken = state.nodes.filter((n) => n.type === 'connector' && isBroken(n));
 
   const onImport = async (file: File | undefined) => {
     if (!file) return;
@@ -122,6 +126,20 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
       </div>
 
       <div className={groupClass}>
+        {/* A live region, so the count is announced when a delete breaks a connector. */}
+        <span role="status">
+          {broken.length > 0 && (
+            <Button
+              variant="toolbar"
+              className={problemsClass}
+              data-testid="problems-indicator"
+              title="Connectors whose table, column or layer was deleted. Click to select them."
+              onClick={() => dispatch({ type: 'select', ids: broken.map((c) => c.id) })}
+            >
+              {broken.length === 1 ? '1 broken connector' : `${broken.length} broken connectors`}
+            </Button>
+          )}
+        </span>
         <Button variant="toolbar" onClick={() => fileInput.current?.click()}>
           Import
         </Button>

@@ -42,6 +42,8 @@ function runCommand(id: CommandId, o: Options): void {
       return dispatch({ type: 'setTool', tool: 'line' });
     case 'tool.table':
       return dispatch({ type: 'setTool', tool: 'table' });
+    case 'tool.connector':
+      return dispatch({ type: 'setTool', tool: 'connector' });
     case 'tool.text':
       return dispatch({ type: 'setTool', tool: 'text' });
     case 'tool.hand':

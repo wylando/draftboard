@@ -2,6 +2,7 @@ import { boxCenter, mapBoxBetween, rotatePoint } from '../geometry';
 import type { Box, DesignNode, NodePatch, Point, ToolId, Viewport } from './types';
 import { createId, nameKey, nameTaken, uniqueName } from './names';
 import { createGroup } from './nodes';
+import { shiftLooseEnds } from './connector';
 import { applyTableEdit, type TableEdit } from './table';
 import { byIdOf, descendantIds, type ById, frameAt, isContainer, mapSiblings, normalizeTree, topLevelIds } from './tree';
 
@@ -317,6 +318,7 @@ function reduce(state: EditorState, action: EditorAction): EditorState {
       const moving = new Set(
         top.filter((id) => {
           const n = byId.get(id) as DesignNode;
+          if (n.type === 'connector') return false;
           const parent = n.parentId === null ? undefined : byId.get(n.parentId);
           return parent?.type !== 'group' && n.parentId !== target;
         }),
@@ -333,7 +335,9 @@ function reduce(state: EditorState, action: EditorAction): EditorState {
       const target = byId.get(action.targetId);
       if (!target) return state;
       if (action.position === 'inside' && !isContainer(target)) return state;
-      const top = topLevelIds(byId, action.ids).filter((id) => id !== target.id);
+      // Connectors stay at the top level: they reorder among top-level siblings but never go inside.
+      const nests = action.position === 'inside' || target.parentId !== null;
+      const top = topLevelIds(byId, action.ids).filter((id) => id !== target.id && !(nests && byId.get(id)?.type === 'connector'));
       // Can't drop a layer into its own subtree.
       if (top.length === 0 || descendantIds(state.nodes, top).has(target.id)) return state;
       const movingSet = new Set(top);
@@ -352,7 +356,9 @@ function reduce(state: EditorState, action: EditorAction): EditorState {
     }
 
     case 'groupSelection': {
-      const top = topLevelIds(byIdOf(state.nodes), state.selection);
+      // Connectors always stay at the top level, so they never join a group.
+      const byId = byIdOf(state.nodes);
+      const top = topLevelIds(byId, state.selection).filter((id) => byId.get(id)?.type !== 'connector');
       if (top.length === 0) return state;
       const topSet = new Set(top);
       // The group takes the place of the highest selected layer.
@@ -392,7 +398,12 @@ function reduce(state: EditorState, action: EditorAction): EditorState {
       return {
         ...s,
         nodes: normalizeTree(
-          s.nodes.map((n) => (moving.has(n.id) ? { ...n, x: n.x + action.dx, y: n.y + action.dy } : n)),
+          s.nodes.map((n) => {
+            if (!moving.has(n.id)) return n;
+            // A connector's attached ends follow their layers; only its loose ends move.
+            if (n.type === 'connector') return { ...n, ...shiftLooseEnds(n, action.dx, action.dy) };
+            return { ...n, x: n.x + action.dx, y: n.y + action.dy };
+          }),
         ),
       };
     }
