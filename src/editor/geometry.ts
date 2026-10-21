@@ -201,6 +201,12 @@ export interface SnapGuide {
   marks: number[];
 }
 
+/** Everything the overlay draws while a gesture snaps. */
+export interface Guides {
+  lines: SnapGuide[];
+  spacing: SpacingGuide[];
+}
+
 /** Start edge, center and end edge of a box on one axis. */
 export function boxLines(b: Box, axis: Axis): number[] {
   const start = axis === 'x' ? b.x : b.y;
@@ -247,4 +253,167 @@ export function alignmentGuides(subject: Box, lines: { x: number[]; y: number[] 
     }
   }
   return guides;
+}
+
+/** A measured span along `axis` from `from` to `to`, drawn at `at` on the other axis. */
+export interface Span {
+  axis: Axis;
+  from: number;
+  to: number;
+  at: number;
+}
+
+/** Equal gaps between layers in a row (axis x) or column (axis y), all `distance` long. */
+export interface SpacingGuide {
+  axis: Axis;
+  distance: number;
+  gaps: Span[];
+}
+
+const crossOf = (axis: Axis): Axis => (axis === 'x' ? 'y' : 'x');
+const startOf = (b: Box, axis: Axis) => (axis === 'x' ? b.x : b.y);
+const endOf = (b: Box, axis: Axis) => (axis === 'x' ? b.x + b.width : b.y + b.height);
+
+/** Where two boxes overlap on the axis across `axis`, or null when they don't. */
+function crossOverlap(a: Box, b: Box, axis: Axis): [number, number] | null {
+  const c = crossOf(axis);
+  const lo = Math.max(startOf(a, c), startOf(b, c));
+  const hi = Math.min(endOf(a, c), endOf(b, c));
+  return hi > lo ? [lo, hi] : null;
+}
+
+/** The gap from `a` to a later `b` on `axis`, drawn through the middle of their overlap. */
+function gapBetween(a: Box, b: Box, axis: Axis): Span {
+  const [lo, hi] = crossOverlap(a, b, axis) ?? [0, 0];
+  return { axis, from: endOf(a, axis), to: startOf(b, axis), at: (lo + hi) / 2 };
+}
+
+// Labels show one decimal, so gaps that read the same count as equal.
+const SPACING_EPSILON = 0.05;
+
+/**
+ * The layers sharing a row (or column) with `subject`, the gaps between
+ * neighbours among them, and the nearest one on each side of `subject`.
+ * A layer counts as before `subject` when it ends no more than `slack` past
+ * `subject`'s start, so a snap can still find a neighbour it slightly overlaps.
+ * Nearest neighbours only: a layer further along the row is never compared.
+ */
+function rowLayout(subject: Box, candidates: Box[], axis: Axis, slack: number) {
+  const row = candidates.filter((c) => crossOverlap(c, subject, axis));
+  const gaps: Span[] = [];
+  for (const a of row) {
+    const next = row
+      .filter((b) => startOf(b, axis) >= endOf(a, axis) && crossOverlap(a, b, axis))
+      .reduce<Box | null>((best, b) => (best && startOf(best, axis) <= startOf(b, axis) ? best : b), null);
+    if (!next || startOf(next, axis) <= endOf(a, axis)) continue;
+    // Only empty space counts: a layer reaching into the gap beside both of them (one
+    // overlapping `a`, or a frame around `a` alone) means they aren't neighbours. A layer
+    // enclosing both, like their parent frame or a backdrop, doesn't. The subject isn't a
+    // candidate, so a gap spanning it is checked separately.
+    const blocked = row.some(
+      (c) =>
+        c !== a &&
+        c !== next &&
+        startOf(c, axis) < startOf(next, axis) &&
+        endOf(c, axis) > endOf(a, axis) &&
+        !(startOf(c, axis) <= startOf(a, axis) && endOf(c, axis) >= endOf(next, axis)) &&
+        !!crossOverlap(c, a, axis) &&
+        !!crossOverlap(c, next, axis),
+    );
+    const spansSubject = endOf(a, axis) < endOf(subject, axis) && startOf(next, axis) > startOf(subject, axis);
+    if (!blocked && !spansSubject) gaps.push(gapBetween(a, next, axis));
+  }
+  const before = row
+    .filter((c) => endOf(c, axis) <= startOf(subject, axis) + slack)
+    .reduce<Box | null>((best, c) => (best && endOf(best, axis) >= endOf(c, axis) ? best : c), null);
+  const after = row
+    .filter((c) => startOf(c, axis) >= endOf(subject, axis) - slack)
+    .reduce<Box | null>((best, c) => (best && startOf(best, axis) <= startOf(c, axis) ? best : c), null);
+  return { gaps, before, after };
+}
+
+/**
+ * The shift that gives `subject` a gap to its neighbour already used between
+ * other layers in its row, or centers it between its two neighbours; null when
+ * neither is within `threshold`.
+ */
+export function snapSpacing(subject: Box, candidates: Box[], axis: Axis, threshold: number): number | null {
+  const { gaps, before, after } = rowLayout(subject, candidates, axis, threshold);
+  const size = endOf(subject, axis) - startOf(subject, axis);
+  const targets: number[] = [];
+  for (const g of gaps) {
+    if (before) targets.push(endOf(before, axis) + (g.to - g.from));
+    if (after) targets.push(startOf(after, axis) - (g.to - g.from) - size);
+  }
+  if (before && after) {
+    const even = (startOf(after, axis) - endOf(before, axis) - size) / 2;
+    if (even > 0) targets.push(endOf(before, axis) + even);
+  }
+  let best: number | null = null;
+  for (const t of targets) {
+    const offset = t - startOf(subject, axis);
+    if (Math.abs(offset) <= threshold && (best === null || Math.abs(offset) < Math.abs(best))) best = offset;
+  }
+  return best;
+}
+
+/** One guide per gap of `subject` to a neighbour that matches another gap in its row or column. */
+export function spacingGuides(subject: Box, candidates: Box[]): SpacingGuide[] {
+  const guides: SpacingGuide[] = [];
+  for (const axis of ['x', 'y'] as const) {
+    const { gaps, before, after } = rowLayout(subject, candidates, axis, ALIGN_EPSILON);
+    const own = [before && gapBetween(before, subject, axis), after && gapBetween(subject, after, axis)].filter(
+      (g): g is Span => !!g && g.to - g.from > 0,
+    );
+    const done: number[] = [];
+    for (const g of own) {
+      const distance = g.to - g.from;
+      if (done.some((d) => Math.abs(d - distance) < SPACING_EPSILON)) continue;
+      done.push(distance);
+      const equal = [...gaps, ...own].filter((s) => Math.abs(s.to - s.from - distance) < SPACING_EPSILON);
+      if (equal.length >= 2) guides.push({ axis, distance, gaps: equal });
+    }
+  }
+  return guides;
+}
+
+/**
+ * Distances from box `a` to box `b` on each axis: the gap between them when
+ * they're apart, the space on each side when one spans the other, or the
+ * offsets of matching edges when they partly overlap. A gap to a layer that
+ * shares no row or column with `a` gets a dashed leader from the gap's end to
+ * that layer, so the number visibly belongs to it.
+ */
+export function measureBetween(a: Box, b: Box): { spans: Span[]; leaders: Span[] } {
+  const spans: Span[] = [];
+  const leaders: Span[] = [];
+  const middle = (box: Box, axis: Axis) => (startOf(box, crossOf(axis)) + endOf(box, crossOf(axis))) / 2;
+  for (const axis of ['x', 'y'] as const) {
+    const cross = crossOf(axis);
+    const overlap = crossOverlap(a, b, axis);
+    const at = overlap ? (overlap[0] + overlap[1]) / 2 : middle(a, axis);
+    const [aStart, aEnd, bStart, bEnd] = [startOf(a, axis), endOf(a, axis), startOf(b, axis), endOf(b, axis)];
+    const push = (from: number, to: number, on: number) => {
+      if (to > from) spans.push({ axis, from, to, at: on });
+    };
+    const gap = (from: number, to: number, end: number) => {
+      push(from, to, at);
+      if (overlap) return;
+      const [near, far] = startOf(b, cross) > at ? [at, startOf(b, cross)] : [endOf(b, cross), at];
+      leaders.push({ axis: cross, from: near, to: far, at: end });
+    };
+    if (aEnd <= bStart) gap(aEnd, bStart, bStart);
+    else if (bEnd <= aStart) gap(bEnd, aStart, bEnd);
+    else if (bStart <= aStart && aEnd <= bEnd) {
+      push(bStart, aStart, middle(a, axis));
+      push(aEnd, bEnd, middle(a, axis));
+    } else if (aStart <= bStart && bEnd <= aEnd) {
+      push(aStart, bStart, middle(b, axis));
+      push(bEnd, aEnd, middle(b, axis));
+    } else {
+      push(Math.min(aStart, bStart), Math.max(aStart, bStart), at);
+      push(Math.min(aEnd, bEnd), Math.max(aEnd, bEnd), at);
+    }
+  }
+  return { spans, leaders };
 }

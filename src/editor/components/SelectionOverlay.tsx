@@ -1,5 +1,5 @@
 import { boxCenter, HANDLES, rotatedBounds, rotatePoint, unionBoxes, worldToScreen } from '../geometry';
-import type { SnapGuide } from '../geometry';
+import type { Guides, SnapGuide, Span } from '../geometry';
 import type { Box, DesignNode, Point, Viewport } from '../model/types';
 import { css } from 'styled-system/css';
 import { token } from 'styled-system/tokens';
@@ -9,11 +9,19 @@ const SELECTION = token.var('colors.selection');
 const SELECTION_FILL = token.var('colors.selection.fill');
 const HANDLE_FILL = token.var('colors.bg');
 const GUIDE = token.var('colors.selection.guide');
+const GUIDE_TEXT = token.var('colors.selection.guideText');
 
 const HANDLE_SIZE = 8;
 const ROTATE_ZONE_SIZE = 16;
 /** Half the size of the × drawn where a guide meets an aligned edge or center. */
 const GUIDE_MARK = 3;
+/** Distance labels: font size and pill height in screen px; width is estimated per character. */
+const LABEL_FONT = 10;
+const LABEL_HEIGHT = 16;
+const LABEL_CHAR_WIDTH = 6;
+
+/** Whole pixels, or one decimal for a span that ends on a fraction (centering can make halves). */
+const formatDistance = (d: number) => String(Math.round(d * 10) / 10);
 
 // CSS has no rotate cursor keyword. Cursor images can't read CSS variables, so the
 // arrow uses fixed black-on-white, which stays visible on any canvas or theme.
@@ -56,16 +64,47 @@ function GuideLine({ guide, viewport }: { guide: SnapGuide; viewport: Viewport }
   );
 }
 
+/** A span with an end tick at each side and its length in a pill at the middle. */
+function SpanLine({ span, viewport, ...data }: { span: Span; viewport: Viewport; 'data-testid': string; 'data-axis'?: string; 'data-distance'?: string }) {
+  const at = (v: number): Point => worldToScreen(span.axis === 'x' ? { x: v, y: span.at } : { x: span.at, y: v }, viewport);
+  const a = at(span.from);
+  const b = at(span.to);
+  const tick = (p: Point) =>
+    span.axis === 'x' ? `M${p.x} ${p.y - GUIDE_MARK}V${p.y + GUIDE_MARK}` : `M${p.x - GUIDE_MARK} ${p.y}H${p.x + GUIDE_MARK}`;
+  const label = formatDistance(span.to - span.from);
+  const width = label.length * LABEL_CHAR_WIDTH + 8;
+  const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  // A pill wider than the span on screen would cover the layers it measures.
+  const fits = Math.hypot(b.x - a.x, b.y - a.y) >= (span.axis === 'x' ? width : LABEL_HEIGHT) + 4;
+  return (
+    <g {...data} stroke={GUIDE} strokeWidth={1} pointerEvents="none" aria-hidden="true">
+      <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} />
+      <path d={`${tick(a)}${tick(b)}`} />
+      {fits && (
+        <>
+          <rect x={mid.x - width / 2} y={mid.y - LABEL_HEIGHT / 2} width={width} height={LABEL_HEIGHT} rx={LABEL_HEIGHT / 4} fill={GUIDE} stroke="none" />
+          <text x={mid.x} y={mid.y} fill={GUIDE_TEXT} stroke="none" fontSize={LABEL_FONT} textAnchor="middle" dominantBaseline="central">
+            {label}
+          </text>
+        </>
+      )}
+    </g>
+  );
+}
+
 interface Props {
   selected: DesignNode[];
   viewport: Viewport;
   marquee: Box | null;
-  guides: SnapGuide[];
+  guides: Guides;
+  /** Alt-hover distances from the selection to `measureTarget`. */
+  measures: { spans: Span[]; leaders: Span[] } | null;
+  measureTarget: DesignNode | undefined;
   hideHandles: boolean;
 }
 
 /** Drawn in screen space so outlines and handles stay a constant size at any zoom. */
-export function SelectionOverlay({ selected, viewport, marquee, guides, hideHandles }: Props) {
+export function SelectionOverlay({ selected, viewport, marquee, guides, measures, measureTarget, hideHandles }: Props) {
   const single = selected.length === 1 ? selected[0] : undefined;
   const group = selected.length > 1 ? unionBoxes(selected.map((n) => rotatedBounds(n, n.rotation))) : null;
 
@@ -134,8 +173,45 @@ export function SelectionOverlay({ selected, viewport, marquee, guides, hideHand
           );
         })}
 
-      {guides.map((g) => (
+      {guides.lines.map((g) => (
         <GuideLine key={`${g.axis}-${g.at}`} guide={g} viewport={viewport} />
+      ))}
+      {guides.spacing.map((g) => (
+        <g key={`${g.axis}-${g.distance}`} data-testid="spacing-guide" data-axis={g.axis} data-distance={formatDistance(g.distance)}>
+          {g.gaps.map((gap) => (
+            <SpanLine key={`${gap.from}-${gap.at}`} span={gap} viewport={viewport} data-testid="spacing-gap" />
+          ))}
+        </g>
+      ))}
+      {measureTarget && (
+        <polygon data-testid="measure-target" points={outline(measureTarget, viewport)} fill="none" stroke={GUIDE} pointerEvents="none" />
+      )}
+      {measures?.leaders.map((l) => {
+        const p = (v: number) => worldToScreen(l.axis === 'x' ? { x: v, y: l.at } : { x: l.at, y: v }, viewport);
+        const [a, b] = [p(l.from), p(l.to)];
+        return (
+          <line
+            key={`${l.axis}-${l.at}`}
+            data-testid="measure-leader"
+            x1={a.x}
+            y1={a.y}
+            x2={b.x}
+            y2={b.y}
+            stroke={GUIDE}
+            strokeDasharray="3 3"
+            pointerEvents="none"
+          />
+        );
+      })}
+      {measures?.spans.map((m) => (
+        <SpanLine
+          key={`${m.axis}-${m.from}-${m.to}`}
+          span={m}
+          viewport={viewport}
+          data-testid="distance-measure"
+          data-axis={m.axis}
+          data-distance={formatDistance(m.to - m.from)}
+        />
       ))}
 
       {marquee && (
