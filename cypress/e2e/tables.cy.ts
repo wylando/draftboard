@@ -122,6 +122,18 @@ describe('Tables', () => {
     cy.get('[data-testid=table-name]').should('have.attr', 'fill', '#ffffff');
   });
 
+  it('draws the lines between rows in the table’s stroke, and drops them with the stroke', () => {
+    placeTable();
+    cy.get('[data-testid=add-column]').click();
+    cy.get('[data-node-type=table] [data-testid=row-divider]').should('have.length', 1);
+    cy.prop('stroke').clear().type('FF0000{enter}');
+    cy.get('[data-node-type=table] [data-testid=row-divider]').should('have.attr', 'stroke', '#ff0000');
+    cy.prop('stroke-width').clear().type('0{enter}');
+    // Still two rows, so a missing divider means the stroke hid it.
+    cy.get('[data-node-type=table] [data-testid=table-column]').should('have.length', 2);
+    cy.get('[data-node-type=table] [data-testid=row-divider]').should('not.exist');
+  });
+
   it('resizes in width only, down to a readable minimum, and never rotates', () => {
     placeTable();
     cy.get('[data-testid=handle-e]').should('exist');

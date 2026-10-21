@@ -14,7 +14,6 @@ export const TABLE_COLORS = {
   muted: '#757575',
   onDark: '#ffffff',
   onDarkMuted: '#b3b3b3',
-  divider: '#ececec',
   badge: '#0a6dc2',
   onDarkBadge: '#80caff',
 } as const;
