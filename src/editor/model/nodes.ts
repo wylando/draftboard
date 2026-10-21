@@ -1,10 +1,6 @@
+import { createId, nameKey, uniqueName } from './names';
+import { createColumn, MIN_TABLE_WIDTH, TABLE_ACCENTS, tableHeight } from './table';
 import type { Box, DesignNode, DrawableType, GroupNode, NodeType } from './types';
-
-let counter = 0;
-export function createId(): string {
-  counter += 1;
-  return `${Date.now().toString(36)}-${counter.toString(36)}`;
-}
 
 const LABELS: Record<NodeType, string> = {
   frame: 'Frame',
@@ -13,29 +9,8 @@ const LABELS: Record<NodeType, string> = {
   line: 'Line',
   text: 'Text',
   group: 'Group',
+  table: 'Table',
 };
-
-/** Layer names are unique across the document, ignoring case: "Rect" and "rect" clash. */
-export const nameKey = (name: string) => name.toLowerCase();
-
-/** Whether a layer other than `id` already has `name`. */
-export function nameTaken(nodes: DesignNode[], name: string, id: string): boolean {
-  return nodes.some((n) => n.id !== id && nameKey(n.name) === nameKey(name));
-}
-
-/**
- * `desired` if its `nameKey` isn't in `taken`, otherwise the first free name made by
- * raising its trailing number ("Rectangle 1" → "Rectangle 2") or appending one
- * ("Header" → "Header 2").
- */
-export function uniqueName(desired: string, taken: Set<string>): string {
-  if (!taken.has(nameKey(desired))) return desired;
-  const match = /^(.*) (\d+)$/.exec(desired);
-  const base = match ? (match[1] as string) : desired;
-  let n = match ? Number(match[2]) + 1 : 2;
-  while (taken.has(nameKey(`${base} ${n}`))) n += 1;
-  return `${base} ${n}`;
-}
 
 /** Lowest free "<Label> <n>" name, so a deleted layer's number is reused. */
 export function nextName(type: NodeType, existing: DesignNode[]): string {
@@ -48,9 +23,11 @@ export const DEFAULT_SIZE: Record<DrawableType, { width: number; height: number 
   ellipse: { width: 100, height: 100 },
   line: { width: 100, height: 0 },
   text: { width: 120, height: 22 },
+  table: { width: 240, height: tableHeight(1) },
 };
 
-export function createNode(type: DrawableType, box: Box, existing: DesignNode[]): DesignNode {
+/** `idType` types the `id` primary key a new table starts with. */
+export function createNode(type: DrawableType, box: Box, existing: DesignNode[], idType = 'uuid'): DesignNode {
   const base = {
     id: createId(),
     name: nextName(type, existing),
@@ -71,6 +48,18 @@ export function createNode(type: DrawableType, box: Box, existing: DesignNode[])
       return { ...base, type, fill: '#000000', stroke: '#000000', strokeWidth: 1, flipped: false };
     case 'text':
       return { ...base, type, fill: '#000000', stroke: '#000000', strokeWidth: 0, text: 'Text', fontSize: 16 };
+    case 'table':
+      return {
+        ...base,
+        type,
+        height: tableHeight(1),
+        fill: '#ffffff',
+        stroke: '#d9d9d9',
+        strokeWidth: 1,
+        accent: TABLE_ACCENTS[0],
+        columns: [createColumn('id', idType, true)],
+        indexes: [],
+      };
   }
 }
 
@@ -94,5 +83,12 @@ export function createGroup(parentId: string | null, existing: DesignNode[]): Gr
   };
 }
 
-/** Smallest dimension a node may be resized to. Lines may be flat. */
-export const minSizeFor = (type: NodeType) => (type === 'line' ? 0 : 1);
+/**
+ * Smallest size a node may be resized to. Lines may be flat. A table needs
+ * room for a row's text; its height follows its rows, so only width is held.
+ */
+export function minSizeFor(type: NodeType): { width: number; height: number } {
+  if (type === 'line') return { width: 0, height: 0 };
+  if (type === 'table') return { width: MIN_TABLE_WIDTH, height: 1 };
+  return { width: 1, height: 1 };
+}

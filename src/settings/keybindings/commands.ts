@@ -30,6 +30,7 @@ export const COMMANDS = {
   'tool.ellipse': { label: 'Ellipse', category: 'tools', defaults: ['O'], description: 'Draw an ellipse. Hold Shift for a circle.' },
   'tool.line': { label: 'Line', category: 'tools', defaults: ['L'], description: 'Draw a straight line. Hold Shift to snap to 45°.' },
   'tool.text': { label: 'Text', category: 'tools', defaults: ['T'], description: 'Click to place a text layer and start typing. Enter finishes; Shift+Enter adds a line.' },
+  'tool.table': { label: 'Table', category: 'tools', defaults: ['D'], description: 'Click to place a database table with an id primary key, or drag to set its width. Edit its columns in the Design panel.' },
   'tool.hand': { label: 'Hand', category: 'tools', defaults: ['H'], description: 'Drag to pan the canvas without selecting anything.' },
 
   'edit.undo': { label: 'Undo', category: 'edit', defaults: ['Mod+Z'], description: 'Undo the last change to the document.' },

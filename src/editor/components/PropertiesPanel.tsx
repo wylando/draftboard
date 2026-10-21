@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { Button, ColorInput, NumberInput, Panel, Section, TextInput } from '../../design-system';
 import { useEditor, useSelectedNodes } from '../EditorContext';
 import { useViewportControls } from '../hooks/useViewportControls';
-import { nameTaken } from '../model/nodes';
+import { nameTaken } from '../model/names';
+import { minSizeFor } from '../model/nodes';
 import type { Box, DesignNode, NodePatch } from '../model/types';
 import { emptyHint, sidebarRight, twoColumnGrid } from '../styles';
 import { CANVAS_FONT_FAMILY, measureText } from '../textMetrics';
+import { TableProperties } from './TableProperties';
 
 function SingleNodeProperties({ node }: { node: DesignNode }) {
   const { state, dispatch } = useEditor();
@@ -28,6 +30,8 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
     onScrubChange: apply,
   });
   const isGroup = node.type === 'group';
+  // A table's height follows its rows and it never rotates, like a group's box follows its children.
+  const isTable = node.type === 'table';
   const hasFill = node.type !== 'line' && !isGroup;
   const hasRadius = node.type === 'rect' || node.type === 'frame';
 
@@ -54,10 +58,12 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
         <div className={twoColumnGrid}>
           <NumberInput label="X" value={node.x} {...edits((x) => transform({ x }))} testId="prop-x" />
           <NumberInput label="Y" value={node.y} {...edits((y) => transform({ y }))} testId="prop-y" />
-          <NumberInput label="W" value={node.width} min={node.type === 'line' ? 0 : 1} {...edits((width) => transform({ width }))} testId="prop-w" />
-          <NumberInput label="H" value={node.height} min={node.type === 'line' ? 0 : 1} {...edits((height) => transform({ height }))} testId="prop-h" />
+          <NumberInput label="W" value={node.width} min={minSizeFor(node.type).width} {...edits((width) => transform({ width }))} testId="prop-w" />
+          {!isTable && (
+            <NumberInput label="H" value={node.height} min={minSizeFor(node.type).height} {...edits((height) => transform({ height }))} testId="prop-h" />
+          )}
           {/* A group's box is derived from its children, so it has no rotation of its own. */}
-          {!isGroup && (
+          {!isGroup && !isTable && (
             <NumberInput label="°" value={node.rotation} {...edits((rotation) => transform({ rotation }))} testId="prop-rotation" />
           )}
           {hasRadius && (
@@ -65,6 +71,8 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
           )}
         </div>
       </Section>
+
+      {node.type === 'table' && <TableProperties table={node} />}
 
       {node.type === 'text' && (
         <Section title="Text">

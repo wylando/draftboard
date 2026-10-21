@@ -127,10 +127,11 @@ export function SelectionOverlay({ selected, viewport, marquee, guides, measures
         />
       )}
 
-      {/* Before the resize handles, so a handle wins where the two overlap. Groups keep rotation 0. */}
+      {/* Before the resize handles, so a handle wins where the two overlap. Groups and tables keep rotation 0. */}
       {single &&
         !hideHandles &&
         single.type !== 'group' &&
+        single.type !== 'table' &&
         HANDLES.filter((h) => h.dx !== 0 && h.dy !== 0).map((h) => {
           const c = boxCenter(single);
           const corner = { x: c.x + (h.dx * single.width) / 2, y: c.y + (h.dy * single.height) / 2 };
@@ -151,9 +152,10 @@ export function SelectionOverlay({ selected, viewport, marquee, guides, measures
           );
         })}
 
+      {/* A table's height follows its rows, so it only resizes sideways. */}
       {single &&
         !hideHandles &&
-        HANDLES.map((h) => {
+        HANDLES.filter((h) => single.type !== 'table' || h.dy === 0).map((h) => {
           const c = boxCenter(single);
           const local = { x: c.x + (h.dx * single.width) / 2, y: c.y + (h.dy * single.height) / 2 };
           const p = worldToScreen(rotatePoint(local, single.rotation, c), viewport);

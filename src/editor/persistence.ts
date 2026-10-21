@@ -1,7 +1,8 @@
+import { repairTableData } from './model/table';
 import type { DesignNode, NodeType } from './model/types';
 
 const STORAGE_KEY = 'draftboard:document:v1';
-const NODE_TYPES: ReadonlySet<NodeType> = new Set(['frame', 'rect', 'ellipse', 'line', 'text', 'group']);
+const NODE_TYPES: ReadonlySet<NodeType> = new Set(['frame', 'rect', 'ellipse', 'line', 'text', 'group', 'table']);
 
 interface SavedDocument {
   version: 1;
@@ -26,7 +27,9 @@ export function parseDocument(json: string): DesignNode[] | null {
   try {
     const data = JSON.parse(json) as Partial<SavedDocument>;
     if (data.version !== 1 || !Array.isArray(data.nodes)) return null;
-    return data.nodes.every(isNode) ? data.nodes : null;
+    if (!data.nodes.every(isNode)) return null;
+    // A damaged table is repaired rather than refused, so it never costs the rest of the document.
+    return data.nodes.map((n) => (n.type === 'table' ? { ...n, ...repairTableData(n as unknown as Record<string, unknown>) } : n));
   } catch {
     return null;
   }

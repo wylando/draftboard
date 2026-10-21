@@ -204,16 +204,19 @@ export interface TextInputProps {
   error?: ReactNode;
   value: string;
   onCommit: (value: string) => void;
+  /** Id of a `<datalist>` whose options the browser suggests while typing. */
+  list?: string;
   testId?: string;
 }
 
-export function TextInput({ label, error, value, onCommit, testId }: TextInputProps) {
+export function TextInput({ label, error, value, onCommit, list, testId }: TextInputProps) {
   const [draft, setDraft] = useDraft(value, identity);
   return (
     <FieldShell label={label} error={error}>
       <Field.Input
         className={classes.input}
         value={draft}
+        list={list}
         data-testid={testId}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={() => {

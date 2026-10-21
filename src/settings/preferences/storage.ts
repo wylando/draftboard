@@ -1,3 +1,5 @@
+import { isSqlDialect, type SqlDialect } from '../../editor/model/table';
+
 const STORAGE_KEY = 'draftboard:preferences:v1';
 
 export type GridStyle = 'none' | 'dots' | 'lines';
@@ -12,9 +14,11 @@ export interface Preferences {
   gridStyle: GridStyle;
   /** Moving, resizing and drawing snap to other layers' edges and centers. */
   snapToLayers: boolean;
+  /** Suggests column types and types a new table's `id`. */
+  sqlDialect: SqlDialect;
 }
 
-export const DEFAULT_PREFERENCES: Preferences = { gridStyle: 'dots', snapToLayers: true };
+export const DEFAULT_PREFERENCES: Preferences = { gridStyle: 'dots', snapToLayers: true, sqlDialect: 'postgres' };
 
 const isGridStyle = (v: unknown): v is GridStyle => GRID_STYLES.some((g) => g.id === v);
 
@@ -24,10 +28,11 @@ export function parsePreferences(raw: string | null): Preferences {
   try {
     const data: unknown = JSON.parse(raw);
     if (typeof data !== 'object' || data === null || Array.isArray(data)) return DEFAULT_PREFERENCES;
-    const { gridStyle, snapToLayers } = data as Record<string, unknown>;
+    const { gridStyle, snapToLayers, sqlDialect } = data as Record<string, unknown>;
     return {
       gridStyle: isGridStyle(gridStyle) ? gridStyle : DEFAULT_PREFERENCES.gridStyle,
       snapToLayers: typeof snapToLayers === 'boolean' ? snapToLayers : DEFAULT_PREFERENCES.snapToLayers,
+      sqlDialect: isSqlDialect(sqlDialect) ? sqlDialect : DEFAULT_PREFERENCES.sqlDialect,
     };
   } catch {
     return DEFAULT_PREFERENCES;

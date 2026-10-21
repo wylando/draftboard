@@ -82,13 +82,15 @@ interface Options {
   dispatch: (action: EditorAction) => void;
   spacePressed: boolean;
   snapToLayers: boolean;
+  /** Type of the `id` column a new table starts with, from the SQL dialect setting. */
+  tableIdType: string;
   onMarquee: (marquee: Marquee | null) => void;
   onGuides: (guides: Guides) => void;
   onEditText: (id: string) => void;
 }
 
 const isShapeTool = (tool: string): tool is DrawableType =>
-  tool === 'frame' || tool === 'rect' || tool === 'ellipse' || tool === 'line' || tool === 'text';
+  tool === 'frame' || tool === 'rect' || tool === 'ellipse' || tool === 'line' || tool === 'text' || tool === 'table';
 
 /**
  * World boxes a gesture can snap to: layers you can see on screen, except the
@@ -153,6 +155,7 @@ export function useCanvasGestures({
   dispatch,
   spacePressed,
   snapToLayers,
+  tableIdType,
   onMarquee,
   onGuides,
   onEditText,
@@ -198,7 +201,7 @@ export function useCanvasGestures({
           let start = g.startWorld;
           let end = world;
           let guides = NO_GUIDES;
-          if (e.shiftKey) {
+          if (e.shiftKey && g.nodeType !== 'table') {
             const size = Math.max(Math.abs(world.x - start.x), Math.abs(world.y - start.y));
             end = {
               x: start.x + Math.sign(world.x - start.x || 1) * size,
@@ -218,22 +221,33 @@ export function useCanvasGestures({
             // axis only the dragged corner snaps, or neither does when the press was already on the line.
             const min = minSizeFor(g.nodeType);
             const pick = (axis: 'x' | 'y'): [number, number] => {
-              if (Math.abs(snappedEnd[axis] - snappedStart[axis]) >= min) return [snappedStart[axis], snappedEnd[axis]];
-              if (Math.abs(snappedEnd[axis] - start[axis]) >= min) return [start[axis], snappedEnd[axis]];
+              const least = axis === 'x' ? min.width : min.height;
+              if (Math.abs(snappedEnd[axis] - snappedStart[axis]) >= least) return [snappedStart[axis], snappedEnd[axis]];
+              if (Math.abs(snappedEnd[axis] - start[axis]) >= least) return [start[axis], snappedEnd[axis]];
               return [start[axis], end[axis]];
             };
             const [sx, ex] = pick('x');
             const [sy, ey] = pick('y');
             start = { x: sx, y: sy };
             end = { x: ex, y: ey };
-            const lines = alignmentGuides(boxFromPoints(start, end), { x: [start.x, end.x], y: [start.y, end.y] }, candidates);
-            guides = { lines, spacing: [] };
+          }
+          const isTable = g.nodeType === 'table';
+          if (isTable) {
+            // A table's height follows its rows, so a drag only sets its width (at least the
+            // minimum, growing away from the press) and the top stays at the press.
+            const dx = end.x - start.x;
+            end = { x: start.x + (dx < 0 ? -1 : 1) * Math.max(Math.abs(dx), minSizeFor('table').width), y: start.y };
+          }
+          // Shift's square skips snapping, except for tables, which Shift doesn't constrain.
+          if (snap && (isTable || !e.shiftKey)) {
+            const lines = { x: [start.x, end.x], y: isTable ? [start.y] : [start.y, end.y] };
+            guides = { lines: alignmentGuides(boxFromPoints(start, end), lines, boxes(g.targets)), spacing: [] };
           }
           onGuides(guides);
           const box = boxFromPoints(start, end);
           const flipped = end.x - start.x >= 0 !== end.y - start.y >= 0;
           if (!g.nodeId) {
-            const node = createNode(g.nodeType, box, nodes);
+            const node = createNode(g.nodeType, box, nodes, tableIdType);
             if (node.type === 'line') node.flipped = flipped;
             g.nodeId = node.id;
             g.targets.changing.add(node.id);
@@ -306,7 +320,7 @@ export function useCanvasGestures({
             if (g.handle.dx !== 0) {
               const edge = g.handle.dx < 0 ? box.x : box.x + box.width;
               const off = snapOffset([edge], candidates, 'x', threshold);
-              if (off !== null && box.width + g.handle.dx * off >= minSize) {
+              if (off !== null && box.width + g.handle.dx * off >= minSize.width) {
                 box = g.handle.dx < 0 ? { ...box, x: box.x + off, width: box.width - off } : { ...box, width: box.width + off };
               }
               lines.x.push(g.handle.dx < 0 ? box.x : box.x + box.width);
@@ -314,7 +328,7 @@ export function useCanvasGestures({
             if (g.handle.dy !== 0) {
               const edge = g.handle.dy < 0 ? box.y : box.y + box.height;
               const off = snapOffset([edge], candidates, 'y', threshold);
-              if (off !== null && box.height + g.handle.dy * off >= minSize) {
+              if (off !== null && box.height + g.handle.dy * off >= minSize.height) {
                 box = g.handle.dy < 0 ? { ...box, y: box.y + off, height: box.height - off } : { ...box, height: box.height + off };
               }
               lines.y.push(g.handle.dy < 0 ? box.y : box.y + box.height);
@@ -352,7 +366,7 @@ export function useCanvasGestures({
         }
       }
     },
-    [dispatch, onGuides, onMarquee, snapToLayers, stateRef, toLocal],
+    [dispatch, onGuides, onMarquee, snapToLayers, stateRef, tableIdType, toLocal],
   );
 
   const handleUp = useCallback((e: PointerEvent) => {
@@ -369,14 +383,14 @@ export function useCanvasGestures({
       if (!g.nodeId) {
         // A click without a drag places a default-sized node at the pointer.
         const size = DEFAULT_SIZE[g.nodeType];
-        const node = createNode(g.nodeType, { x: g.startWorld.x, y: g.startWorld.y, ...size }, stateRef.current.nodes);
+        const node = createNode(g.nodeType, { x: g.startWorld.x, y: g.startWorld.y, ...size }, stateRef.current.nodes, tableIdType);
         dispatch({ type: 'addNode', node, parentAt: g.startWorld });
         if (node.type === 'text') onEditText(node.id);
       }
       dispatch({ type: 'setTool', tool: 'select' });
     }
     if (g.kind === 'marquee') onMarquee(null);
-  }, [dispatch, onEditText, onGuides, onMarquee, stateRef, toLocal]);
+  }, [dispatch, onEditText, onGuides, onMarquee, stateRef, tableIdType, toLocal]);
 
   // A cancelled pointer (a pen or touch interruption) reports no real release point, so the
   // gesture stops where it stands: a press never becomes a click-to-place, and a move drops

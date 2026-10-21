@@ -33,6 +33,7 @@ const TOOLS: Array<{ id: ToolId; command: CommandId; icon: () => ReactElement }>
   { id: 'ellipse', command: 'tool.ellipse', icon: icons.ellipse },
   { id: 'line', command: 'tool.line', icon: icons.line },
   { id: 'text', command: 'tool.text', icon: icons.text },
+  { id: 'table', command: 'tool.table', icon: icons.table },
   { id: 'hand', command: 'tool.hand', icon: icons.hand },
 ];
 
