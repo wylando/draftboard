@@ -16,7 +16,8 @@ const HANDLE_SIZE = 8;
 const ROTATE_ZONE_SIZE = 16;
 /** Row grips sit this far left of a selected table, outside it, so a press on a row still moves the table. */
 const ROW_GRIP = { offset: 16, width: 10, height: 16, minHeight: 6 } as const;
-const rowGripClass = css({ cursor: 'grab' });
+// Row grips and connector end handles are dragged, not clicked.
+const grabClass = css({ cursor: 'grab' });
 /** Half the size of the × drawn where a guide meets an aligned edge or center. */
 const GUIDE_MARK = 3;
 /** Distance labels: font size and pill height in screen px; width is estimated per character. */
@@ -131,6 +132,7 @@ export function SelectionOverlay({
   // A connector's shape comes from its ends: it gets a highlight along its route, never box handles.
   const single = selected.length === 1 && selected[0]?.type !== 'connector' ? selected[0] : undefined;
   const toScreen = (points: Point[]) => points.map((p) => worldToScreen(p, viewport)).map((p) => `${p.x},${p.y}`).join(' ');
+  const connector = selected.length === 1 && selected[0]?.type === 'connector' ? selected[0] : undefined;
   const table = single?.type === 'table' ? single : undefined;
   const rowTop = (i: number) => (table ? tableRowTop(table, i) : 0);
   // Zoomed out, a full-size grip would reach into the neighbouring rows' grips; far out, rows are too thin to grab.
@@ -270,7 +272,7 @@ export function SelectionOverlay({
           const p = worldToScreen({ x: table.x, y: rowTop(i) + TABLE_ROW_HEIGHT / 2 }, viewport);
           const left = p.x - ROW_GRIP.offset;
           return (
-            <g key={c.id} data-row-handle={c.id} data-testid="row-handle" className={rowGripClass}>
+            <g key={c.id} data-row-handle={c.id} data-testid="row-handle" className={grabClass}>
               <rect x={left} y={p.y - gripHeight / 2} width={ROW_GRIP.width} height={gripHeight} fill="transparent" />
               {(gripHeight >= ROW_GRIP.height ? [-4, 0, 4] : [0]).flatMap((dy) =>
                 [3, 7].map((dx) => <circle key={`${dx}-${dy}`} cx={left + dx} cy={p.y + dy} r={1} fill={SELECTION} pointerEvents="none" />),
@@ -291,6 +293,26 @@ export function SelectionOverlay({
         />
       )}
 
+      {connector &&
+        !hideHandles &&
+        (['from', 'to'] as const).map((end) => {
+          const at = end === 'from' ? connector.points[0] : connector.points[connector.points.length - 1];
+          if (!at) return null;
+          const p = worldToScreen(at, viewport);
+          return (
+            <circle
+              key={end}
+              data-connector-end={end}
+              data-testid="connector-handle"
+              className={grabClass}
+              cx={p.x}
+              cy={p.y}
+              r={HANDLE_SIZE / 2 + 1}
+              fill={HANDLE_FILL}
+              stroke={SELECTION}
+            />
+          );
+        })}
       {connectPreview && (
         <polyline data-testid="connect-preview" points={toScreen(connectPreview)} fill="none" stroke={SELECTION} strokeDasharray="4 3" pointerEvents="none" />
       )}

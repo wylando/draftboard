@@ -34,6 +34,18 @@ import { TABLE_HEADER_HEIGHT, TABLE_ROW_HEIGHT, type RowDrop, type TableCell } f
 import { byIdOf, descendantIds, enteredScopes, isEffectivelyVisible, selectTarget, topLevelIds } from '../model/tree';
 import type { Anchor, Box, ConnectorNode, DesignNode, DrawableType, NodePatch, Point, Viewport } from '../model/types';
 
+/**
+ * A connector being drawn or re-attached, as it would be if released now.
+ * `moving` is the end under the pointer; `editing` names a connector being re-attached.
+ */
+export interface ConnectPreview {
+  from: Anchor;
+  to: Anchor;
+  moving: 'from' | 'to';
+  routing: ConnectorNode['routing'];
+  editing?: string;
+}
+
 /** Everything under the pointer, topmost first, so a connector end can look past handles and other connectors. */
 const elementsAt = (e: { clientX: number; clientY: number }) => document.elementsFromPoint(e.clientX, e.clientY);
 
@@ -82,6 +94,8 @@ type Gesture =
   | { kind: 'rotate'; start: Point; startWorld: Point; node: DesignNode; moved: boolean }
   | { kind: 'reorder'; start: Point; tableId: string; columnId: string; slot: number | null }
   | { kind: 'connect'; start: Point; from: Anchor; moved: boolean }
+  /** Dragging one end of the selected connector to re-attach it. */
+  | { kind: 'reattach'; start: Point; connector: ConnectorNode; end: 'from' | 'to'; moved: boolean }
   | { kind: 'marquee'; start: Point; startWorld: Point; base: string[]; moved: boolean };
 
 export interface Marquee {
@@ -101,8 +115,8 @@ interface Options {
   onEditText: (id: string) => void;
   onEditTable: (cell: TableCell) => void;
   onRowDrop: (drop: RowDrop | null) => void;
-  /** The connector being drawn, from its start to what is under the pointer; null when none. */
-  onConnect: (preview: { from: Anchor; to: Anchor } | null) => void;
+  /** The connector being drawn or re-attached, as it would be if released here; null when none. */
+  onConnect: (preview: ConnectPreview | null) => void;
 }
 
 const isShapeTool = (tool: string): tool is DrawableType =>
@@ -388,7 +402,16 @@ export function useCanvasGestures({
         case 'connect': {
           if (!g.moved && dist < DRAG_THRESHOLD) return;
           g.moved = true;
-          onConnect({ from: g.from, to: anchorAt(elementsAt(e), world, byIdOf(nodes)) });
+          const to = anchorAt(elementsAt(e), world, byIdOf(nodes));
+          onConnect({ from: g.from, to, moving: 'to', routing: 'orthogonal' });
+          return;
+        }
+        case 'reattach': {
+          if (!g.moved && dist < DRAG_THRESHOLD) return;
+          g.moved = true;
+          const moved = anchorAt(elementsAt(e), world, byIdOf(nodes));
+          const { from, to, routing } = g.connector;
+          onConnect({ from: g.end === 'from' ? moved : from, to: g.end === 'to' ? moved : to, moving: g.end, routing, editing: g.connector.id });
           return;
         }
         case 'marquee': {
@@ -432,6 +455,15 @@ export function useCanvasGestures({
         dispatch({ type: 'setTool', tool: 'select' });
       }
     }
+    if (g.kind === 'reattach') {
+      onConnect(null);
+      const { nodes, viewport, selection } = stateRef.current;
+      // Escape mid-drag clears the selection, which cancels the re-attach.
+      if (g.moved && selection.length === 1 && selection[0] === g.connector.id) {
+        const anchor = anchorAt(elementsAt(e), screenToWorld(toLocal(e), viewport), byIdOf(nodes));
+        dispatch({ type: 'editConnector', id: g.connector.id, patch: { [g.end]: anchor } });
+      }
+    }
     if (g.kind === 'reorder') {
       onRowDrop(null);
       const table = stateRef.current.nodes.find((n) => n.id === g.tableId);
@@ -466,7 +498,7 @@ export function useCanvasGestures({
     if (g.kind === 'move' && g.moved) dispatch({ type: 'dropSelectionAt', point: g.last });
     if (g.kind === 'marquee') onMarquee(null);
     if (g.kind === 'reorder') onRowDrop(null);
-    if (g.kind === 'connect') onConnect(null);
+    if (g.kind === 'connect' || g.kind === 'reattach') onConnect(null);
     if (g.kind === 'create' && g.nodeId) dispatch({ type: 'setTool', tool: 'select' });
   }, [dispatch, onConnect, onGuides, onMarquee, onRowDrop]);
 
@@ -499,6 +531,7 @@ export function useCanvasGestures({
       const handleEl = target.closest('[data-handle]');
       const rotateEl = target.closest('[data-rotate-handle]');
       const rowHandleEl = target.closest('[data-row-handle]');
+      const endEl = target.closest('[data-connector-end]');
       let gesture: Gesture | null = null;
 
       if (e.button === 1 || tool === 'hand' || spacePressed) {
@@ -510,6 +543,12 @@ export function useCanvasGestures({
       } else if (isShapeTool(tool)) {
         const targets = { changing: new Set<string>(), viewport: null, canvasSize: null, boxes: [] };
         gesture = { kind: 'create', nodeType: tool, start: screen, startWorld: world, nodeId: null, targets };
+      } else if (endEl && selection.length === 1) {
+        const connector = nodes.find((n) => n.id === selection[0]);
+        const end = endEl.getAttribute('data-connector-end');
+        if (connector?.type === 'connector' && (end === 'from' || end === 'to')) {
+          gesture = { kind: 'reattach', start: screen, connector, end, moved: false };
+        }
       } else if (rowHandleEl && selection.length === 1) {
         const columnId = rowHandleEl.getAttribute('data-row-handle');
         const tableId = selection[0] as string;

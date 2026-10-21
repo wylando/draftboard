@@ -1,8 +1,8 @@
 import { boxCenter, mapBoxBetween, rotatePoint } from '../geometry';
-import type { Box, DesignNode, NodePatch, Point, ToolId, Viewport } from './types';
+import type { Anchor, Box, ConnectorNode, DesignNode, NodePatch, Point, ToolId, Viewport } from './types';
 import { createId, nameKey, nameTaken, uniqueName } from './names';
 import { createGroup } from './nodes';
-import { shiftLooseEnds } from './connector';
+import { linksToItself, sameAnchor, shiftLooseEnds } from './connector';
 import { applyTableEdit, type TableEdit } from './table';
 import { byIdOf, descendantIds, type ById, frameAt, isContainer, mapSiblings, normalizeTree, topLevelIds } from './tree';
 
@@ -43,6 +43,8 @@ export type EditorAction =
   | { type: 'updateNodes'; patches: Record<string, NodePatch> }
   /** Ignored when the trimmed name is empty, unchanged or held by another layer (ignoring case). */
   | { type: 'renameNode'; id: string; name: string }
+  /** Re-attaches a connector end or changes its routing, as one undo step. Ignored for a self-link or no change. */
+  | { type: 'editConnector'; id: string; patch: Partial<Pick<ConnectorNode, 'from' | 'to' | 'routing'>> }
   /** One change to a table's columns or indexes, as one undo step. Ignored when `applyTableEdit` refuses it. */
   | { type: 'editTable'; id: string; edit: TableEdit }
   /**
@@ -145,10 +147,24 @@ function selectionWithDescendants(nodes: DesignNode[], selection: string[]): Set
   return new Set([...top, ...descendantIds(nodes, top)]);
 }
 
+/** A copied connector's ends: re-pointed at copied layers, otherwise loose where they were, offset. */
+function copyEnds(c: ConnectorNode, newIds: Map<string, string>): Pick<ConnectorNode, 'from' | 'to'> {
+  const end = (a: Anchor, at: Point | undefined): Anchor => {
+    // A broken end stays broken in the copy: it is still a lost link, not a deliberate loose end.
+    if (a.kind === 'point') return { ...a, x: a.x + PASTE_OFFSET, y: a.y + PASTE_OFFSET };
+    const id = newIds.get(a.kind === 'column' ? a.tableId : a.nodeId);
+    if (id) return a.kind === 'column' ? { ...a, tableId: id } : { ...a, nodeId: id };
+    return { kind: 'point', x: (at?.x ?? c.x) + PASTE_OFFSET, y: (at?.y ?? c.y) + PASTE_OFFSET };
+  };
+  return { from: end(c.from, c.points[0]), to: end(c.to, c.points[c.points.length - 1]) };
+}
+
 /**
  * Copies of `nodes` (a subtree list in preorder) with fresh ids, offset by
  * PASTE_OFFSET. Parents inside the list are remapped; a parent outside it is
  * kept only if it is in `existing`. A copy whose name is taken gets the next free one.
+ * A copied connector stays attached to copied layers; an end whose layer wasn't
+ * copied comes loose where the original's end was, offset like everything else.
  */
 function cloneOffset(nodes: DesignNode[], existing: ById): { copies: DesignNode[]; newIds: Map<string, string> } {
   const newIds = new Map<string, string>();
@@ -158,7 +174,7 @@ function cloneOffset(nodes: DesignNode[], existing: ById): { copies: DesignNode[
     const inner = n.parentId === null ? undefined : newIds.get(n.parentId);
     const name = uniqueName(n.name, taken);
     taken.add(nameKey(name));
-    return {
+    const copy = {
       ...n,
       id: newIds.get(n.id) as string,
       name,
@@ -166,6 +182,7 @@ function cloneOffset(nodes: DesignNode[], existing: ById): { copies: DesignNode[
       x: n.x + PASTE_OFFSET,
       y: n.y + PASTE_OFFSET,
     };
+    return copy.type === 'connector' ? { ...copy, ...copyEnds(copy, newIds) } : copy;
   });
   return { copies, newIds };
 }
@@ -295,6 +312,16 @@ function reduce(state: EditorState, action: EditorAction): EditorState {
       if (!node || !name || name === node.name || nameTaken(state.nodes, name, node.id)) return state;
       const s = pushHistory(state);
       return { ...s, nodes: s.nodes.map((n) => (n.id === action.id ? { ...n, name } : n)) };
+    }
+
+    case 'editConnector': {
+      const connector = state.nodes.find((n) => n.id === action.id);
+      if (connector?.type !== 'connector') return state;
+      const next = { ...connector, ...action.patch };
+      const unchanged = sameAnchor(next.from, connector.from) && sameAnchor(next.to, connector.to) && next.routing === connector.routing;
+      if (unchanged || linksToItself(next.from, next.to)) return state;
+      const s = pushHistory(state);
+      return { ...s, nodes: normalizeTree(s.nodes.map((n) => (n.id === action.id ? next : n))) };
     }
 
     case 'editTable': {
