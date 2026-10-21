@@ -91,7 +91,10 @@ function TableShape({ node }: { node: TableNode }) {
           const name = fitText(c.name, nameSpace - typeWidth, TABLE.columnSize, CANVAS_FONT_FAMILY);
           return (
             <g key={c.id} data-testid="table-column" data-column-id={c.id}>
-              {i > 0 && <line x1={0} x2={w} y1={y} y2={y} stroke={bodyDark ? muted : TABLE_COLORS.divider} strokeOpacity={bodyDark ? 0.4 : 1} />}
+              {/* In the table's stroke, but always a hairline: a heavy outline shouldn't make heavy rows. */}
+              {i > 0 && node.strokeWidth > 0 && (
+                <line data-testid="row-divider" x1={0} x2={w} y1={y} y2={y} stroke={node.stroke} strokeWidth={Math.min(node.strokeWidth, 1)} />
+              )}
               {badge && (
                 <text
                   {...text}
