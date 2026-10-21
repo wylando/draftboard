@@ -38,6 +38,11 @@ export const semanticTokens = defineSemanticTokens({
       DEFAULT: { value: '{colors.black.800}' },
       secondary: { value: '{colors.black.500}' },
     },
+    /** A warning sign or note: a soft amber ground with dark ink. */
+    warning: {
+      bg: { value: '{colors.amber.100}' },
+      ink: { value: '{colors.black.800}' },
+    },
     /** Canvas background grid (Settings → Canvas). */
     canvasGrid: { value: '{colors.grey.300}' },
     /** Canvas chrome: selection outline, handles, marquee, smart guides. */

@@ -119,6 +119,9 @@ export type Anchor =
   /** A loose end in world px; `broken` when the layer or column it was attached to went away. */
   | { kind: 'point'; x: number; y: number; broken?: boolean };
 
+/** How many rows at this end take part, drawn as a crow's-foot marker; 'none' draws no marker. */
+export type Cardinality = 'one' | 'zeroOrOne' | 'many' | 'oneOrMany' | 'none';
+
 /**
  * A line between two anchors. `normalizeTree` routes it from its anchors on
  * every change, writes the route to `points` and its bounds to the box, keeps
@@ -129,6 +132,10 @@ export interface ConnectorNode extends BaseNode {
   type: 'connector';
   from: Anchor;
   to: Anchor;
+  fromCardinality: Cardinality;
+  toCardinality: Cardinality;
+  /** Column to column only: `from`'s column references `to`'s, and is badged FK. */
+  isForeignKey: boolean;
   routing: 'orthogonal' | 'straight';
   /** The route in world px, first point at `from`. */
   points: Point[];

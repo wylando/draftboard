@@ -35,6 +35,10 @@ export const tokens = defineTokens({
     red: {
       500: { value: '#f24822' },
     },
+    /** Ours: a soft amber for warnings. */
+    amber: {
+      100: { value: '#fef3c7' },
+    },
   },
   fonts: {
     default: {

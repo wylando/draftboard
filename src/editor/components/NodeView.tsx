@@ -1,10 +1,99 @@
-import { memo } from 'react';
+import { createContext, memo, useContext } from 'react';
 import { TABLE_COLORS, TABLE_HEADER_HEIGHT, TABLE_ROW_HEIGHT, TABLE_STYLE } from '../model/table';
 import { isBroken } from '../model/connector';
-import type { ConnectorNode, DesignNode, TableNode } from '../model/types';
+import type { Cardinality, ConnectorNode, DesignNode, Point, TableNode } from '../model/types';
 import { CANVAS_FONT_FAMILY, CANVAS_MONO_FAMILY, measureText, TEXT_LINE_HEIGHT } from '../textMetrics';
 import { css } from 'styled-system/css';
 import { token } from 'styled-system/tokens';
+
+/**
+ * Facts about layers that come from other layers: which table columns are
+ * foreign keys, and which connectors join columns of different types. Canvas
+ * derives them once per document change.
+ */
+export interface Relations {
+  foreignKeys: ReadonlyMap<string, ReadonlySet<string>>;
+  mismatched: ReadonlySet<string>;
+  /** Connector ends ("<id>:from") on a table or a row, which always offer a marker to click. */
+  relationalEnds: ReadonlySet<string>;
+}
+
+export const RelationsContext = createContext<Relations>({ foreignKeys: new Map(), mismatched: new Set(), relationalEnds: new Set() });
+
+const WARNING_BG = token.var('colors.warning.bg');
+const WARNING_INK = token.var('colors.warning.ink');
+
+/**
+ * Design choice: crow's-foot marker size in world px: how far it reaches
+ * along the line (within the route's 24 px stub), and its half-width.
+ */
+const MARKER = { reach: 20, foot: 12, half: 6, bar: 8, outer: 14, ring: 3 } as const;
+
+/**
+ * One end's marker, drawn from the end at `at` along `dir` (unit, into the line):
+ * one = a bar, zero-or-one = a bar and a ring, many = a crow's foot, one-or-many
+ * = a crow's foot and a bar. Squeezed to fit a first segment shorter than its
+ * reach, so it never crosses a bend or reaches into the layer at the other end.
+ */
+function Marker({
+  at,
+  next,
+  cardinality,
+  end,
+  node,
+}: {
+  at: Point;
+  next: Point | undefined;
+  cardinality: Cardinality;
+  end: 'from' | 'to';
+  node: ConnectorNode;
+}) {
+  const dir = direction(at, next);
+  // On a one-segment route both ends share the segment, so each gets half.
+  const length = next ? Math.hypot(next.x - at.x, next.y - at.y) : MARKER.reach;
+  const room = node.points.length === 2 ? length / 2 : length;
+  const k = Math.max(0, Math.min(1, (room - 2) / MARKER.reach));
+  const n = { x: -dir.y, y: dir.x };
+  const along = (t: number, side = 0) => ({
+    x: at.x - node.x + dir.x * t * k + n.x * side * Math.max(k, 0.5),
+    y: at.y - node.y + dir.y * t * k + n.y * side * Math.max(k, 0.5),
+  });
+  const line = (a: Point, b: Point) => `M${a.x} ${a.y}L${b.x} ${b.y}`;
+  const bar = (t: number) => line(along(t, MARKER.half), along(t, -MARKER.half));
+  const foot = [line(along(MARKER.foot), along(0, MARKER.half)), line(along(MARKER.foot), along(0)), line(along(MARKER.foot), along(0, -MARKER.half))].join('');
+  const paths = {
+    one: bar(MARKER.bar),
+    zeroOrOne: bar(MARKER.bar),
+    many: foot,
+    oneOrMany: foot + bar(MARKER.outer),
+    none: '',
+  }[cardinality];
+  const hit = [along(0, MARKER.half), along(MARKER.reach, MARKER.half), along(MARKER.reach, -MARKER.half), along(0, -MARKER.half)];
+  return (
+    <g data-testid="connector-marker" data-cardinality={cardinality} data-cardinality-end={end}>
+      <polygon points={hit.map((p) => `${p.x},${p.y}`).join(' ')} fill="transparent" />
+      {paths && <path d={paths} fill="none" stroke={node.stroke} strokeWidth={node.strokeWidth} />}
+      {cardinality === 'zeroOrOne' && (
+        <circle
+          cx={along(MARKER.outer).x}
+          cy={along(MARKER.outer).y}
+          r={MARKER.ring * Math.max(k, 0.5)}
+          fill={node.fill}
+          stroke={node.stroke}
+          strokeWidth={node.strokeWidth}
+        />
+      )}
+    </g>
+  );
+}
+
+/** Unit vector from `a` toward `b`; along +x when they coincide. */
+function direction(a: Point, b: Point | undefined): Point {
+  const dx = (b?.x ?? a.x + 1) - a.x;
+  const dy = (b?.y ?? a.y) - a.y;
+  const len = Math.hypot(dx, dy) || 1;
+  return { x: dx / len, y: dy / len };
+}
 
 const FRAME_LABEL_COLOR = token.var('colors.text.secondary');
 const noSelectClass = css({ userSelect: 'none' });
@@ -51,6 +140,7 @@ function TableShape({ node }: { node: TableNode }) {
   const { width: w, height: h } = node;
   const clipId = `table-clip-${node.id}`;
   const indexed = new Set(node.indexes.flatMap((i) => i.columnIds));
+  const foreign = useContext(RelationsContext).foreignKeys.get(node.id);
   const headerDark = isDark(node.accent);
   const bodyDark = isDark(node.fill);
   const ink = bodyDark ? TABLE_COLORS.onDark : TABLE_COLORS.text;
@@ -81,7 +171,10 @@ function TableShape({ node }: { node: TableNode }) {
         {node.columns.map((c, i) => {
           const y = TABLE_HEADER_HEIGHT + i * TABLE_ROW_HEIGHT;
           const mid = y + TABLE_ROW_HEIGHT / 2;
-          const badge = c.primaryKey ? 'PK' : c.unique ? 'UQ' : null;
+          const isForeign = foreign?.has(c.id) ?? false;
+          // One slot: a key that is also foreign shows both letters (PFK, UFK).
+          const key = c.primaryKey ? 'P' : c.unique ? 'U' : '';
+          const badge = isForeign ? `${key}FK` : c.primaryKey ? 'PK' : c.unique ? 'UQ' : null;
           const isIndexed = indexed.has(c.id);
           const nameSpace = rowSpace - TABLE_STYLE.gap - (isIndexed ? idxWidth : 0);
           const nameWidth = measureText(c.name, TABLE_STYLE.columnSize, CANVAS_FONT_FAMILY).width;
@@ -153,6 +246,18 @@ function TableShape({ node }: { node: TableNode }) {
 function ConnectorShape({ node }: { node: ConnectorNode }) {
   const local = node.points.map((p) => `${p.x - node.x},${p.y - node.y}`).join(' ');
   const broken = isBroken(node);
+  const relations = useContext(RelationsContext);
+  // With no stroke the line is hidden, and so is everything drawn on it.
+  const drawn = node.strokeWidth > 0;
+  const mismatched = drawn && relations.mismatched.has(node.id);
+  // A plain link's 'none' end has nothing to show or click; an end on a table can always be given one.
+  const showMarker = (end: 'from' | 'to', c: Cardinality) => drawn && (c !== 'none' || relations.relationalEnds.has(`${node.id}:${end}`));
+  const first = node.points[0];
+  const last = node.points[node.points.length - 1];
+  // The warning sits on the middle segment, where the eye looks for the link's label.
+  const middle = Math.floor((node.points.length - 1) / 2);
+  const m0 = node.points[middle];
+  const m1 = node.points[middle + 1] ?? m0;
   const ends = [
     { anchor: node.from, at: node.points[0] },
     { anchor: node.to, at: node.points[node.points.length - 1] },
@@ -171,8 +276,8 @@ function ConnectorShape({ node }: { node: ConnectorNode }) {
         strokeDasharray={broken ? '6 4' : undefined}
         strokeLinejoin="round"
       />
-      {/* With no stroke the line is hidden, so its end dots are too. */}
-      {node.strokeWidth > 0 && ends.map(
+      {/* Dots first, so a marker squeezed onto a short segment still takes its own clicks. */}
+      {drawn && ends.map(
         ({ anchor, at }, i) =>
           at && (
             <circle
@@ -187,6 +292,24 @@ function ConnectorShape({ node }: { node: ConnectorNode }) {
               strokeWidth={node.strokeWidth}
             />
           ),
+      )}
+      {first && showMarker('from', node.fromCardinality) && (
+        <Marker at={first} next={node.points[1]} cardinality={node.fromCardinality} end="from" node={node} />
+      )}
+      {last && showMarker('to', node.toCardinality) && (
+        <Marker at={last} next={node.points[node.points.length - 2]} cardinality={node.toCardinality} end="to" node={node} />
+      )}
+      {mismatched && m0 && m1 && (
+        <g
+          data-testid="connector-warning"
+          role="img"
+          aria-label="The two columns’ types differ"
+          transform={`translate(${(m0.x + m1.x) / 2 - node.x} ${(m0.y + m1.y) / 2 - node.y})`}
+        >
+          <title>The two columns’ types differ</title>
+          <path d="M0 -7L7 6H-7Z" fill={WARNING_BG} stroke={node.stroke} strokeWidth={1} strokeLinejoin="round" />
+          <path d="M0 -2.5V1.5M0 3.5V3.6" stroke={WARNING_INK} strokeWidth={1.4} strokeLinecap="round" />
+        </g>
       )}
     </>
   );
