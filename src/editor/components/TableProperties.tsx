@@ -6,9 +6,9 @@ import { useEditor } from '../EditorContext';
 import { createId, nameKey } from '../model/names';
 import {
   columnNameTaken,
+  COLUMN_TYPES_LIST_ID,
   createColumn,
   indexNameTaken,
-  nextColumnName,
   SQL_DIALECTS,
   sqlIdentifier,
   TABLE_ACCENTS,
@@ -21,7 +21,6 @@ import { css } from 'styled-system/css';
 import { chipGroup } from 'styled-system/recipes';
 
 const chips = chipGroup();
-const TYPE_LIST_ID = 'column-types';
 const editorClass = css({
   display: 'grid',
   gap: '2',
@@ -74,7 +73,7 @@ function ColumnEditor({ table, column, edit }: { table: TableNode; column: Colum
             update({ name });
           }}
         />
-        <TextInput value={column.dataType} list={TYPE_LIST_ID} testId="column-type" onCommit={(dataType) => update({ dataType: dataType.trim() })} />
+        <TextInput value={column.dataType} list={COLUMN_TYPES_LIST_ID} testId="column-type" onCommit={(dataType) => update({ dataType: dataType.trim() })} />
       </div>
       <div className={flagsRowClass}>
         <ToggleGroup.Root
@@ -193,7 +192,7 @@ export function TableProperties({ table }: { table: TableNode }) {
       </Section>
 
       <Section title="Columns" testId="section-columns">
-        <datalist id={TYPE_LIST_ID}>
+        <datalist id={COLUMN_TYPES_LIST_ID}>
           {dialect.types.map((t) => (
             <option key={t} value={t} />
           ))}
@@ -201,7 +200,7 @@ export function TableProperties({ table }: { table: TableNode }) {
         {table.columns.map((c) => (
           <ColumnEditor key={c.id} table={table} column={c} edit={edit} />
         ))}
-        <Button data-testid="add-column" onClick={() => edit({ kind: 'addColumn', column: createColumn(nextColumnName(table), dialect.defaultType) })}>
+        <Button data-testid="add-column" onClick={() => edit({ kind: 'addColumn', column: createColumn('', dialect.defaultType) })}>
           Add column
         </Button>
       </Section>

@@ -4,14 +4,15 @@ import { useLatest } from '../../shared/useLatest';
 import { useEditor } from '../EditorContext';
 import { measureBetween, rotatedBounds, unionBoxes, type Guides } from '../geometry';
 import { useCanvasGestures, type Marquee } from '../hooks/useCanvasGestures';
-import { SQL_DIALECTS } from '../model/table';
+import { SQL_DIALECTS, type RowDrop, type TableCell } from '../model/table';
 import { byIdOf, childrenByParent, enteredScopes, isEffectivelyVisible, selectTarget } from '../model/tree';
-import type { DesignNode, TextNode, Viewport } from '../model/types';
+import type { DesignNode, TableNode, TextNode, Viewport } from '../model/types';
 import { CANVAS_FONT_FAMILY, measureText } from '../textMetrics';
 import { usePreferences } from '../../settings/preferences/PreferencesContext';
 import { CanvasGrid } from './CanvasGrid';
 import { FrameLabel, NodeView } from './NodeView';
 import { SelectionOverlay } from './SelectionOverlay';
+import { TableCellEditor } from './TableCellEditor';
 import { TextEditor } from './TextEditor';
 import { css } from 'styled-system/css';
 
@@ -25,6 +26,20 @@ const canvasClass = css({
   userSelect: 'none',
 });
 const svgClass = css({ display: 'block' });
+const noticeClass = css({
+  position: 'absolute',
+  left: '[50%]',
+  bottom: '4',
+  transform: 'translateX(-50%)',
+  margin: '0',
+  paddingBlock: '1',
+  paddingInline: '3',
+  borderRadius: 'medium',
+  bg: 'bg',
+  boxShadow: 'elevation200',
+  color: 'text.danger',
+  textStyle: 'body.medium',
+});
 
 const TOOL_CURSORS: Record<string, string> = {
   select: 'default',
@@ -44,6 +59,10 @@ export function Canvas() {
    */
   const [hover, setHover] = useState<{ hitId: string; viewport: Viewport; nodes: DesignNode[] } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [tableCell, setTableCell] = useState<TableCell | null>(null);
+  /** Why the last cell edit wasn't saved, shown until the next press on the canvas. */
+  const [cellNotice, setCellNotice] = useState<string | null>(null);
+  const [rowDrop, setRowDrop] = useState<RowDrop | null>(null);
   const [spacePressed, setSpacePressed] = useState(false);
   const dialogOpen = useLatest(useDialogs().isOpen);
 
@@ -97,6 +116,11 @@ export function Canvas() {
     onMarquee: setMarquee,
     onGuides: setGuides,
     onEditText,
+    onEditTable: (cell) => {
+      setCellNotice(null);
+      setTableCell(cell);
+    },
+    onRowDrop: setRowDrop,
   });
 
   const onHover = (e: ReactPointerEvent) => {
@@ -109,6 +133,13 @@ export function Canvas() {
     );
   };
 
+  // The editor belongs to its table while that table is the whole selection.
+  const editingTable =
+    tableCell && state.selection.length === 1 && state.selection[0] === tableCell.tableId
+      ? state.nodes.find((n): n is TableNode => n.id === tableCell.tableId && n.type === 'table')
+      : undefined;
+  // Storing what was rendered last: a cell whose table went away is dropped, so it can't come back on undo.
+  if (tableCell && !editingTable) setTableCell(null);
   const editingNode = state.nodes.find((n): n is TextNode => n.id === editingId && n.type === 'text');
 
   const commitText = (text: string) => {
@@ -125,6 +156,7 @@ export function Canvas() {
   const byId = byIdOf(nodes);
   const selectedSet = new Set(selection);
   const selected = nodes.filter((n) => selectedSet.has(n.id) && isEffectivelyVisible(byId, n));
+  const picked = state.selectedColumn;
   const cursor = spacePressed ? 'grab' : (TOOL_CURSORS[tool] ?? 'crosshair');
   const hoverHit = hover && hover.viewport === viewport && hover.nodes === nodes ? hover.hitId : null;
   const measureId = altPressed && hoverHit && editingId === null ? selectTarget(byId, hoverHit, enteredScopes(byId, selection, false)) : null;
@@ -143,7 +175,14 @@ export function Canvas() {
       data-tool={tool}
       data-grid={gridStyle}
       style={{ cursor }}
-      onPointerDown={onPointerDown}
+      onPointerDown={(e) => {
+        setCellNotice(null);
+        // An in-place editor saves on blur, but the press may select something else and unmount it
+        // first, and a removed input never blurs. So end the edit before the press does anything.
+        const active = document.activeElement;
+        if (active instanceof HTMLElement && containerRef.current?.contains(active)) active.blur();
+        onPointerDown(e);
+      }}
       onPointerMove={onHover}
       onPointerLeave={() => setHover(null)}
       onDoubleClick={onDoubleClick}
@@ -169,9 +208,28 @@ export function Canvas() {
           guides={guides}
           measures={measures}
           measureTarget={measures ? measureTarget : undefined}
-          hideHandles={editingId !== null}
+          pickedColumnId={picked && picked.tableId === selection[0] && selection.length === 1 ? picked.columnId : null}
+          rowDrop={rowDrop}
+          hideHandles={editingId !== null || editingTable !== undefined}
         />
       </svg>
+      {editingTable && tableCell && (
+        <TableCellEditor
+          key={`${tableCell.tableId}-${tableCell.field}-${'columnId' in tableCell ? tableCell.columnId : ''}`}
+          table={editingTable}
+          cell={tableCell}
+          viewport={viewport}
+          onMove={(cell, notice) => {
+            setTableCell(cell);
+            setCellNotice(notice ?? null);
+          }}
+        />
+      )}
+      {cellNotice && (
+        <p data-testid="table-cell-notice" role="status" className={noticeClass}>
+          {cellNotice} The cell kept its old value.
+        </p>
+      )}
       {editingNode && (
         <TextEditor
           key={editingNode.id}
