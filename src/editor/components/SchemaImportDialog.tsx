@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { Button, Dialog, DialogClose, useDialogs } from '../../design-system';
 import { usePreferences } from '../../settings/preferences/PreferencesContext';
 import { useEditor } from '../EditorContext';
+import type { DesignNode } from '../model/types';
 import { fitBox, rotatedBounds, unionBoxes } from '../geometry';
 import { SQL_DIALECTS } from '../model/table';
 import { planImport, type ImportPlan } from '../schemaImport/importSchema';
@@ -26,13 +27,14 @@ const textareaClass = css({
 const summaryClass = css({ display: 'flex', gap: '3', textStyle: 'body.mediumStrong' });
 const listClass = css({ margin: '0', paddingInlineStart: '4', maxHeight: '[160px]', overflowY: 'auto' });
 const headingClass = css({ margin: '0', textStyle: 'body.mediumStrong' });
+const hintClass = css({ margin: '0', color: 'text.secondary' });
 const skippedClass = css({ color: 'text.secondary' });
 const problemsClass = css({ color: 'text.danger' });
 
 export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { state, dispatch } = useEditor();
   const { preferences } = usePreferences();
-  const { alert } = useDialogs();
+  const { alert, confirm } = useDialogs();
   const [text, setText] = useState('');
   const [plan, setPlan] = useState<ImportPlan | null>(null);
   const [busy, setBusy] = useState(false);
@@ -68,12 +70,36 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
     }
   };
 
+  const showTables = (nodes: DesignNode[]) => {
+    const tables = nodes.filter((n) => n.type === 'table');
+    const bounds = unionBoxes(tables.map((n) => rotatedBounds(n, n.rotation)));
+    if (bounds) dispatch({ type: 'setViewport', viewport: fitBox(bounds, state.canvasSize) });
+  };
+
   const add = () => {
     if (!plan) return;
     dispatch({ type: 'importNodes', nodes: plan.nodes });
-    const tables = plan.nodes.filter((n) => n.type === 'table');
-    const bounds = unionBoxes(tables.map((n) => rotatedBounds(n, n.rotation)));
-    if (bounds) dispatch({ type: 'setViewport', viewport: fitBox(bounds, state.canvasSize) });
+    showTables(plan.nodes);
+    close(false);
+  };
+
+  const replace = async () => {
+    if (!plan) return;
+    const mine = run.current;
+    // Loading clears undo history, so replacing a non-empty design can't be taken back.
+    if (state.nodes.length > 0) {
+      const ok = await confirm({
+        title: 'Replace the current design?',
+        description: 'Importing replaces everything on the canvas and clears undo history. Export first to keep a copy.',
+        confirmLabel: 'Replace',
+      });
+      if (!ok || mine !== run.current) return;
+    }
+    // Planned against an empty document: nothing to rename around, and the block starts at the origin.
+    const fresh = await planImport(plan.schema, []);
+    if (mine !== run.current) return;
+    dispatch({ type: 'loadDocument', nodes: fresh.nodes });
+    showTables(fresh.nodes);
     close(false);
   };
 
@@ -129,6 +155,9 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
             Back
           </Button>
           {/* Keys make these fresh mounts, which is what lets autoFocus fire. */}
+          <Button key="replace" data-testid="import-replace" disabled={tableNodes.length === 0} onClick={() => void replace()}>
+            Replace document…
+          </Button>
           <Button
             key="add"
             variant="primary"
@@ -153,6 +182,12 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
             <li key={t.id}>{t.name}</li>
           ))}
         </ul>
+        {tableNodes.length === 0 && (
+          <section className={bodyClass}>
+            <h3 className={headingClass}>No tables found</h3>
+            <p className={hintClass}>Check that the text contains CREATE TABLE statements.</p>
+          </section>
+        )}
         <div aria-live="polite" data-testid="import-warnings" className={bodyClass}>
           {skipped.length > 0 && (
             <section className={bodyClass}>

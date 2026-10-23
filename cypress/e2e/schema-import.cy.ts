@@ -62,6 +62,52 @@ describe('Schema import from SQL', () => {
     cy.get('[data-node-type=table]').should('have.length', 6);
   });
 
+  it('replaces the document after confirming, and clears history', () => {
+    cy.drawShape('rect', [100, 100], [200, 200]);
+    cy.get('[data-node-type=rect]').should('have.length', 1);
+    previewFixture();
+
+    // Cancelling the confirm leaves the preview and the canvas as they were.
+    cy.get('[data-testid=import-replace]').click();
+    cy.get('[role=alertdialog]').should('contain', 'Replace the current design?');
+    cy.get('[data-testid=dialog-cancel]').click();
+    cy.get('[role=alertdialog]').should('not.exist');
+    cy.get('[data-testid=import-replace]').should('be.visible');
+    cy.get('[data-node-type=rect]').should('have.length', 1);
+
+    cy.get('[data-testid=import-replace]').click();
+    cy.get('[data-testid=dialog-confirm]').click();
+    cy.get('[data-testid=dialog]').should('not.exist');
+    cy.get('[data-node-type=table]').should('have.length', 3);
+    cy.get('[data-node-type=connector]').should('have.length', 3);
+    cy.get('[data-node-type=rect]').should('not.exist');
+    cy.contains('[data-testid^=node-]', 'users 2').should('not.exist');
+
+    cy.get('[data-testid=undo]').should('be.disabled');
+    cy.pressKey('z', { metaKey: true });
+    cy.get('[data-node-type=rect]').should('not.exist');
+    cy.get('[data-node-type=table]').should('have.length', 3);
+  });
+
+  it('replaces an empty canvas without asking', () => {
+    previewFixture();
+    cy.get('[data-testid=import-replace]').click();
+    cy.get('[data-testid=dialog]').should('not.exist');
+    cy.get('[role=alertdialog]').should('not.exist');
+    cy.get('[data-node-type=table]').should('have.length', 3);
+  });
+
+  it('says so when the text has no tables', () => {
+    cy.get('[data-testid=import-schema]').click();
+    cy.get('[data-testid=schema-source]').type('SELECT 1;');
+    cy.contains('button', 'Preview').click();
+    cy.get('[data-testid=import-summary]').should('be.visible');
+    cy.contains('No tables found').should('be.visible');
+    cy.contains('Check that the text contains CREATE TABLE statements.').should('be.visible');
+    cy.get('[data-testid=import-add]').should('be.disabled');
+    cy.get('[data-testid=import-replace]').should('be.disabled');
+  });
+
   it('does not run canvas shortcuts while typing in the dialog', () => {
     cy.drawShape('rect', [100, 100], [200, 200]);
     cy.get('[data-node-type=rect]').should('have.length', 1);
