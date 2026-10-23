@@ -384,23 +384,48 @@ const DROPPED = new RegExp(
 );
 // Session, ownership and permission statements: nothing in them reaches the diagram.
 const NOISE =
-  /^(?:set|select|grant|revoke|comment|begin|commit|rollback|start transaction|lock|unlock|drop|truncate|use|create (?:extension|schema|sequence|role|user)|create tablespace|analyze table|optimize table|flush|alter (?:sequence|schema|type|function|view|extension|database|default privileges|role|user|event))\b/;
+  /^(?:set|select|grant|revoke|comment|begin|commit|rollback|start transaction|lock|unlock|drop(?! table\b)|truncate|use|create (?:extension|schema|sequence|role|user)|create tablespace|analyze table|optimize table|flush|alter (?:sequence|schema|type|function|view|extension|database|default privileges|role|user|event))\b/;
+// SQLite-only housekeeping.
+const SQLITE_NOISE = /^(?:pragma|attach|detach|vacuum|reindex|analyze)\b/;
 // ALTER TABLE forms the parser can't read and that don't change the diagram.
 const ALTER_NOISE =
   /\badd\s+generated\b|\bowner\s+to\b|\b(?:enable|disable)\s+row\s+level\s+security\b|\bset\s*\(|\breplica\s+identity\b|\bcluster\s+on\b|\b(?:enable|disable)\s+keys\b|\balter\s+column\s+\S+\s+set\s+(?:default|statistics|storage)\b/i;
 
-/** Judged from the leading keywords alone, so it also works for statements the parser can't read. */
-function classify(body: string): { skip: true; warning?: string; summary?: 'INSERT' | 'COPY' } | undefined {
-  const head = body.slice(0, 200).replace(/\s+/g, ' ').trim().toLowerCase();
+/**
+ * The warning for a statement the parser rejected. The parser's own message is a raw PEG expectation list,
+ * which doesn't help the user fix the SQL, so the statement itself is quoted instead.
+ */
+export function couldntParse(sql: string): string {
+  const oneLine = sql.replace(LEADING_COMMENTS, '').replace(/\s+/g, ' ');
+  return `Couldn't parse: ${oneLine.length > 60 ? `${oneLine.slice(0, 60)}…` : oneLine}`;
+}
+
+export type StatementClass =
+  | { kind: 'noise' }
+  | { kind: 'dropped'; message: string }
+  | { kind: 'data'; statement: 'INSERT' | 'COPY' }
+  | { kind: 'table' }; // Anything for the parser: CREATE TABLE / INDEX, ALTER TABLE, DROP TABLE, …
+
+/**
+ * Sorts a statement by its leading keywords alone, so it also works for statements the parser can't read.
+ * Noise and structure we drop never reach the parser; 'data' statements are counted by the caller.
+ */
+export function classifyStatement(sql: string, dialect: 'postgres' | 'mysql' | 'sqlite'): StatementClass {
+  const head = sql.replace(LEADING_COMMENTS, '').slice(0, 200).replace(/\s+/g, ' ').trim().toLowerCase();
+  if (dialect === 'sqlite') {
+    if (/^create virtual table\b/.test(head)) return { kind: 'dropped', message: 'Skipped CREATE VIRTUAL TABLE' };
+    if (SQLITE_NOISE.test(head)) return { kind: 'noise' };
+  }
   const dropped = DROPPED.exec(head);
   if (dropped) {
-    return { skip: true, warning: `Skipped CREATE ${(dropped[1] ?? '').toUpperCase()}${(dropped[2] ?? '').toUpperCase()}` };
+    const what = `${(dropped[1] ?? '').toUpperCase()}${(dropped[2] ?? '').toUpperCase()}`;
+    return { kind: 'dropped', message: `Skipped CREATE ${what}` };
   }
-  // Data statements can number in the thousands, so they are reported once in total, not each.
-  if (/^(?:insert|replace)\b/.test(head)) return { skip: true, summary: 'INSERT' };
-  if (/^copy\b/.test(head)) return { skip: true, summary: 'COPY' };
-  if (/^rename table\b/.test(head)) return { skip: true, warning: 'Skipped RENAME TABLE' };
-  return NOISE.test(head) ? { skip: true } : undefined;
+  // Data statements can number in the thousands, so the caller reports them once in total, not each.
+  if (/^(?:insert|replace)\b/.test(head)) return { kind: 'data', statement: 'INSERT' };
+  if (/^copy\b/.test(head)) return { kind: 'data', statement: 'COPY' };
+  if (/^rename table\b/.test(head)) return { kind: 'dropped', message: 'Skipped RENAME TABLE' };
+  return NOISE.test(head) ? { kind: 'noise' } : { kind: 'table' };
 }
 
 /** The column an index part names, or undefined for an expression. */
@@ -456,6 +481,22 @@ export async function parseSql(source: string, dialect: 'postgres' | 'mysql'): P
     if (unterminatedAt) unterminatedLine = unterminatedAt;
     if (sql === '') continue; // Only marks where an open quote or comment began.
     const body = sql.replace(LEADING_COMMENTS, '');
+    const kind = classifyStatement(sql, dialect);
+    if (kind.kind === 'noise') continue;
+    if (kind.kind === 'dropped') {
+      warnings.push({ line, message: kind.message });
+      continue;
+    }
+    if (kind.kind === 'data') {
+      const seen = summaries.get(kind.statement);
+      if (seen) seen.count++;
+      else {
+        const warning = { line, message: `Skipped ${kind.statement}` };
+        warnings.push(warning);
+        summaries.set(kind.statement, { warning, count: 1 });
+      }
+      continue;
+    }
     const dropping = droppedTables(body);
     if (dropping) {
       // A dropped table (the MySQL view-stub sequence, a migration) leaves the diagram with its relations.
@@ -467,20 +508,6 @@ export async function parseSql(source: string, dialect: 'postgres' | 'mysql'): P
         for (let r = relations.length - 1; r >= 0; r--) {
           const rel = relations[r];
           if (rel && (nameKey(rel.fromTable) === key || nameKey(rel.toTable) === key)) relations.splice(r, 1);
-        }
-      }
-      continue;
-    }
-    const skipped = classify(body);
-    if (skipped) {
-      if (skipped.warning) warnings.push({ line, message: skipped.warning });
-      if (skipped.summary) {
-        const seen = summaries.get(skipped.summary);
-        if (seen) seen.count++;
-        else {
-          const warning = { line, message: `Skipped ${skipped.summary}` };
-          warnings.push(warning);
-          summaries.set(skipped.summary, { warning, count: 1 });
         }
       }
       continue;
@@ -563,9 +590,7 @@ export async function parseSql(source: string, dialect: 'postgres' | 'mysql'): P
         }
         if (ALTER_NOISE.test(body)) continue;
       }
-      // The parser's own message is a raw PEG expectation list, which doesn't help the user fix the SQL.
-      const oneLine = body.replace(/\s+/g, ' ');
-      warnings.push({ line, message: `Couldn't parse: ${oneLine.length > 60 ? `${oneLine.slice(0, 60)}…` : oneLine}` });
+      warnings.push({ line, message: couldntParse(sql) });
     }
   }
 

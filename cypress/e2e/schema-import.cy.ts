@@ -175,14 +175,6 @@ describe('Schema import from SQL', () => {
     pressed('mysql');
   });
 
-  it('says SQLite text is read as PostgreSQL', () => {
-    cy.get('[data-testid=import-schema]').click();
-    cy.get('[data-testid=schema-source]').type('CREATE TABLE t (id integer PRIMARY KEY AUTOINCREMENT);');
-    cy.contains('button', 'Preview').click();
-    pressed('postgres');
-    cy.contains('SQLite is read as PostgreSQL.').should('be.visible');
-  });
-
   it('keeps pasted text across tabs, and states the privacy note only on the File tab', () => {
     cy.get('[data-testid=import-schema]').click();
     cy.get('[data-testid=schema-source]').type('CREATE TABLE t (id int);');
@@ -193,6 +185,42 @@ describe('Schema import from SQL', () => {
     cy.get('[data-testid=schema-source]').should('have.value', 'CREATE TABLE t (id int);');
   });
 
+  it('imports a SQLite database file', () => {
+    cy.get('[data-testid=import-schema]').click();
+    cy.get('[data-testid=schema-tab-file]').click();
+    cy.fixture('schema/sample.db', null).then((contents) => {
+      cy.get('[data-testid=schema-file]').selectFile({ contents, fileName: 'sample.db' }, { force: true });
+    });
+    cy.contains('button', 'Preview').click();
+    // A binary file can't be re-read as another dialect, so there is no toggle.
+    cy.get('[data-testid=import-summary]').should('contain', 'SQLite database').and('contain', '2 tables').and('contain', '1 relationship');
+    cy.get('[data-testid=import-format]').should('not.exist');
+    cy.get('[data-testid=import-skipped]').should('contain', 'CREATE VIEW');
+    cy.get('[data-testid=import-add]').click();
+    cy.get('[data-node-type=table]').should('have.length', 2);
+    cy.get('[data-node-type=connector]').should('have.length', 1);
+  });
+
+  it('reads pasted SQLite SQL, and re-parses it when the dialect is toggled', () => {
+    cy.get('[data-testid=import-schema]').click();
+    cy.get('[data-testid=schema-source]').type(
+      'CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT);\nCREATE TABLE posts (id INTEGER PRIMARY KEY, user_id INTEGER REFERENCES users(id));',
+      { delay: 0 },
+    );
+    cy.contains('button', 'Preview').click();
+    pressed('sqlite');
+    cy.get('[data-testid=import-summary]').should('contain', '2 tables').and('contain', '1 relationship');
+
+    cy.get(`${FORMAT} [data-value=postgres]`).click();
+    pressed('postgres');
+    // The PostgreSQL grammar rejects AUTOINCREMENT, so the first table is lost and its relationship with it.
+    cy.get('[data-testid=import-summary]').should('contain', '1 table').and('contain', '0 relationships');
+    cy.get('[data-testid=import-problems]').should('exist');
+    cy.get(`${FORMAT} [data-value=sqlite]`).click();
+    pressed('sqlite');
+    cy.get('[data-testid=import-summary]').should('contain', '2 tables').and('contain', '1 relationship');
+  });
+
   it('refuses a DBML file with an alert', () => {
     cy.get('[data-testid=import-schema]').click();
     cy.get('[data-testid=schema-tab-file]').click();
@@ -201,7 +229,7 @@ describe('Schema import from SQL', () => {
       { force: true },
     );
     cy.contains('button', 'Preview').click();
-    cy.get('[role=alertdialog]').should('contain', 'Only SQL files (PostgreSQL or MySQL) are supported.');
+    cy.get('[role=alertdialog]').should('contain', 'Only SQL files and SQLite databases are supported.');
     cy.get('[data-testid=dialog-confirm]').click();
     cy.get('[data-testid=import-summary]').should('not.exist');
     cy.get('[data-testid=schema-tab-file]').should('be.visible');
@@ -216,9 +244,12 @@ describe('Schema import from SQL', () => {
       cy.contains('button', 'Preview').click();
     };
 
-    it('refuses a SQLite database file', () => {
-      chooseFile(Cypress.Buffer.concat([Cypress.Buffer.from('SQLite format 3\0'), Cypress.Buffer.alloc(64)]), 'x.sql');
-      cy.get('[role=alertdialog]').should('contain', "Can't read this file").and('contain', 'Only SQL files (PostgreSQL or MySQL) are supported.');
+    it('shows a damaged SQLite database as nothing to import', () => {
+      chooseFile(Cypress.Buffer.concat([Cypress.Buffer.from('SQLite format 3\0'), Cypress.Buffer.alloc(64)]), 'x.db');
+      cy.get('[data-testid=import-summary]').should('contain', 'SQLite database');
+      cy.contains('No tables found').should('be.visible');
+      cy.contains("The database has no tables, or it isn't a readable SQLite file.").should('be.visible');
+      cy.contains('CREATE TABLE statements').should('not.exist');
     });
 
     it('refuses a binary file', () => {
@@ -231,7 +262,7 @@ describe('Schema import from SQL', () => {
     cy.get('[data-testid=import-schema]').click();
     cy.get('[data-testid=schema-source]').type('Table users {{}\n  id int [pk]\n}');
     cy.contains('button', 'Preview').click();
-    cy.get('[role=alertdialog]').should('contain', "Can't read this schema").and('contain', 'Only SQL (PostgreSQL or MySQL) is supported.');
+    cy.get('[role=alertdialog]').should('contain', "Can't read this schema").and('contain', 'Only SQL (PostgreSQL, MySQL or SQLite) is supported.');
   });
 
   it('does not run canvas shortcuts while typing in the dialog', () => {

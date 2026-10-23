@@ -5,7 +5,7 @@ import type { Point } from '../model/types';
  * consumes, so a new format is one adapter. Tables and columns are referred to
  * by name as written in the source; ids are minted only when nodes are made.
  */
-export type SchemaFormat = 'postgres' | 'mysql';
+export type SchemaFormat = 'postgres' | 'mysql' | 'sqlite' | 'sqlite-db';
 
 export interface ImportedColumn {
   name: string;

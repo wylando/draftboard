@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseSql } from './fromSql';
+import { classifyStatement, couldntParse, parseSql } from './fromSql';
 import type { ImportedColumn, ImportedTable } from './types';
 
 function col(t: ImportedTable, name: string): ImportedColumn {
@@ -973,6 +973,41 @@ DELIMITER ;
       );
       expect(tables.map((t) => t.name)).toEqual(['a', 'b']);
       expect(warnings).toEqual([unterminated(4)]);
+    });
+  });
+
+  describe('classifyStatement', () => {
+    it.each([
+      ['postgres', 'CREATE TABLE t (a int)', { kind: 'table' }],
+      ['postgres', 'ALTER TABLE t ADD COLUMN b int', { kind: 'table' }],
+      ['postgres', 'DROP TABLE IF EXISTS t', { kind: 'table' }],
+      ['postgres', 'DROP VIEW v', { kind: 'noise' }],
+      ['postgres', '--\n-- Name: t; Type: ACL\n--\nGRANT ALL ON t TO u', { kind: 'noise' }],
+      ['postgres', 'CREATE VIEW v AS SELECT 1', { kind: 'dropped', message: 'Skipped CREATE VIEW' }],
+      ['postgres', 'INSERT INTO t VALUES (1)', { kind: 'data', statement: 'INSERT' }],
+      ['postgres', 'COPY t (a) FROM stdin', { kind: 'data', statement: 'COPY' }],
+      ['mysql', 'RENAME TABLE a TO b', { kind: 'dropped', message: 'Skipped RENAME TABLE' }],
+      ['mysql', 'FLUSH TABLES', { kind: 'noise' }],
+      ['postgres', 'PRAGMA foreign_keys = ON', { kind: 'table' }],
+      ['sqlite', 'CREATE TABLE t (a int)', { kind: 'table' }],
+      ['sqlite', 'PRAGMA foreign_keys = ON', { kind: 'noise' }],
+      ['sqlite', "ATTACH DATABASE 'x.db' AS x", { kind: 'noise' }],
+      ['sqlite', 'DETACH DATABASE x', { kind: 'noise' }],
+      ['sqlite', 'VACUUM', { kind: 'noise' }],
+      ['sqlite', 'REINDEX t', { kind: 'noise' }],
+      ['sqlite', 'ANALYZE', { kind: 'noise' }],
+      ['sqlite', 'CREATE VIRTUAL TABLE t USING fts5(a)', { kind: 'dropped', message: 'Skipped CREATE VIRTUAL TABLE' }],
+      ['sqlite', 'CREATE VIEW v AS SELECT 1', { kind: 'dropped', message: 'Skipped CREATE VIEW' }],
+    ] as const)('%s: %s', (dialect, sql, expected) => {
+      expect(classifyStatement(sql, dialect)).toEqual(expected);
+    });
+  });
+
+  describe('couldntParse', () => {
+    it('strips leading comments, collapses whitespace and cuts at 60 characters', () => {
+      expect(couldntParse('-- Name: t\n/* c */\nCREATE TABLE   t\n(id int,,)')).toBe("Couldn't parse: CREATE TABLE t (id int,,)");
+      const long = couldntParse(`CREATE TABLE t (${'x int, '.repeat(20)})`);
+      expect(long).toBe(`Couldn't parse: ${`CREATE TABLE t (${'x int, '.repeat(20)})`.slice(0, 60)}…`);
     });
   });
 });
