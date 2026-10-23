@@ -113,16 +113,26 @@ export function schemaToNodes(
   const relations = [...schema.relations].sort((a, b) => Number(b.declared) - Number(a.declared));
   for (const r of relations) {
     const label = `Relationship ${r.fromTable}.${r.fromColumn} → ${r.toTable}.${r.toColumn}`;
-    const from = columnAnchor(bySourceName, r.fromTable, r.fromColumn);
-    const to = columnAnchor(bySourceName, r.toTable, r.toColumn);
-    if (!from || !to) {
+    const fromColumn = columnAnchor(bySourceName, r.fromTable, r.fromColumn);
+    const toColumn = columnAnchor(bySourceName, r.toTable, r.toColumn);
+    if (!fromColumn || !toColumn) {
       warnings.push({ message: `${label} points at a missing table or column; skipped` });
-    } else if (linksToItself(from, to)) {
-      warnings.push({ message: `${label} links a column to itself; skipped` });
-    } else if (!connectors.some((c) => sameAnchor(c.from, from) && sameAnchor(c.to, to))) {
+      continue;
+    }
+    // A many-to-many isn't one column's reference, so the editor only allows it between whole tables.
+    // It has no direction, so the reverse pair repeats it.
+    const manyToMany = r.cardinality === 'many-to-many';
+    const from: Anchor = manyToMany && fromColumn.kind === 'column' ? { kind: 'node', nodeId: fromColumn.tableId } : fromColumn;
+    const to: Anchor = manyToMany && toColumn.kind === 'column' ? { kind: 'node', nodeId: toColumn.tableId } : toColumn;
+    if (linksToItself(from, to)) {
+      warnings.push({ message: `${label} links ${manyToMany ? 'a table' : 'a column'} to itself; skipped` });
+    } else if (!connectors.some((c) => (sameAnchor(c.from, from) && sameAnchor(c.to, to)) || (manyToMany && sameAnchor(c.from, to) && sameAnchor(c.to, from)))) {
       const connector = createConnector(from, to, nextName('connector', [...existing, ...nodes, ...connectors]), byId);
+      let kind = connector;
+      if (r.cardinality === 'one-to-one') kind = { ...connector, fromCardinality: 'one', toCardinality: 'one' };
+      else if (manyToMany) kind = { ...connector, fromCardinality: 'many', toCardinality: 'many', isForeignKey: false };
       // An inferred relation is only a guess, so it doesn't claim a foreign key.
-      connectors.push(r.declared ? connector : { ...connector, isForeignKey: false });
+      connectors.push(r.declared ? kind : { ...kind, isForeignKey: false });
     }
   }
   nodes.push(...connectors);

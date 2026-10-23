@@ -7,8 +7,8 @@ export default defineConfig({
     // Panda's generated code; must match tsconfig `paths`.
     alias: { 'styled-system': decodeURIComponent(new URL('./styled-system', import.meta.url).pathname) },
   },
-  // Only imported lazily, so the dev server would otherwise discover it mid-session, re-optimize and reload the page.
-  optimizeDeps: { include: ['sql.js'] },
+  // Only imported lazily (SQLite, DBML), so the dev server would otherwise discover it mid-session, re-optimize and reload the page.
+  optimizeDeps: { include: ['sql.js', '@dbml/parse'] },
   // Fixed port: settings live in localStorage, which is per-origin (host + port).
   server: { port: 5173, strictPort: true },
   test: { environment: 'node', include: ['src/**/*.test.ts'] },
