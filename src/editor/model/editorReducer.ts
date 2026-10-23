@@ -39,6 +39,8 @@ export type EditorAction =
   | { type: 'escape' }
   /** `parentAt`: put the node in the deepest frame under this world point. */
   | { type: 'addNode'; node: DesignNode; select?: boolean; parentAt?: Point }
+  /** Nodes must have fresh ids; they're added at the top level as one undo step, selecting the tables. */
+  | { type: 'importNodes'; nodes: DesignNode[] }
   /** Transient: does not snapshot history. Pair with a prior checkpoint. */
   | { type: 'updateNodes'; patches: Record<string, NodePatch> }
   /** Ignored when the trimmed name is empty, unchanged or held by another layer (ignoring case). */
@@ -307,6 +309,16 @@ function reduce(state: EditorState, action: EditorAction): EditorState {
         ...s,
         nodes: normalizeTree([...s.nodes, { ...action.node, parentId }]),
         selection: action.select === false ? s.selection : [action.node.id],
+      };
+    }
+
+    case 'importNodes': {
+      if (action.nodes.length === 0) return state;
+      const s = pushHistory(state);
+      return {
+        ...s,
+        nodes: normalizeTree([...s.nodes, ...action.nodes.map((n) => ({ ...n, parentId: null }))]),
+        selection: action.nodes.filter((n) => n.type === 'table').map((n) => n.id),
       };
     }
 

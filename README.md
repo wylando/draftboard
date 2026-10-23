@@ -39,6 +39,7 @@ Draw, arrange and fine-tune shapes on an infinite canvas: no account, no cloud, 
 - 🪆 **Frames and groups**: shapes drawn or dropped on a frame go inside it and move with it. Group the selection (`⌘G`) to move and scale it as one; double-click to select inside a group.
 - 🔲 **Canvas grid**: dots, lines or none, chosen under Settings → Canvas.
 - 📋 **Copy, cut and paste** layers with their children (`⌘C` / `⌘X` / `⌘V`). Each paste lands 10px from the last. Pasted and duplicated layers get the next free name ("Rectangle 1" → "Rectangle 2"). The clipboard lives in memory, so it's cleared on reload.
+- 📥 **Import schema**: paste PostgreSQL or MySQL `CREATE TABLE` SQL (MySQL when that's your SQL dialect setting; SQLite reads as PostgreSQL for now) in the toolbar's Import schema dialog and preview the tables, relationships and warnings first. Add to canvas lays the tables and foreign-key connectors out left to right, referenced tables first, to the right of your existing content, as one undo step. A statement that can't be read becomes a warning with its line number; dump noise is ignored and views, functions, triggers and `INSERT`s are listed as skipped. Name clashes get the next free name.
 - ↩️ **Full undo / redo** for every edit and gesture.
 - 🔍 **Smooth viewport**: wheel to pan, ⌘/Ctrl + wheel to zoom around the pointer, Space-drag to pan, plus zoom to 100% and zoom to fit.
 - ⌨️ **Fully remappable shortcuts**: rebind any command, give one command several keys, and resolve conflicts from a built-in Settings page.
@@ -134,6 +135,7 @@ src/
 ├── design-system/    # Panda theme (tokens, semantic tokens, recipes), UI primitives (some on Ark UI), dialogs, icons
 ├── editor/
 │   ├── model/        # Document types, node factories, reducer with undo history
+│   ├── schemaImport/ # SQL schema import: parsers, layout, conversion to table nodes
 │   ├── hooks/        # Pointer gestures, keyboard shortcuts, viewport
 │   ├── components/   # Canvas, selection overlay, layers and properties panels, toolbar
 │   ├── geometry.ts   # Pure math: transforms, resize, bounds
