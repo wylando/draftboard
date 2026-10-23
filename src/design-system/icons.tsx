@@ -130,6 +130,11 @@ export const icons = {
       <path d="M4 4l8 8M12 4l-8 8" />
     </Icon>
   ),
+  check: () => (
+    <Icon>
+      <path d="M13 4.5L6.25 11.25 3 8" />
+    </Icon>
+  ),
   back: () => (
     <Icon>
       <path d="M10 3L5 8l5 5" />
