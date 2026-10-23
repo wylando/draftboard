@@ -1,5 +1,5 @@
 import { pointInRotatedBox, rotatedBounds, unionBoxes } from '../geometry';
-import { routeConnector } from './connector';
+import { routeConnector, visibleTables } from './connector';
 import { tableHeight } from './table';
 import type { DesignNode, Point } from './types';
 
@@ -208,5 +208,6 @@ export function normalizeTree(input: readonly DesignNode[]): DesignNode[] {
   // Connectors last: their routes depend on where everything else ended up.
   if (!out.some((n) => n.type === 'connector')) return out;
   const final = byIdOf(out);
-  return out.map((n) => (n.type === 'connector' ? routeConnector(n, final) : n));
+  const tables = visibleTables(final);
+  return out.map((n) => (n.type === 'connector' ? routeConnector(n, final, tables) : n));
 }
