@@ -14,15 +14,20 @@
     "typecheck": "panda codegen && tsc --noEmit && tsc --noEmit -p cypress/tsconfig.json",
     "cy:open": "env -u ELECTRON_RUN_AS_NODE cypress open",
     "cy:run": "env -u ELECTRON_RUN_AS_NODE cypress run",
+    "test:unit": "vitest run",
     "test:e2e": "start-server-and-test 'vite --port 5199 --strictPort' http://localhost:5199 'env -u ELECTRON_RUN_AS_NODE cypress run'",
     "test:e2e:dist": "start-server-and-test 'vite preview --port 5199 --strictPort' http://localhost:5199 'env -u ELECTRON_RUN_AS_NODE cypress run'",
-    "verify": "npm run lint && npm run typecheck && npm run build && npm run test:e2e:dist",
+    "verify": "npm run lint && npm run typecheck && npm run test:unit && npm run build && npm run test:e2e:dist",
     "prepare": "panda codegen && { git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true; }"
   },
   "dependencies": {
     "@ark-ui/react": "5.39.3",
+    "@dagrejs/dagre": "3.1.1",
+    "@dbml/parse": "10.3.1",
+    "node-sql-parser": "5.4.0",
     "react": "19.3.1",
-    "react-dom": "19.3.1"
+    "react-dom": "19.3.1",
+    "sql.js": "1.15.1"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -31,6 +36,7 @@
     "@pandacss/preset-base": "2.2.0",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
+    "@types/sql.js": "1.4.11",
     "@vitejs/plugin-react": "5.2.0",
     "cypress": "15.21.1",
     "eslint": "10.12.0",
@@ -39,7 +45,8 @@
     "start-server-and-test": "2.1.5",
     "typescript": "5.9.3",
     "typescript-eslint": "8.70.1",
-    "vite": "7.3.7"
+    "vite": "7.3.7",
+    "vitest": "5.0.5"
   },
   "allowScripts": {
     "esbuild@0.28.2": true,
