@@ -315,6 +315,91 @@ function reusable(route: readonly Point[], start: Point, s0: Side, end: Point, s
   return leaves(start, route[1]!, s0) && leaves(end, route[n - 2]!, s1);
 }
 
+/**
+ * The route through the user's `bends`: out of `start` by a stub, through every
+ * bend in order, into `end` by a stub. Two consecutive points that differ both
+ * ways are joined by a corner: the one clear of the tables if either is, and
+ * otherwise the one that keeps going the way the route was heading (and, for
+ * the last leg, arrives the way the end's stub leaves). Bent legs are not
+ * rerouted around tables.
+ */
+function shapedRoute(start: Point, s0: Side, end: Point, s1: Side, bends: readonly Point[], tables: readonly Box[]): Point[] {
+  const tipA = { x: start.x + NORMAL[s0].x * STUB, y: start.y + NORMAL[s0].y * STUB };
+  const tipB = { x: end.x + NORMAL[s1].x * STUB, y: end.y + NORMAL[s1].y * STUB };
+  const waypoints = [tipA, ...bends, tipB];
+  const route: Point[] = [start, tipA];
+  let heading = NORMAL[s0];
+  waypoints.slice(1).forEach((q, i) => {
+    const p = waypoints[i]!;
+    const last = i === waypoints.length - 2;
+    if (p.x !== q.x && p.y !== q.y) {
+      const options = [{ x: q.x, y: p.y }, { x: p.x, y: q.y }];
+      // Lower is better, in this order of weight: runs through a table, doubles back on the heading, arrives against the end's stub.
+      const score = (c: Point) => {
+        const first = { x: Math.sign(c.x - p.x), y: Math.sign(c.y - p.y) };
+        const arrives = { x: Math.sign(q.x - c.x), y: Math.sign(q.y - c.y) };
+        const hit = tables.some((o) => segmentHitsBox(p, c, o) || segmentHitsBox(c, q, o));
+        const reverses = first.x === -heading.x && first.y === -heading.y && (first.x !== 0 || first.y !== 0);
+        const misses = last && !(arrives.x === -NORMAL[s1].x && arrives.y === -NORMAL[s1].y);
+        return (hit ? 4 : 0) + (reverses ? 2 : 0) + (misses ? 1 : 0);
+      };
+      const corner = score(options[1]!) < score(options[0]!) ? options[1]! : options[0]!;
+      route.push(corner);
+    }
+    route.push(q);
+    const prev = route[route.length - 2]!;
+    heading = { x: Math.sign(q.x - prev.x), y: Math.sign(q.y - prev.y) };
+  });
+  route.push(end);
+  return simplify(route);
+}
+
+/** Design choice: the closest a dragged segment may come to the run beside it, so both stay visible and grabbable. */
+const SEGMENT_GAP = 8;
+
+/** Design choice: a shape needs a handful of corners; the cap only stops a damaged file making an enormous route. */
+const MAX_BENDS = 64;
+
+/**
+ * The bends that reproduce `points` (a connector's routed points) with the
+ * segment `segment` moved `delta` px sideways, perpendicular to itself.
+ * Segment i runs from points[i] to points[i + 1]. Only interior segments can be
+ * dragged: the first and the last are attached to their tables and stay put
+ * (the current bends come back unchanged). A segment next to an end can't be
+ * dragged back closer than one stub to that end, so the stub keeps its length.
+ */
+export function dragSegment(points: Point[], segment: number, delta: number): Point[] {
+  const last = points.length - 1;
+  const current = points.slice(1, last);
+  if (segment < 1 || segment > last - 2) return current;
+  const moved = points.map((p) => ({ ...p }));
+  const a = moved[segment]!;
+  const b = moved[segment + 1]!;
+  const vertical = a.x === b.x;
+  const key = vertical ? 'x' : 'y';
+  let to = a[key] + delta;
+  // Keep a stub's length between an end and the first corner it leads to.
+  const hold = (end: Point, corner: Point) => {
+    const side = Math.sign(corner[key] - end[key]);
+    const room = Math.min(STUB, Math.abs(corner[key] - end[key]));
+    if (side !== 0 && (to - end[key]) * side < room) to = end[key] + side * room;
+  };
+  if (segment === 1) hold(points[0]!, a);
+  if (segment === last - 2) hold(points[last]!, a);
+  // Nor onto the parallel run on either side (its coordinate is that of the corner next to it), which would fold the route into a spike.
+  const origin = a[key];
+  const keepApart = (other: number) => {
+    const side = Math.sign(origin - other);
+    const room = Math.min(SEGMENT_GAP, Math.abs(origin - other));
+    if (side !== 0 && (to - other) * side < room) to = other + side * room;
+  };
+  if (segment >= 2) keepApart(points[segment - 1]![key]);
+  if (segment + 2 <= last - 1) keepApart(points[segment + 2]![key]);
+  a[key] = to;
+  b[key] = to;
+  return simplify(moved).slice(1, -1);
+}
+
 /** Design choice: out from each side by a stub, then right angles, ignoring everything else on the canvas. */
 function elbow(startAt: Point, endAt: Point, s0: Side, s1: Side): Point[] {
   const a = { x: startAt.x + NORMAL[s0].x * STUB, y: startAt.y + NORMAL[s0].y * STUB };
@@ -357,6 +442,7 @@ export function routeBetween(
   byId: ReadonlyMap<string, DesignNode>,
   previous?: readonly Point[],
   tables: readonly Box[] = visibleTables(byId),
+  bends?: readonly Point[],
 ): Point[] {
   const start = endpoint(from, aim(to, byId), byId);
   let end = endpoint(to, aim(from, byId), byId);
@@ -365,6 +451,7 @@ export function routeBetween(
   if (routing === 'straight') return [start.at, end.at];
   const s0 = start.side ?? looseSide(start.at, end.at);
   const s1 = end.side ?? looseSide(end.at, start.at);
+  if (bends && bends.length > 0) return shapedRoute(start.at, s0, end.at, s1, bends, tables);
   const plain = elbow(start.at, end.at, s0, s1);
   if (routeClear(plain, tables, ROUTE_MARGIN)) return plain;
   // Keeping a still-valid detour stops the route flipping between equally good ones as unrelated tables move about.
@@ -423,7 +510,7 @@ export function routeConnector(connector: ConnectorNode, byId: ReadonlyMap<strin
   // Many-to-many only between whole tables, whatever a loaded document says.
   const toCardinality =
     isMany(connector.fromCardinality) && isMany(connector.toCardinality) && !allowsManyToMany(from, to, byId) ? 'one' : connector.toCardinality;
-  const points = routeBetween(from, to, connector.routing, byId, connector.points, tables);
+  const points = routeBetween(from, to, connector.routing, byId, connector.points, tables, connector.bends);
   const xs = points.map((p) => p.x);
   const ys = points.map((p) => p.y);
   const x = Math.min(...xs);
@@ -448,6 +535,30 @@ export function routeConnector(connector: ConnectorNode, byId: ReadonlyMap<strin
 export function shiftLooseEnds(connector: ConnectorNode, dx: number, dy: number): Pick<ConnectorNode, 'from' | 'to'> {
   const shift = (a: Anchor): Anchor => (a.kind === 'point' ? { ...a, x: a.x + dx, y: a.y + dy } : a);
   return { from: shift(connector.from), to: shift(connector.to) };
+}
+
+/**
+ * Whether a connector's bends travel when the layers in `movedIds` move: they
+ * do if every layer it is attached to moves (the whole shape goes with them),
+ * whether or not the connector itself is selected. A connector with both ends
+ * loose has nothing to follow, so it moves only if it is in the set. With an
+ * attached layer staying put the bends stay, and the route adapts around them.
+ */
+export function bendsMoveWith(connector: ConnectorNode, movedIds: ReadonlySet<string>): boolean {
+  const layer = (a: Anchor) => (a.kind === 'point' ? null : a.kind === 'column' ? a.tableId : a.nodeId);
+  const attached = [layer(connector.from), layer(connector.to)].filter((id): id is string => id !== null);
+  return attached.length === 0 ? movedIds.has(connector.id) : attached.every((id) => movedIds.has(id));
+}
+
+/**
+ * A connector's ends and bends after a move by (dx, dy): loose ends shift, as
+ * `shiftLooseEnds` does, and the bends only when `moveBends` (see `bendsMoveWith`).
+ * `bends` is left out when there are none.
+ */
+export function shiftConnector(connector: ConnectorNode, dx: number, dy: number, moveBends: boolean): Pick<ConnectorNode, 'from' | 'to'> & { bends?: Point[] } {
+  const ends = shiftLooseEnds(connector, dx, dy);
+  if (!connector.bends) return ends;
+  return { ...ends, bends: moveBends ? connector.bends.map((p) => ({ x: p.x + dx, y: p.y + dy })) : connector.bends };
 }
 
 /** Whether two anchors attach to the same place. */
@@ -505,7 +616,7 @@ export function repairConnectorData(
   data: Record<string, unknown>,
 ): Pick<
   ConnectorNode,
-  'from' | 'to' | 'routing' | 'points' | 'x' | 'y' | 'width' | 'height' | 'fromCardinality' | 'toCardinality' | 'isForeignKey'
+  'from' | 'to' | 'routing' | 'points' | 'x' | 'y' | 'width' | 'height' | 'fromCardinality' | 'toCardinality' | 'isForeignKey' | 'bends'
 > {
   const cardinality = (v: unknown): Cardinality => (CYCLE.includes(v as Cardinality) ? (v as Cardinality) : 'none');
   const points = (Array.isArray(data.points) ? data.points : []).filter((p): p is Point => isRecord(p) && isNumber(p.x) && isNumber(p.y));
@@ -524,6 +635,8 @@ export function repairConnectorData(
     to: anchor(data.to, points[points.length - 1]),
     routing: data.routing === 'straight' ? 'straight' : 'orthogonal',
     points,
+    // Shaped corners are optional; anything that isn't a list of points is dropped, back to automatic routing.
+    bends: Array.isArray(data.bends) && data.bends.length > 0 && data.bends.every((p) => isRecord(p) && isNumber(p.x) && isNumber(p.y)) ? data.bends.slice(0, MAX_BENDS).map((p) => ({ x: p.x, y: p.y })) : undefined,
     // Saved before relationships existed: plain links, no markers.
     fromCardinality: cardinality(data.fromCardinality),
     toCardinality: cardinality(data.toCardinality),
