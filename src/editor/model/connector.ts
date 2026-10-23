@@ -1,15 +1,14 @@
 import { boxCenter, rotatedBounds } from '../geometry';
 import { createId } from './names';
+import { boxTouches, routeAround, segmentHitsBox, STUB, type Side } from './orthogonalRoute';
 import { tableRowTop, TABLE_ROW_HEIGHT } from './table';
 import type { Anchor, Box, Cardinality, ConnectorNode, DesignNode, Point } from './types';
 
 /**
- * Design choice: how far a route leaves its side before its first turn, in
- * world px. Longer than an end marker reaches, so the marker never sits on a bend.
+ * Design choice: how close a rerouted connector may pass a table. Less than
+ * a stub, so a route can still leave a table whose neighbour is near.
  */
-export const STUB = 24;
-
-type Side = 'left' | 'right' | 'top' | 'bottom';
+export const ROUTE_MARGIN = 16;
 
 const NORMAL: Record<Side, Point> = { left: { x: -1, y: 0 }, right: { x: 1, y: 0 }, top: { x: 0, y: -1 }, bottom: { x: 0, y: 1 } };
 
@@ -217,27 +216,119 @@ function sharedSide(from: Anchor, to: Anchor, fromSide: Side | null, toSide: Sid
   return overlapX && !overlapY ? fromSide : null;
 }
 
-/** The route from `from` to `to`: straight, or design choice: out from each side by a stub, then right angles. */
-export function routeBetween(from: Anchor, to: Anchor, routing: ConnectorNode['routing'], byId: ReadonlyMap<string, DesignNode>): Point[] {
-  const start = endpoint(from, aim(to, byId), byId);
-  let end = endpoint(to, aim(from, byId), byId);
-  const shared = sharedSide(from, to, start.side, end.side, byId);
-  if (shared) end = endpoint(to, start.at, byId, shared);
-  if (routing === 'straight') return [start.at, end.at];
-  const s0 = start.side ?? looseSide(start.at, end.at);
-  const s1 = end.side ?? looseSide(end.at, start.at);
-  const a = { x: start.at.x + NORMAL[s0].x * STUB, y: start.at.y + NORMAL[s0].y * STUB };
-  const b = { x: end.at.x + NORMAL[s1].x * STUB, y: end.at.y + NORMAL[s1].y * STUB };
+/**
+ * Every visible table, as the obstacles a route avoids. Hidden if the table or
+ * any ancestor is; tree.ts has isEffectivelyVisible, but it imports this module.
+ * `normalizeTree` collects them once and hands them to every `routeConnector`.
+ */
+export function visibleTables(byId: ReadonlyMap<string, DesignNode>): Box[] {
+  const shown = (n: DesignNode): boolean => {
+    let node: DesignNode | undefined = n;
+    // A parent cycle in a damaged document must not loop: no chain is longer than the document.
+    for (let hops = 0; node && hops <= byId.size; hops++) {
+      if (!node.visible) return false;
+      node = node.parentId === null ? undefined : byId.get(node.parentId);
+    }
+    return true;
+  };
+  const out: Box[] = [];
+  for (const n of byId.values()) if (n.type === 'table' && shown(n)) out.push(n);
+  return out;
+}
+
+/**
+ * Design choice: a route is searched among the tables within this far of the
+ * box spanned by its two stub tips, then 4 times as far, then all of them.
+ * Searching every table makes a drag frame cost grow with the whole document.
+ */
+const CORRIDOR_PADS = [4 * STUB, 16 * STUB, Infinity];
+
+/** Design choice: tried in order, so a tight gap costs clearance rather than forcing the route through tables. */
+const MARGINS = [ROUTE_MARGIN, 4, 0];
+
+/**
+ * Design choice: clearance is worth some length but not any: a route with the
+ * wider margin is kept only if it is at most this many times as long as the
+ * one with the narrower margin, and a route this close to the plain elbow's
+ * length is not worth a second search.
+ */
+const CLEARANCE_LENGTH_RATIO = 1.5;
+
+/** Design choice: a kept detour may be this many times the estimated shortest detour before it is searched again. */
+const REUSE_LENGTH_RATIO = 1.5;
+
+/** Design choice: the clearance a kept route must still have, so one that ends up flush against a table is searched again. */
+const KEEP_MARGIN = 4;
+
+const routeLength = (route: readonly Point[]) => route.reduce((sum, p, i) => (i === 0 ? 0 : sum + Math.abs(p.x - route[i - 1]!.x) + Math.abs(p.y - route[i - 1]!.y)), 0);
+
+const inflateBox = (b: Box, m: number): Box => ({ x: b.x - m, y: b.y - m, width: b.width + 2 * m, height: b.height + 2 * m });
+
+/** Whether `route` keeps `margin` clear of every table; the tables its ends sit on only need to be left alone, as the stubs start on them. */
+function routeClear(route: readonly Point[], tables: readonly Box[], margin: number): boolean {
+  const first = route[0]!;
+  const last = route[route.length - 1]!;
+  return tables.every((o) => {
+    const box = boxTouches(o, first) || boxTouches(o, last) ? o : inflateBox(o, margin);
+    return route.every((p, i) => i === 0 || !segmentHitsBox(route[i - 1]!, p, box));
+  });
+}
+
+/**
+ * A cheap lower bound on the length of any route round what blocks `plain`:
+ * its own length plus the shortest way past the worst blocker, out to one of
+ * the sides of that table and back. Real detours are at least this long, so a
+ * kept route near the bound has little to gain from a new search, and one far
+ * above it has.
+ */
+function detourEstimate(plain: readonly Point[], tables: readonly Box[]): number {
+  let extra = 0;
+  for (const o of tables) {
+    if (routeClear(plain, [o], ROUTE_MARGIN)) continue;
+    const box = inflateBox(o, ROUTE_MARGIN);
+    let shortest = Infinity;
+    for (let i = 1; i < plain.length; i++) {
+      const p = plain[i - 1]!;
+      const q = plain[i]!;
+      if (!segmentHitsBox(p, q, box)) continue;
+      const out = p.y === q.y ? Math.min(p.y - box.y, box.y + box.height - p.y) : Math.min(p.x - box.x, box.x + box.width - p.x);
+      shortest = Math.min(shortest, 2 * out);
+    }
+    if (shortest < Infinity) extra = Math.max(extra, shortest);
+  }
+  return routeLength(plain) + extra;
+}
+
+/** Whether `route` is a clean right-angled run that still starts and ends where these ends are and leaves them the same way. */
+function reusable(route: readonly Point[], start: Point, s0: Side, end: Point, s1: Side): boolean {
+  const n = route.length;
+  // Stale or hand-edited points must not be trusted past their ends: every step has to be a real axis-aligned run.
+  for (let i = 1; i < n; i++) {
+    if ((route[i]!.x === route[i - 1]!.x) === (route[i]!.y === route[i - 1]!.y)) return false;
+  }
+  if (n < 2 || route[0]!.x !== start.x || route[0]!.y !== start.y || route[n - 1]!.x !== end.x || route[n - 1]!.y !== end.y) return false;
+  const leaves = (from: Point, to: Point, side: Side) => {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    return dx * NORMAL[side].y === 0 && dy * NORMAL[side].x === 0 && dx * NORMAL[side].x + dy * NORMAL[side].y > 0;
+  };
+  return leaves(start, route[1]!, s0) && leaves(end, route[n - 2]!, s1);
+}
+
+/** Design choice: out from each side by a stub, then right angles, ignoring everything else on the canvas. */
+function elbow(startAt: Point, endAt: Point, s0: Side, s1: Side): Point[] {
+  const a = { x: startAt.x + NORMAL[s0].x * STUB, y: startAt.y + NORMAL[s0].y * STUB };
+  const b = { x: endAt.x + NORMAL[s1].x * STUB, y: endAt.y + NORMAL[s1].y * STUB };
   // Facing ends closer than two stubs: the stubs would cross and zigzag, so meet in the gap instead.
   const crossX = (s0 === 'right' && s1 === 'left' && a.x > b.x) || (s0 === 'left' && s1 === 'right' && a.x < b.x);
   const crossY = (s0 === 'bottom' && s1 === 'top' && a.y > b.y) || (s0 === 'top' && s1 === 'bottom' && a.y < b.y);
   if (crossX) {
-    const midX = (start.at.x + end.at.x) / 2;
-    return simplify([start.at, { x: midX, y: start.at.y }, { x: midX, y: end.at.y }, end.at]);
+    const midX = (startAt.x + endAt.x) / 2;
+    return simplify([startAt, { x: midX, y: startAt.y }, { x: midX, y: endAt.y }, endAt]);
   }
   if (crossY) {
-    const midY = (start.at.y + end.at.y) / 2;
-    return simplify([start.at, { x: start.at.x, y: midY }, { x: end.at.x, y: midY }, end.at]);
+    const midY = (startAt.y + endAt.y) / 2;
+    return simplify([startAt, { x: startAt.x, y: midY }, { x: endAt.x, y: midY }, endAt]);
   }
   let middle: Point[];
   if (s0 === s1) {
@@ -255,7 +346,68 @@ export function routeBetween(from: Anchor, to: Anchor, routing: ConnectorNode['r
   } else {
     middle = [horizontal(s0) ? { x: b.x, y: a.y } : { x: a.x, y: b.y }];
   }
-  return simplify([start.at, a, ...middle, b, end.at]);
+  return simplify([startAt, a, ...middle, b, endAt]);
+}
+
+/** The route from `from` to `to`: straight, or design choice: out from each side by a stub, then right angles, around tables in the way. */
+export function routeBetween(
+  from: Anchor,
+  to: Anchor,
+  routing: ConnectorNode['routing'],
+  byId: ReadonlyMap<string, DesignNode>,
+  previous?: readonly Point[],
+  tables: readonly Box[] = visibleTables(byId),
+): Point[] {
+  const start = endpoint(from, aim(to, byId), byId);
+  let end = endpoint(to, aim(from, byId), byId);
+  const shared = sharedSide(from, to, start.side, end.side, byId);
+  if (shared) end = endpoint(to, start.at, byId, shared);
+  if (routing === 'straight') return [start.at, end.at];
+  const s0 = start.side ?? looseSide(start.at, end.at);
+  const s1 = end.side ?? looseSide(end.at, start.at);
+  const plain = elbow(start.at, end.at, s0, s1);
+  if (routeClear(plain, tables, ROUTE_MARGIN)) return plain;
+  // Keeping a still-valid detour stops the route flipping between equally good ones as unrelated tables move about.
+  if (previous && reusable(previous, start.at, s0, end.at, s1) && routeClear(previous, tables, KEEP_MARGIN)) {
+    // A long detour stays only while it is about as short as the blockers allow; when one moves away a much shorter way appears and it is searched again.
+    if (routeLength(previous) <= REUSE_LENGTH_RATIO * detourEstimate(plain, tables)) return [...previous];
+  }
+
+  const tipA = { x: start.at.x + NORMAL[s0].x * STUB, y: start.at.y + NORMAL[s0].y * STUB };
+  const tipB = { x: end.at.x + NORMAL[s1].x * STUB, y: end.at.y + NORMAL[s1].y * STUB };
+  // A tip inside a table's margin cannot be left at that margin, and a search would only exhaust the grid to say so. A table an end sits on is never a cause: its stub tip is a full stub away.
+  const tipBlocked = (margin: number) =>
+    tables.some((o) => [tipA, tipB].some((t) => {
+      const box = inflateBox(o, margin);
+      return t.x > box.x && t.x < box.x + box.width && t.y > box.y && t.y < box.y + box.height;
+    }));
+  const plainLength = routeLength(plain);
+  const searchAt = (margin: number): Point[] | null => {
+    if (tipBlocked(margin)) return null;
+    for (const pad of CORRIDOR_PADS) {
+      const x1 = Math.min(tipA.x, tipB.x) - pad;
+      const y1 = Math.min(tipA.y, tipB.y) - pad;
+      const x2 = Math.max(tipA.x, tipB.x) + pad;
+      const y2 = Math.max(tipA.y, tipB.y) + pad;
+      const near: Box[] = [];
+      const far: Box[] = [];
+      for (const o of tables) (o.x < x2 && o.x + o.width > x1 && o.y < y2 && o.y + o.height > y1 ? near : far).push(o);
+      const route = routeAround(start.at, s0, end.at, s1, near, margin);
+      // Left-out tables are not in the search, so a route that strays into one is searched again with a wider corridor.
+      if (route && routeClear(route, far, margin)) return route;
+      if (far.length === 0) break;
+    }
+    return null;
+  };
+  let best: Point[] | null = null;
+  for (const margin of MARGINS) {
+    const route = searchAt(margin);
+    if (!route) continue;
+    if (best && routeLength(best) <= CLEARANCE_LENGTH_RATIO * routeLength(route)) break;
+    best = route;
+    if (routeLength(best) <= CLEARANCE_LENGTH_RATIO * plainLength) break;
+  }
+  return best ?? plain;
 }
 
 /**
@@ -263,7 +415,7 @@ export function routeBetween(from: Anchor, to: Anchor, routing: ConnectorNode['r
  * becomes a broken loose end where its route last ended, and the box is the
  * route's bounds.
  */
-export function routeConnector(connector: ConnectorNode, byId: ReadonlyMap<string, DesignNode>): ConnectorNode {
+export function routeConnector(connector: ConnectorNode, byId: ReadonlyMap<string, DesignNode>, tables: readonly Box[] = visibleTables(byId)): ConnectorNode {
   const loosen = (anchor: Anchor, last: Point | undefined): Anchor =>
     anchorLive(anchor, byId) ? anchor : { kind: 'point', x: last?.x ?? 0, y: last?.y ?? 0, broken: true };
   const from = loosen(connector.from, connector.points[0]);
@@ -271,7 +423,7 @@ export function routeConnector(connector: ConnectorNode, byId: ReadonlyMap<strin
   // Many-to-many only between whole tables, whatever a loaded document says.
   const toCardinality =
     isMany(connector.fromCardinality) && isMany(connector.toCardinality) && !allowsManyToMany(from, to, byId) ? 'one' : connector.toCardinality;
-  const points = routeBetween(from, to, connector.routing, byId);
+  const points = routeBetween(from, to, connector.routing, byId, connector.points, tables);
   const xs = points.map((p) => p.x);
   const ys = points.map((p) => p.y);
   const x = Math.min(...xs);
