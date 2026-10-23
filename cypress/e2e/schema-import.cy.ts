@@ -298,6 +298,80 @@ describe('Schema import from SQL', () => {
     });
   });
 
+  describe('guessed relationships', () => {
+    const previewNoFks = () => {
+      cy.get('[data-testid=import-schema]').click();
+      cy.fixture('schema/no-fks.sql').then((sql: string) => {
+        cy.get('[data-testid=schema-source]').type(sql, { delay: 0, parseSpecialCharSequences: false });
+      });
+      cy.contains('button', 'Preview').click();
+      cy.get('[data-testid=import-summary]').should('contain', '0 relationships');
+    };
+    const box = (i: number) => cy.get(`[data-testid=guess-${i}] input`);
+
+    it('offers unticked guesses as a labelled group, and announces the count', () => {
+      previewNoFks();
+      cy.contains('Guessed relationships (3)').should('be.visible');
+      cy.contains('Matched by column names, like user_id → users. Not foreign keys in the source.').should('be.visible');
+      cy.get('[data-testid=guess-0]').should('contain', 'posts.user_id → users.id');
+      for (const i of [0, 1, 2]) box(i).should('not.be.checked');
+
+      cy.get('[data-testid=guess-group]')
+        .should('have.attr', 'role', 'group')
+        .and('have.attr', 'aria-labelledby')
+        .then((id) => cy.get(`[id="${id}"]`).should('contain', 'Guessed relationships'));
+      cy.get('[data-testid=guess-group]').invoke('attr', 'aria-describedby').then((id) => {
+        cy.get(`[id="${id}"]`).should('contain', 'Not foreign keys in the source.');
+      });
+      cy.get('[data-testid=import-counts]').should('have.attr', 'aria-live', 'polite');
+    });
+
+    it('toggles a guess with Space and keeps focus while the plan is rebuilt', () => {
+      previewNoFks();
+      box(0).focus();
+      cy.press(Cypress.Keyboard.Keys.SPACE);
+      box(0).should('be.checked').and('have.focus');
+      cy.get('[data-testid=import-summary]').should('contain', '1 relationship');
+      cy.press(Cypress.Keyboard.Keys.SPACE);
+      box(0).should('not.be.checked').and('have.focus');
+      cy.get('[data-testid=import-summary]').should('contain', '0 relationships');
+    });
+
+    it('pages a long list of guesses and moves focus to the first new one', () => {
+      cy.get('[data-testid=import-schema]').click();
+      cy.fixture('schema/many-guesses.sql').then((sql: string) => {
+        cy.get('[data-testid=schema-source]').type(sql, { delay: 0, parseSpecialCharSequences: false });
+      });
+      cy.contains('button', 'Preview').click();
+      cy.contains('Guessed relationships (9)').should('be.visible');
+      cy.get('[data-testid^=guess-][data-testid!=guess-group]').should('have.length', 8);
+      cy.contains('button', 'Show more').click();
+      cy.get('[data-testid^=guess-][data-testid!=guess-group]').should('have.length', 9);
+      box(8).should('have.focus');
+      cy.contains('button', 'Show more').should('not.exist');
+    });
+
+    it('adds only the ticked guesses, without a foreign key badge, and resets ticks on Back', () => {
+      previewNoFks();
+      cy.get('[data-testid=guess-0]').click();
+      box(0).should('be.checked');
+      cy.get('[data-testid=import-summary]').should('contain', '1 relationship');
+
+      cy.contains('button', 'Back').click();
+      cy.contains('button', 'Preview').click();
+      cy.get('[data-testid=import-summary]').should('contain', '0 relationships');
+      box(0).should('not.be.checked');
+
+      cy.get('[data-testid=guess-0]').click();
+      cy.get('[data-testid=import-summary]').should('contain', '1 relationship');
+      cy.get('[data-testid=import-add]').click();
+      cy.get('[data-node-type=table]').should('have.length', 3);
+      cy.get('[data-node-type=connector]').should('have.length', 1);
+      cy.get('[data-testid=column-badge]').should('have.length', 3);
+      cy.contains('[data-testid=column-badge]', 'FK').should('not.exist');
+    });
+  });
+
   it('does not run canvas shortcuts while typing in the dialog', () => {
     cy.drawShape('rect', [100, 100], [200, 200]);
     cy.get('[data-node-type=rect]').should('have.length', 1);

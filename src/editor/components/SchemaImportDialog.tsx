@@ -1,14 +1,15 @@
 import { Field } from '@ark-ui/react/field';
 import { Tabs } from '@ark-ui/react/tabs';
 import { ToggleGroup } from '@ark-ui/react/toggle-group';
-import { useRef, useState } from 'react';
-import { Button, Dialog, DialogClose, useDialogs } from '../../design-system';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Button, Checkbox, Dialog, DialogClose, useDialogs } from '../../design-system';
 import { usePreferences } from '../../settings/preferences/PreferencesContext';
 import { useEditor } from '../EditorContext';
 import type { DesignNode } from '../model/types';
 import { fitBox, rotatedBounds, unionBoxes } from '../geometry';
 import { SQL_DIALECTS } from '../model/table';
 import type { ImportedSchema } from '../schemaImport/types';
+import { inferRelations } from '../schemaImport/inferRelations';
 import { planImport, type ImportPlan } from '../schemaImport/importSchema';
 import { parseSql } from '../schemaImport/fromSql';
 import { detectFormat } from '../schemaImport/detectFormat';
@@ -33,6 +34,9 @@ interface Source {
   data?: Uint8Array;
 }
 
+/** Guesses listed before "Show more"; a wide schema can have dozens. */
+const GUESSES_SHOWN = 8;
+
 /** Lists past this many items add nothing a reader will scan, and thousands of nodes slow the dialog. */
 const MAX_LISTED = 100;
 
@@ -52,6 +56,7 @@ const textareaClass = css({
 });
 const summaryClass = css({ display: 'flex', gap: '3', textStyle: 'body.mediumStrong' });
 const listClass = css({ margin: '0', paddingInlineStart: '4', maxHeight: '[160px]', overflowY: 'auto' });
+const countsClass = css({ display: 'flex', gap: '3' });
 const headingClass = css({ margin: '0', textStyle: 'body.mediumStrong' });
 const hintClass = css({ margin: '0', color: 'text.secondary' });
 const skippedClass = css({ color: 'text.secondary' });
@@ -74,6 +79,16 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
   // DBML is parsed once; changing "Column types" re-maps this schema instead of parsing again.
   const [dbmlSchema, setDbmlSchema] = useState<ImportedSchema | null>(null);
   const [typeDialect, setTypeDialect] = useState<SqlKind>('postgres');
+  // The parsed schema before any guess is ticked: ticks are applied on top of it, so unticking restores it exactly.
+  const [baseSchema, setBaseSchema] = useState<ImportedSchema | null>(null);
+  const [ticked, setTicked] = useState<ReadonlySet<number>>(new Set());
+  const [guessesShown, setGuessesShown] = useState(GUESSES_SHOWN);
+  const guessesRef = useRef<HTMLElement>(null);
+  // Set when "Show more" is pressed; the effect below moves focus once the new rows exist.
+  const focusGuess = useRef<number | null>(null);
+  const guessesTitleId = useId();
+  const guessesHintId = useId();
+  const guesses = useMemo(() => (baseSchema ? inferRelations(baseSchema) : []), [baseSchema]);
   const [busy, setBusy] = useState(false);
   // Bumped on close, Back and each preview, so a parse, Add or Replace that finishes after any of them is dropped.
   const run = useRef(0);
@@ -92,6 +107,41 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
       setFile(null);
       setTab('paste');
       setBusy(false);
+    }
+  };
+
+  // A fresh plan means fresh guesses, so earlier ticks no longer refer to anything.
+  const showPlan = (next: ImportPlan) => {
+    setPlan(next);
+    setBaseSchema(next.schema);
+    setTicked(new Set());
+    setGuessesShown(GUESSES_SHOWN);
+  };
+
+  useEffect(() => {
+    if (focusGuess.current === null) return;
+    guessesRef.current?.querySelector<HTMLInputElement>(`[data-testid="guess-${focusGuess.current}"] input`)?.focus();
+    focusGuess.current = null;
+  }, [guessesShown]);
+
+  const toggleGuess = async (index: number, on: boolean) => {
+    if (!baseSchema || busy) return;
+    const next = new Set(ticked);
+    if (on) next.add(index);
+    else next.delete(index);
+    const mine = ++run.current;
+    setBusy(true);
+    try {
+      const relations = [...baseSchema.relations, ...guesses.filter((_, i) => next.has(i))];
+      const replanned = await planImport({ ...baseSchema, relations }, state.nodes);
+      if (mine === run.current) {
+        setPlan(replanned);
+        setTicked(next);
+      }
+    } catch {
+      if (mine === run.current) await alert({ title: "Can't read this schema", description: 'Something went wrong while adding the relationship.' });
+    } finally {
+      if (mine === run.current) setBusy(false);
     }
   };
 
@@ -127,7 +177,7 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
     try {
       const result = await parseWith(src, forced);
       if (result && mine === run.current) {
-        setPlan(result.plan);
+        showPlan(result.plan);
         setPlanDialect(result.dialect);
         setPlanSource(src);
         setDbmlSchema(result.dialect === 'dbml' ? result.schema : null);
@@ -150,7 +200,7 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
       const { mapSchemaTypes } = await import('../schemaImport/mapTypes');
       const mapped = await planImport(mapSchemaTypes(dbmlSchema, next), state.nodes);
       if (mine === run.current) {
-        setPlan(mapped);
+        showPlan(mapped);
         setTypeDialect(next);
       }
     } catch {
@@ -373,14 +423,50 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
               </ToggleGroup.Root>
             )}
           </div>
-          <span>{tableNodes.length === 1 ? '1 table' : `${tableNodes.length} tables`}</span>
-          <span>{relations === 1 ? '1 relationship' : `${relations} relationships`}</span>
+          {/* A live region, so a tick's change to the relationship count is announced. */}
+          <div role="status" aria-live="polite" data-testid="import-counts" className={countsClass}>
+            <span>{tableNodes.length === 1 ? '1 table' : `${tableNodes.length} tables`}</span>
+            <span>{relations === 1 ? '1 relationship' : `${relations} relationships`}</span>
+          </div>
         </div>
         <ul className={listClass}>
           {tableNodes.map((t) => (
             <li key={t.id}>{t.name}</li>
           ))}
         </ul>
+        {guesses.length > 0 && (
+          <section
+            ref={guessesRef}
+            role="group"
+            aria-labelledby={guessesTitleId}
+            aria-describedby={guessesHintId}
+            data-testid="guess-group"
+            className={bodyClass}
+          >
+            <h3 id={guessesTitleId} className={headingClass}>
+              Guessed relationships ({guesses.length.toLocaleString('en-US')})
+            </h3>
+            <p id={guessesHintId} className={hintClass}>
+              Matched by column names, like user_id → users. Not foreign keys in the source.
+            </p>
+            {/* Not disabled while re-planning: that would drop keyboard focus from the checkbox. */}
+            {guesses.slice(0, guessesShown).map((g, i) => (
+              <Checkbox key={i} data-testid={`guess-${i}`} checked={ticked.has(i)} onCheckedChange={(on) => void toggleGuess(i, on)}>
+                {`${g.fromTable}.${g.fromColumn} → ${g.toTable}.${g.toColumn}`}
+              </Checkbox>
+            ))}
+            {guessesShown < guesses.length && (
+              <Button
+                onClick={() => {
+                  focusGuess.current = guessesShown;
+                  setGuessesShown(guessesShown + MAX_LISTED);
+                }}
+              >
+                Show more ({(guesses.length - guessesShown).toLocaleString('en-US')} left)
+              </Button>
+            )}
+          </section>
+        )}
         {tableNodes.length === 0 && (
           <section className={bodyClass}>
             <h3 className={headingClass}>No tables found</h3>

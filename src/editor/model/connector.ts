@@ -75,7 +75,7 @@ export function foreignKeyColumns(nodes: readonly DesignNode[]): Map<string, Set
   return out;
 }
 
-const normalType = (t: string) => t.trim().toLowerCase().replace(/\s+/g, ' ');
+export const normalType = (t: string) => t.trim().toLowerCase().replace(/\s+/g, ' ');
 
 /** Whether a foreign key's column types differ (ignoring case and spacing); false for anything else. */
 export function typeMismatch(c: ConnectorNode, byId: ReadonlyMap<string, DesignNode>): boolean {
