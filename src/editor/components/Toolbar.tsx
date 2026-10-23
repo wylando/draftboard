@@ -1,5 +1,5 @@
 import { ToggleGroup } from '@ark-ui/react/toggle-group';
-import { useRef, type ReactElement } from 'react';
+import { lazy, Suspense, useRef, useState, type ReactElement } from 'react';
 import { Button, IconButton, icons, useDialogs } from '../../design-system';
 import { useEditor } from '../EditorContext';
 import { useViewportControls } from '../hooks/useViewportControls';
@@ -11,6 +11,9 @@ import { formatBindingText } from '../../settings/keybindings/keys';
 import { useKeybindings } from '../../settings/keybindings/KeybindingsContext';
 import { css } from 'styled-system/css';
 import { iconButton } from 'styled-system/recipes';
+
+// Loaded on first open so its parser and layout code stay out of the startup bundle.
+const SchemaImportDialog = lazy(() => import('./SchemaImportDialog').then((m) => ({ default: m.SchemaImportDialog })));
 
 const toolbarClass = css({
   flex: 'none',
@@ -55,6 +58,8 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const title = useCommandTitle();
   const dialogs = useDialogs();
+  const [schemaOpen, setSchemaOpen] = useState(false);
+  const [schemaRequested, setSchemaRequested] = useState(false);
   const broken = state.nodes.filter((n) => n.type === 'connector' && isBroken(n));
 
   const onImport = async (file: File | undefined) => {
@@ -143,6 +148,17 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
         <Button variant="toolbar" onClick={() => fileInput.current?.click()}>
           Import
         </Button>
+        <Button variant="toolbar" data-testid="import-schema" onClick={() => {
+            setSchemaRequested(true);
+            setSchemaOpen(true);
+          }}>
+          Import schema
+        </Button>
+        {schemaRequested && (
+          <Suspense fallback={null}>
+            <SchemaImportDialog open={schemaOpen} onOpenChange={setSchemaOpen} />
+          </Suspense>
+        )}
         <Button variant="toolbar" onClick={() => downloadDocument(state.nodes)}>
           Export
         </Button>
