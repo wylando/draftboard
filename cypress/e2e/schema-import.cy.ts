@@ -221,18 +221,58 @@ describe('Schema import from SQL', () => {
     cy.get('[data-testid=import-summary]').should('contain', '2 tables').and('contain', '1 relationship');
   });
 
-  it('refuses a DBML file with an alert', () => {
-    cy.get('[data-testid=import-schema]').click();
-    cy.get('[data-testid=schema-tab-file]').click();
-    cy.get('[data-testid=schema-file]').selectFile(
-      { contents: Cypress.Buffer.from('Table users {\n  id int [pk]\n}\n'), fileName: 'schema.dbml' },
-      { force: true },
-    );
-    cy.contains('button', 'Preview').click();
-    cy.get('[role=alertdialog]').should('contain', 'Only SQL files and SQLite databases are supported.');
-    cy.get('[data-testid=dialog-confirm]').click();
-    cy.get('[data-testid=import-summary]').should('not.exist');
-    cy.get('[data-testid=schema-tab-file]').should('be.visible');
+  describe('DBML', () => {
+    const chooseDbml = () => {
+      cy.get('[data-testid=import-schema]').click();
+      cy.get('[data-testid=schema-tab-file]').click();
+      cy.fixture('schema/sample.dbml', null).then((contents) => {
+        cy.get('[data-testid=schema-file]').selectFile({ contents, fileName: 'sample.dbml' }, { force: true });
+      });
+      cy.contains('button', 'Preview').click();
+      cy.get('[data-testid=import-summary]').should('contain', 'DBML');
+    };
+
+    it('imports a DBML file, notes the enum, and adds tables and relationships', () => {
+      chooseDbml();
+      cy.get('[data-testid=import-summary]').should('contain', '4 tables').and('contain', '4 relationships');
+      cy.get('[data-testid=import-skipped]').should('contain', 'Skipped enum types');
+      cy.get('[data-testid=import-add]').click();
+      cy.get('[data-node-type=table]').should('have.length', 4);
+      cy.get('[data-node-type=connector]').should('have.length', 4);
+      // Only `Ref: posts.id <> tags.id` is many-to-many, so only one connector has a many marker at both ends.
+      cy.get('[data-node-type=connector]')
+        .filter((_, el) => el.querySelectorAll('[data-testid=connector-marker][data-cardinality=many]').length === 2)
+        .should('have.length', 1);
+    });
+
+    it('maps column types to the dialect picked under "Column types"', () => {
+      chooseDbml();
+      cy.get(FORMAT).should('have.attr', 'aria-label', 'Column types');
+      cy.get(`${FORMAT} [data-value=mysql]`).click();
+      pressed('mysql');
+      cy.get(`${FORMAT} [data-value=mysql]`).should('have.focus');
+      cy.get('[data-testid=import-add]').click();
+      cy.contains('[data-testid=column-type]', 'varchar(255)').should('exist');
+    });
+
+    it('does not blame the DBML when it is valid but has no tables', () => {
+      cy.get('[data-testid=import-schema]').click();
+      cy.get('[data-testid=schema-source]').type('Enum s {{}\n  a\n  b\n}', { delay: 0 });
+      cy.contains('button', 'Preview').click();
+      cy.contains('No tables found').should('be.visible');
+      cy.contains('Check that the text contains Table blocks.').should('be.visible');
+      cy.contains('Fix the DBML errors').should('not.exist');
+    });
+
+    it('lists syntax errors with their lines and imports nothing', () => {
+      cy.get('[data-testid=import-schema]').click();
+      cy.get('[data-testid=schema-source]').type('Table users {{}\n  id int [pk\n}', { delay: 0 });
+      cy.contains('button', 'Preview').click();
+      cy.contains('No tables found').should('be.visible');
+      cy.contains('Fix the DBML errors listed below.').should('be.visible');
+      cy.get('[data-testid=import-problems]').should('contain', 'Line ');
+      cy.get('[data-testid=import-add]').should('be.disabled');
+    });
   });
 
   describe('files the importer cannot use', () => {
@@ -256,13 +296,6 @@ describe('Schema import from SQL', () => {
       chooseFile(Cypress.Buffer.from(Array.from({ length: 256 }, (_, i) => i)), 'y.sql');
       cy.get('[role=alertdialog]').should('contain', "Can't read this file").and('contain', "This file isn't text.");
     });
-  });
-
-  it('names the schema, not a file, when pasted DBML is refused', () => {
-    cy.get('[data-testid=import-schema]').click();
-    cy.get('[data-testid=schema-source]').type('Table users {{}\n  id int [pk]\n}');
-    cy.contains('button', 'Preview').click();
-    cy.get('[role=alertdialog]').should('contain', "Can't read this schema").and('contain', 'Only SQL (PostgreSQL, MySQL or SQLite) is supported.');
   });
 
   it('does not run canvas shortcuts while typing in the dialog', () => {

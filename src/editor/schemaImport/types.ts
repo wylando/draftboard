@@ -5,7 +5,7 @@ import type { Point } from '../model/types';
  * consumes, so a new format is one adapter. Tables and columns are referred to
  * by name as written in the source; ids are minted only when nodes are made.
  */
-export type SchemaFormat = 'postgres' | 'mysql' | 'sqlite' | 'sqlite-db';
+export type SchemaFormat = 'postgres' | 'mysql' | 'sqlite' | 'sqlite-db' | 'dbml';
 
 export interface ImportedColumn {
   name: string;
@@ -41,6 +41,11 @@ export interface ImportedRelation {
   toColumn: string;
   /** false: guessed from column names, so the preview offers it unticked. */
   declared: boolean;
+  /**
+   * Absent means a foreign key: many `from` rows to one `to` row. DBML can also declare one-to-one (`-`) and
+   * many-to-many (`<>`); a many-to-many has no foreign-key column, so it imports without the FK badge.
+   */
+  cardinality?: 'one-to-one' | 'many-to-many';
 }
 
 export interface ImportWarning {

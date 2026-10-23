@@ -8,6 +8,7 @@ import { useEditor } from '../EditorContext';
 import type { DesignNode } from '../model/types';
 import { fitBox, rotatedBounds, unionBoxes } from '../geometry';
 import { SQL_DIALECTS } from '../model/table';
+import type { ImportedSchema } from '../schemaImport/types';
 import { planImport, type ImportPlan } from '../schemaImport/importSchema';
 import { parseSql } from '../schemaImport/fromSql';
 import { detectFormat } from '../schemaImport/detectFormat';
@@ -21,7 +22,8 @@ const fileNameClass = css({ color: 'text.secondary', overflow: 'hidden', textOve
 const hintTextClass = css({ color: 'text.secondary', textStyle: 'body.small' });
 
 /** What the preview was parsed as. `sqlite-db` is a binary database file, which has no SQL text to re-parse. */
-type ParsedAs = 'postgres' | 'mysql' | 'sqlite' | 'sqlite-db';
+type SqlKind = 'postgres' | 'mysql' | 'sqlite';
+type ParsedAs = SqlKind | 'sqlite-db' | 'dbml';
 interface Source {
   name: string;
   text: string;
@@ -69,6 +71,9 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
   const [plan, setPlan] = useState<ImportPlan | null>(null);
   const [planDialect, setPlanDialect] = useState<ParsedAs>('postgres');
   const [planSource, setPlanSource] = useState<Source | null>(null);
+  // DBML is parsed once; changing "Column types" re-maps this schema instead of parsing again.
+  const [dbmlSchema, setDbmlSchema] = useState<ImportedSchema | null>(null);
+  const [typeDialect, setTypeDialect] = useState<SqlKind>('postgres');
   const [busy, setBusy] = useState(false);
   // Bumped on close, Back and each preview, so a parse, Add or Replace that finishes after any of them is dropped.
   const run = useRef(0);
@@ -90,17 +95,10 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
     }
   };
 
-  const parseWith = async (src: Source, forced?: Exclude<ParsedAs, 'sqlite-db'>) => {
+  const parseWith = async (src: Source, forced?: SqlKind) => {
     const title = src.bytes ? "Can't read this file" : "Can't read this schema";
     const format = forced ?? detectFormat(src, preferences.sqlDialect);
-    if (format === 'dbml') {
-      await alert({
-        title,
-        description: src.bytes ? 'Only SQL files and SQLite databases are supported.' : 'Only SQL (PostgreSQL, MySQL or SQLite) is supported.',
-      });
-      return null;
-    }
-    // sql.js and its wasm are large, so they load only on the SQLite paths.
+    // sql.js, its wasm and the DBML compiler are large, so they load only on their own paths.
     if (format === 'sqlite-db') {
       const { parseSqliteDb } = await import('../schemaImport/fromSqlite');
       // A detected database always came from a file, which keeps its bytes in `data`.
@@ -110,6 +108,11 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
       await alert({ title, description: "This file isn't text." });
       return null;
     }
+    if (format === 'dbml') {
+      const [{ parseDbml }, { mapSchemaTypes }] = await Promise.all([import('../schemaImport/fromDbml'), import('../schemaImport/mapTypes')]);
+      const schema = await parseDbml(src.text);
+      return { dialect: format, schema, plan: await planImport(mapSchemaTypes(schema, preferences.sqlDialect), state.nodes) };
+    }
     if (format === 'sqlite') {
       const { parseSqliteSql } = await import('../schemaImport/fromSqlite');
       return { dialect: format, plan: await planImport(await parseSqliteSql(src.text), state.nodes) };
@@ -117,7 +120,7 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
     return { dialect: format, plan: await planImport(await parseSql(src.text, format), state.nodes) };
   };
 
-  const preview = async (src: Source, forced?: Exclude<ParsedAs, 'sqlite-db'>) => {
+  const preview = async (src: Source, forced?: SqlKind) => {
     if (busy) return;
     const mine = ++run.current;
     setBusy(true);
@@ -127,11 +130,31 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
         setPlan(result.plan);
         setPlanDialect(result.dialect);
         setPlanSource(src);
+        setDbmlSchema(result.dialect === 'dbml' ? result.schema : null);
+        setTypeDialect(preferences.sqlDialect);
       }
     } catch {
       if (mine === run.current) {
         await alert({ title: "Can't read this schema", description: 'Something went wrong while parsing the SQL.' });
       }
+    } finally {
+      if (mine === run.current) setBusy(false);
+    }
+  };
+
+  const remapTypes = async (next: SqlKind) => {
+    if (!dbmlSchema || busy) return;
+    const mine = ++run.current;
+    setBusy(true);
+    try {
+      const { mapSchemaTypes } = await import('../schemaImport/mapTypes');
+      const mapped = await planImport(mapSchemaTypes(dbmlSchema, next), state.nodes);
+      if (mine === run.current) {
+        setPlan(mapped);
+        setTypeDialect(next);
+      }
+    } catch {
+      if (mine === run.current) await alert({ title: "Can't read this schema", description: 'Something went wrong while mapping the column types.' });
     } finally {
       if (mine === run.current) setBusy(false);
     }
@@ -213,7 +236,7 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
         open={open}
         onOpenChange={close}
         title="Import schema"
-        description="Paste SQL or choose a .sql file or SQLite database."
+        description="Paste SQL or DBML, or choose a .sql or .dbml file or SQLite database."
         actions={
           <>
             <DialogClose asChild>
@@ -264,7 +287,7 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
               <input
                 ref={fileInput}
                 type="file"
-                accept=".sql,.db,.sqlite,.sqlite3,text/plain"
+                accept=".sql,.dbml,.db,.sqlite,.sqlite3,text/plain"
                 hidden
                 data-testid="schema-file"
                 onChange={(e) => {
@@ -323,20 +346,23 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
       <div className={bodyClass}>
         <div className={summaryClass} data-testid="import-summary">
           <div className={rowClass}>
-            <span>Dialect</span>
+            {planDialect === 'dbml' && <span>DBML</span>}
+            <span>{planDialect === 'dbml' ? 'Column types' : 'Dialect'}</span>
             {planDialect === 'sqlite-db' ? (
               <span>SQLite database</span>
             ) : (
               /* Not disabled while re-parsing: that would drop keyboard focus from the pressed item. */
               <ToggleGroup.Root
                 className={chips.root}
-                aria-label="Dialect"
+                aria-label={planDialect === 'dbml' ? 'Column types' : 'Dialect'}
                 data-testid="import-format"
-                value={[planDialect]}
+                value={[planDialect === 'dbml' ? typeDialect : planDialect]}
                 deselectable={false}
                 onValueChange={({ value }) => {
-                  const next = value[0] as Exclude<ParsedAs, 'sqlite-db'> | undefined;
-                  if (next && planSource) void preview(planSource, next);
+                  const next = value[0] as SqlKind | undefined;
+                  if (!next) return;
+                  if (planDialect === 'dbml') void remapTypes(next);
+                  else if (planSource) void preview(planSource, next);
                 }}
               >
                 {(['postgres', 'mysql', 'sqlite'] as const).map((d) => (
@@ -361,7 +387,12 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
             <p className={hintClass}>
               {planDialect === 'sqlite-db'
                 ? "The database has no tables, or it isn't a readable SQLite file."
-                : 'Check that the text contains CREATE TABLE statements.'}
+                : planDialect === 'dbml'
+                  ? // Only a syntax error carries a line; a valid file with just enums or notes has none.
+                    plan.warnings.some((w) => w.line !== undefined)
+                    ? 'Fix the DBML errors listed below.'
+                    : 'Check that the text contains Table blocks.'
+                  : 'Check that the text contains CREATE TABLE statements.'}
             </p>
           </section>
         )}

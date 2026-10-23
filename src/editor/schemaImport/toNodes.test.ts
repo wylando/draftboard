@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createNode } from '../model/nodes';
+import { normalizeTree } from '../model/tree';
 import { tableHeight } from '../model/table';
 import type { ConnectorNode, DesignNode, TableNode } from '../model/types';
 import type { ImportedColumn, ImportedRelation, ImportedTable } from './types';
@@ -163,6 +164,36 @@ describe('schemaToNodes', () => {
     it('lets a declared relation win over an inferred one for the same columns', () => {
       const { nodes } = run([orders, users], [], [rel('orders', 'user_id', 'users', 'id', false), rel('orders', 'user_id', 'users', 'id')]);
       expect(connectors(nodes).map((c) => c.isForeignKey)).toEqual([true]);
+    });
+
+    it('maps a one-to-one relation to one/one, still a foreign key', () => {
+      const { nodes } = run([orders, users], [], [{ ...rel('orders', 'user_id', 'users', 'id'), cardinality: 'one-to-one' }]);
+      expect(connectors(nodes)[0]).toMatchObject({ fromCardinality: 'one', toCardinality: 'one', isForeignKey: true });
+    });
+
+    it('anchors a many-to-many on the two whole tables, many/many, no foreign key, and keeps it through normalizeTree', () => {
+      const { nodes } = run([orders, users], [], [{ ...rel('orders', 'user_id', 'users', 'id'), cardinality: 'many-to-many' }]);
+      const [o, u] = tables(nodes);
+      const expected = { from: { kind: 'node', nodeId: o?.id }, to: { kind: 'node', nodeId: u?.id }, fromCardinality: 'many', toCardinality: 'many', isForeignKey: false };
+      expect(connectors(nodes)[0]).toMatchObject(expected);
+      expect(connectors(normalizeTree(nodes))[0]).toMatchObject(expected);
+    });
+
+    it('draws one table-to-table connector for a composite many-to-many', () => {
+      const m2m = (a: string, b: string): ImportedRelation => ({ ...rel('orders', a, 'users', b), cardinality: 'many-to-many' });
+      const { nodes } = run([orders, users], [], [m2m('id', 'id'), m2m('user_id', 'parent_id')]);
+      expect(connectors(nodes)).toHaveLength(1);
+    });
+
+    it('draws one connector for many-to-many relations declared in opposite directions', () => {
+      const m2m = (a: ImportedRelation): ImportedRelation => ({ ...a, cardinality: 'many-to-many' });
+      const { nodes } = run([orders, users], [], [m2m(rel('orders', 'id', 'users', 'id')), m2m(rel('users', 'parent_id', 'orders', 'user_id'))]);
+      expect(connectors(nodes)).toHaveLength(1);
+    });
+
+    it('keeps the first of two declared relations on the same columns that differ in cardinality', () => {
+      const { nodes } = run([orders, users], [], [rel('orders', 'user_id', 'users', 'id'), { ...rel('orders', 'user_id', 'users', 'id'), cardinality: 'one-to-one' }]);
+      expect(connectors(nodes).map((c) => c.fromCardinality)).toEqual(['many']);
     });
 
     it('links two different columns of one table', () => {

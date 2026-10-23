@@ -1,0 +1,34 @@
+enum post_status {
+  draft
+  published
+}
+
+Table users {
+  id int [pk]
+  email varchar [not null, unique]
+}
+
+Table posts {
+  id int [pk]
+  user_id int [ref: > users.id]
+  status post_status
+  title varchar
+}
+
+Table tags {
+  id int [pk]
+  label varchar
+}
+
+Table post_tags {
+  post_id int
+  tag_id int
+
+  indexes {
+    (post_id, tag_id) [pk]
+  }
+}
+
+Ref: post_tags.post_id > posts.id
+Ref: post_tags.tag_id > tags.id
+Ref: posts.id <> tags.id
