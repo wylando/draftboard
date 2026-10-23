@@ -196,4 +196,64 @@ describe('splitStatements', () => {
     expect(out.map((s) => 'unterminatedAt' in s)).toEqual(expected.map((s) => 'unterminatedAt' in s));
   });
 
+
+  describe('sqlite dialect', () => {
+    it('keeps a trigger body with several statements in one statement', () => {
+      const trigger = 'CREATE TRIGGER t AFTER INSERT ON a BEGIN\n  UPDATE b SET x = 1;\n  INSERT INTO c VALUES (1);\nEND';
+      expect(splitStatements(`${trigger};\nSELECT 2;`, 'sqlite')).toEqual([
+        { sql: trigger, line: 1 },
+        { sql: 'SELECT 2', line: 5 },
+      ]);
+    });
+
+    it('matches TEMPORARY triggers case-insensitively', () => {
+      const src = 'create temporary trigger u after delete on a begin select 1; select 2; end; select 3;';
+      expect(splitStatements(src, 'sqlite').map((s) => s.sql)).toEqual([
+        'create temporary trigger u after delete on a begin select 1; select 2; end',
+        'select 3',
+      ]);
+    });
+
+    it('does not end a trigger at the END of a CASE expression', () => {
+      const trigger =
+        'CREATE TRIGGER t AFTER INSERT ON a BEGIN\n  UPDATE b SET x = CASE WHEN 1 THEN 2 END;\n  DELETE FROM c;\nEND';
+      expect(splitStatements(`${trigger};\nSELECT 2;`, 'sqlite').map((s) => s.sql)).toEqual([trigger, 'SELECT 2']);
+    });
+
+    it('counts only the first BEGIN, so a column named begin does not keep the trigger open', () => {
+      const trigger = 'CREATE TRIGGER t AFTER INSERT ON a BEGIN\n  UPDATE e SET begin = 1;\nEND';
+      expect(splitStatements(`${trigger};\nCREATE TABLE b (id int);`, 'sqlite')).toEqual([
+        { sql: trigger, line: 1 },
+        { sql: 'CREATE TABLE b (id int)', line: 4 },
+      ]);
+    });
+
+    it('reports a trigger body still open at the end of input', () => {
+      const rest = 'CREATE TRIGGER t AFTER INSERT ON a BEGIN\n  SELECT 1;\nCREATE TABLE b (id int);';
+      expect(splitStatements(`CREATE TABLE a (id int);\n${rest}`, 'sqlite')).toEqual([
+        { sql: 'CREATE TABLE a (id int)', line: 1 },
+        { sql: rest, line: 2, unterminatedAt: 2 },
+      ]);
+    });
+
+    it('leaves BEGIN/COMMIT transaction statements alone', () => {
+      expect(splitStatements('BEGIN; SELECT 1; COMMIT;', 'sqlite').map((s) => s.sql)).toEqual([
+        'BEGIN',
+        'SELECT 1',
+        'COMMIT',
+      ]);
+    });
+
+    it('treats [bracketed] names as quoted identifiers only for sqlite', () => {
+      const src = 'CREATE TABLE [a;b] (id int);\nSELECT 2;';
+      expect(splitStatements(src, 'sqlite').map((s) => s.sql)).toEqual(['CREATE TABLE [a;b] (id int)', 'SELECT 2']);
+      expect(splitStatements(src)).toHaveLength(3);
+    });
+
+    it('does not open dollar quotes', () => {
+      const src = 'SELECT $a$, 1; SELECT 2; SELECT $a$;';
+      expect(splitStatements(src, 'sqlite')).toHaveLength(3);
+      expect(splitStatements(src)).toHaveLength(1);
+    });
+  });
 });

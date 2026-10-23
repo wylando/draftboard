@@ -10,7 +10,7 @@ import { fitBox, rotatedBounds, unionBoxes } from '../geometry';
 import { SQL_DIALECTS } from '../model/table';
 import { planImport, type ImportPlan } from '../schemaImport/importSchema';
 import { parseSql } from '../schemaImport/fromSql';
-import { detectFormat, type DetectedFormat } from '../schemaImport/detectFormat';
+import { detectFormat } from '../schemaImport/detectFormat';
 import { css } from 'styled-system/css';
 import { chipGroup, tabs } from 'styled-system/recipes';
 
@@ -20,12 +20,15 @@ const rowClass = css({ display: 'flex', alignItems: 'center', gap: '2' });
 const fileNameClass = css({ color: 'text.secondary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' });
 const hintTextClass = css({ color: 'text.secondary', textStyle: 'body.small' });
 
-type SqlDialectId = 'postgres' | 'mysql';
+/** What the preview was parsed as. `sqlite-db` is a binary database file, which has no SQL text to re-parse. */
+type ParsedAs = 'postgres' | 'mysql' | 'sqlite' | 'sqlite-db';
 interface Source {
   name: string;
   text: string;
   /** Leading bytes of a chosen file, for magic-number detection. Absent for pasted text. */
   bytes?: Uint8Array;
+  /** The whole file, kept only for a SQLite database (its `text` is empty then). */
+  data?: Uint8Array;
 }
 
 /** Lists past this many items add nothing a reader will scan, and thousands of nodes slow the dialog. */
@@ -64,15 +67,14 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
   const fileRead = useRef(0);
   const fileInput = useRef<HTMLInputElement>(null);
   const [plan, setPlan] = useState<ImportPlan | null>(null);
-  const [planDialect, setPlanDialect] = useState<SqlDialectId>('postgres');
-  const [planFormat, setPlanFormat] = useState<DetectedFormat>('postgres');
+  const [planDialect, setPlanDialect] = useState<ParsedAs>('postgres');
   const [planSource, setPlanSource] = useState<Source | null>(null);
   const [busy, setBusy] = useState(false);
   // Bumped on close, Back and each preview, so a parse, Add or Replace that finishes after any of them is dropped.
   const run = useRef(0);
 
   const source: Source | null = tab === 'file' ? file : { name: '', text };
-  const canPreview = source !== null && source.text.trim() !== '' && !reading;
+  const canPreview = source !== null && (source.data !== undefined || source.text.trim() !== '') && !reading;
 
   const close = (next: boolean) => {
     onOpenChange(next);
@@ -88,27 +90,34 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
     }
   };
 
-  // Only PostgreSQL and MySQL grammars are bundled, so SQLite reads as PostgreSQL.
-  const parseWith = async (src: Source, forced?: SqlDialectId) => {
+  const parseWith = async (src: Source, forced?: Exclude<ParsedAs, 'sqlite-db'>) => {
     const title = src.bytes ? "Can't read this file" : "Can't read this schema";
     const format = forced ?? detectFormat(src, preferences.sqlDialect);
-    if (format === 'dbml' || format === 'sqlite-db') {
+    if (format === 'dbml') {
       await alert({
         title,
-        description: src.bytes ? 'Only SQL files (PostgreSQL or MySQL) are supported.' : 'Only SQL (PostgreSQL or MySQL) is supported.',
+        description: src.bytes ? 'Only SQL files and SQLite databases are supported.' : 'Only SQL (PostgreSQL, MySQL or SQLite) is supported.',
       });
       return null;
     }
-    // Checked after detection because a SQLite database also contains NULs and deserves its own message.
+    // sql.js and its wasm are large, so they load only on the SQLite paths.
+    if (format === 'sqlite-db') {
+      const { parseSqliteDb } = await import('../schemaImport/fromSqlite');
+      // A detected database always came from a file, which keeps its bytes in `data`.
+      return { dialect: format, plan: await planImport(await parseSqliteDb(src.data ?? new Uint8Array()), state.nodes) };
+    }
     if (src.text.includes('\0')) {
       await alert({ title, description: "This file isn't text." });
       return null;
     }
-    const dialect: SqlDialectId = format === 'mysql' ? 'mysql' : 'postgres';
-    return { dialect, format, plan: await planImport(await parseSql(src.text, dialect), state.nodes) };
+    if (format === 'sqlite') {
+      const { parseSqliteSql } = await import('../schemaImport/fromSqlite');
+      return { dialect: format, plan: await planImport(await parseSqliteSql(src.text), state.nodes) };
+    }
+    return { dialect: format, plan: await planImport(await parseSql(src.text, format), state.nodes) };
   };
 
-  const preview = async (src: Source, forced?: SqlDialectId) => {
+  const preview = async (src: Source, forced?: Exclude<ParsedAs, 'sqlite-db'>) => {
     if (busy) return;
     const mine = ++run.current;
     setBusy(true);
@@ -117,7 +126,6 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
       if (result && mine === run.current) {
         setPlan(result.plan);
         setPlanDialect(result.dialect);
-        setPlanFormat(result.format);
         setPlanSource(src);
       }
     } catch {
@@ -136,11 +144,14 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
     try {
       const buf = await picked.arrayBuffer();
       if (mine !== fileRead.current) return;
-      setFile({
-        name: picked.name,
-        text: new TextDecoder().decode(buf),
-        bytes: new Uint8Array(buf, 0, Math.min(16, buf.byteLength)),
-      });
+      const bytes = new Uint8Array(buf, 0, Math.min(16, buf.byteLength));
+      // A database is parsed from its bytes; decoding megabytes of binary as text would be wasted work.
+      const isDb = detectFormat({ name: picked.name, text: '', bytes }, 'postgres') === 'sqlite-db';
+      setFile(
+        isDb
+          ? { name: picked.name, text: '', bytes, data: new Uint8Array(buf) }
+          : { name: picked.name, text: new TextDecoder().decode(buf), bytes },
+      );
     } catch {
       if (mine === fileRead.current) await alert({ title: "Can't read this file", description: 'The browser could not read that file.' });
     } finally {
@@ -202,7 +213,7 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
         open={open}
         onOpenChange={close}
         title="Import schema"
-        description="Paste SQL or choose a .sql file."
+        description="Paste SQL or choose a .sql file or SQLite database."
         actions={
           <>
             <DialogClose asChild>
@@ -253,7 +264,7 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
               <input
                 ref={fileInput}
                 type="file"
-                accept=".sql,text/plain"
+                accept=".sql,.db,.sqlite,.sqlite3,text/plain"
                 hidden
                 data-testid="schema-file"
                 onChange={(e) => {
@@ -313,29 +324,32 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
         <div className={summaryClass} data-testid="import-summary">
           <div className={rowClass}>
             <span>Dialect</span>
-            {/* Not disabled while re-parsing: that would drop keyboard focus from the pressed item. */}
-            <ToggleGroup.Root
-              className={chips.root}
-              aria-label="Dialect"
-              data-testid="import-format"
-              value={[planDialect]}
-              deselectable={false}
-              onValueChange={({ value }) => {
-                const next = value[0] as SqlDialectId | undefined;
-                if (next && planSource) void preview(planSource, next);
-              }}
-            >
-              {(['postgres', 'mysql'] as const).map((d) => (
-                <ToggleGroup.Item key={d} value={d} className={chips.item} data-value={d}>
-                  {SQL_DIALECTS[d].label}
-                </ToggleGroup.Item>
-              ))}
-            </ToggleGroup.Root>
+            {planDialect === 'sqlite-db' ? (
+              <span>SQLite database</span>
+            ) : (
+              /* Not disabled while re-parsing: that would drop keyboard focus from the pressed item. */
+              <ToggleGroup.Root
+                className={chips.root}
+                aria-label="Dialect"
+                data-testid="import-format"
+                value={[planDialect]}
+                deselectable={false}
+                onValueChange={({ value }) => {
+                  const next = value[0] as Exclude<ParsedAs, 'sqlite-db'> | undefined;
+                  if (next && planSource) void preview(planSource, next);
+                }}
+              >
+                {(['postgres', 'mysql', 'sqlite'] as const).map((d) => (
+                  <ToggleGroup.Item key={d} value={d} className={chips.item} data-value={d}>
+                    {SQL_DIALECTS[d].label}
+                  </ToggleGroup.Item>
+                ))}
+              </ToggleGroup.Root>
+            )}
           </div>
           <span>{tableNodes.length === 1 ? '1 table' : `${tableNodes.length} tables`}</span>
           <span>{relations === 1 ? '1 relationship' : `${relations} relationships`}</span>
         </div>
-        {planFormat === 'sqlite' && <small className={hintTextClass}>SQLite is read as PostgreSQL.</small>}
         <ul className={listClass}>
           {tableNodes.map((t) => (
             <li key={t.id}>{t.name}</li>
@@ -344,7 +358,11 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
         {tableNodes.length === 0 && (
           <section className={bodyClass}>
             <h3 className={headingClass}>No tables found</h3>
-            <p className={hintClass}>Check that the text contains CREATE TABLE statements.</p>
+            <p className={hintClass}>
+              {planDialect === 'sqlite-db'
+                ? "The database has no tables, or it isn't a readable SQLite file."
+                : 'Check that the text contains CREATE TABLE statements.'}
+            </p>
           </section>
         )}
         <div aria-live="polite" data-testid="import-warnings" className={bodyClass}>
