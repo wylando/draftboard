@@ -645,8 +645,6 @@ GRANT ALL ON TABLE public.users TO app;
   it.each([
     ['CREATE CONSTRAINT TRIGGER t AFTER INSERT ON x DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION f()', 'Skipped CREATE CONSTRAINT TRIGGER'],
     ['CREATE AGGREGATE a(int) (sfunc = f, stype = int)', 'Skipped CREATE AGGREGATE'],
-    ['DROP TABLE IF EXISTS public.T', 'Skipped DROP TABLE'],
-    ['DROP TABLE IF EXISTS other, "t" CASCADE', 'Skipped DROP TABLE'],
     ['DROP TABLE IF EXISTS other', undefined],
     ['DROP VIEW IF EXISTS t', undefined],
     ['CREATE ROLE r', undefined],
@@ -702,15 +700,17 @@ GRANT ALL ON TABLE public.users TO app;
       ]);
     });
 
-    it('treats only the public schema as the default, and drops by the same name', async () => {
+    it('treats only the public schema as the default when dropping', async () => {
       const { tables, warnings } = await parseSql(
         `CREATE TABLE PUBLIC.Users (id int);
          DROP TABLE IF EXISTS auth.users;
-         DROP TABLE IF EXISTS public.users;`,
+         CREATE TABLE auth.users (id int);
+         DROP TABLE IF EXISTS public.users;
+         DROP TABLE IF EXISTS auth.nothing;`,
         'postgres',
       );
-      expect(tables.map((t) => t.name)).toEqual(['Users']);
-      expect(warnings).toEqual([{ line: 3, message: 'Skipped DROP TABLE' }]);
+      expect(tables.map((t) => t.name)).toEqual(['auth.users']);
+      expect(warnings).toEqual([]);
     });
   });
 
@@ -721,5 +721,258 @@ GRANT ALL ON TABLE public.users TO app;
     );
     expect(tables.map((t) => t.name)).toEqual(['users', 'p']);
     expect(relations.map((r) => r.toTable)).toEqual(['users']);
+  });
+
+  describe('MySQL', () => {
+    it('reads ALTER TABLE ADD INDEX / KEY / FULLTEXT KEY as non-unique indexes', async () => {
+      const { tables, warnings } = await parseSql(
+        `CREATE TABLE m (a int, b int);
+         ALTER TABLE m ADD INDEX ix (a);
+         ALTER TABLE m ADD KEY iy (a, b);
+         ALTER TABLE m ADD FULLTEXT KEY iz (b);`,
+        'mysql',
+      );
+      expect(warnings).toEqual([]);
+      expect(at(tables, 0).indexes).toEqual([
+        { name: 'ix', columns: ['a'], unique: false },
+        { name: 'iy', columns: ['a', 'b'], unique: false },
+        { name: 'iz', columns: ['b'], unique: false },
+      ]);
+    });
+
+    it('reads the parenthesised ADD COLUMN (a int, b int) form', async () => {
+      const { tables, warnings } = await parseSql(
+        'CREATE TABLE m (id int);\nALTER TABLE m ADD COLUMN (a int, b decimal(10,2) NOT NULL DEFAULT 0), ADD INDEX ix (a);',
+        'mysql',
+      );
+      expect(warnings).toEqual([]);
+      expect(at(tables, 0).columns.map((c) => [c.name, c.dataType, c.nullable])).toEqual([
+        ['id', 'int', true],
+        ['a', 'int', true],
+        ['b', 'decimal(10,2)', false],
+      ]);
+      expect(at(tables, 0).indexes).toEqual([{ name: 'ix', columns: ['a'], unique: false }]);
+    });
+
+    it.each([
+      ['ALTER TABLE m DROP PRIMARY KEY', 'mysql', 'DROP PRIMARY KEY'],
+      ['ALTER TABLE m DROP INDEX ix', 'mysql', 'DROP INDEX'],
+      ['ALTER TABLE m DROP KEY ix', 'mysql', 'DROP KEY'],
+      ['ALTER TABLE m DROP FOREIGN KEY fk', 'mysql', 'DROP FOREIGN KEY'],
+      ['ALTER TABLE m DROP CONSTRAINT x', 'postgres', 'DROP CONSTRAINT'],
+    ] as const)('warns that %s is skipped', async (statement, dialect, action) => {
+      const { warnings } = await parseSql(`CREATE TABLE m (a int);\n${statement};`, dialect);
+      expect(warnings).toEqual([{ line: 2, message: `Skipped ALTER TABLE … ${action}` }]);
+    });
+
+    it.each([
+      ["REPLACE INTO t VALUES (1)", 'Skipped INSERT'],
+      ["CREATE DEFINER='a b'@'h' VIEW v AS SELECT 1", 'Skipped CREATE VIEW'],
+      ['CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW v AS SELECT 1', 'Skipped CREATE VIEW'],
+      ['CREATE DEFINER=CURRENT_USER() TRIGGER trg BEFORE INSERT ON t FOR EACH ROW SET NEW.a = 1', 'Skipped CREATE TRIGGER'],
+    ])('classifies %s', async (statement, message) => {
+      const { warnings } = await parseSql(statement, 'mysql');
+      expect(warnings).toEqual([{ line: 1, message }]);
+    });
+
+    it('keeps the column of a prefix index and drops the prefix length', async () => {
+      const { tables, warnings } = await parseSql(
+        `CREATE TABLE m (name varchar(100), b int, KEY ix (name(10)));
+         CREATE INDEX iy ON m (name(10) DESC, b);
+         CREATE INDEX iz ON m ((b + 1));`,
+        'mysql',
+      );
+      expect(at(tables, 0).indexes).toEqual([
+        { name: 'ix', columns: ['name'], unique: false },
+        { name: 'iy', columns: ['name', 'b'], unique: false },
+      ]);
+      expect(warnings).toEqual([{ line: 3, message: 'Index "iz" uses an expression; skipped' }]);
+    });
+
+    const dump = `-- MySQL dump 10.13  Distrib 8.0.33, for Linux (x86_64)
+--
+-- Host: localhost    Database: shop
+-- ------------------------------------------------------
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET NAMES utf8mb4 */;
+
+--
+-- Table structure for table \`users\`
+--
+
+DROP TABLE IF EXISTS \`users\`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+CREATE TABLE \`users\` (
+  \`id\` int NOT NULL AUTO_INCREMENT,
+  \`name\` varchar(50) DEFAULT NULL,
+  \`org_id\` int DEFAULT NULL,
+  PRIMARY KEY (\`id\`),
+  KEY \`org_id\` (\`org_id\`),
+  CONSTRAINT \`users_ibfk_1\` FOREIGN KEY (\`org_id\`) REFERENCES \`orgs\` (\`id\`)
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+LOCK TABLES \`users\` WRITE;
+/*!40000 ALTER TABLE \`users\` DISABLE KEYS */;
+INSERT INTO \`users\` VALUES (1,'a',NULL);
+/*!40000 ALTER TABLE \`users\` ENABLE KEYS */;
+UNLOCK TABLES;
+
+/*!50001 CREATE ALGORITHM=UNDEFINED DEFINER=\`root\`@\`localhost\` SQL SECURITY DEFINER VIEW \`v\` AS select 1 */;
+
+DELIMITER ;;
+CREATE TRIGGER \`t1\` BEFORE INSERT ON \`users\` FOR EACH ROW BEGIN
+  SET NEW.name = 'x';
+END ;;
+DELIMITER ;
+`;
+
+    it('imports a mysqldump file: the tables and relations, and warns only about dropped data and objects', async () => {
+      const { tables, relations, warnings } = await parseSql(dump, 'mysql');
+      const lineOf = (text: string) => dump.split('\n').findIndex((l) => l.includes(text)) + 1;
+      expect(tables).toEqual([
+        {
+          name: 'users',
+          columns: [
+            { name: 'id', dataType: 'int', primaryKey: true, nullable: false, unique: false },
+            { name: 'name', dataType: 'varchar(50)', primaryKey: false, nullable: true, unique: false },
+            { name: 'org_id', dataType: 'int', primaryKey: false, nullable: true, unique: false },
+          ],
+          indexes: [{ name: 'org_id', columns: ['org_id'], unique: false }],
+        },
+      ]);
+      expect(relations).toEqual([
+        { fromTable: 'users', fromColumn: 'org_id', toTable: 'orgs', toColumn: 'id', declared: true },
+      ]);
+      expect(warnings).toEqual([
+        { line: lineOf('INSERT INTO'), message: 'Skipped INSERT' },
+        { line: lineOf('/*!50001'), message: 'Skipped CREATE VIEW' },
+        { line: lineOf('CREATE TRIGGER'), message: 'Skipped CREATE TRIGGER' },
+      ]);
+    });
+  });
+
+  it.each(['postgres', 'mysql'] as const)('classifies a statement behind a 200-dash comment line quickly (%s)', async (dialect) => {
+    const comment = `-- ${'-'.repeat(200)}\n/* ${'-- '.repeat(200)}\n*/\n`;
+    const started = performance.now();
+    const grant = await parseSql(`${comment}GRANT ALL ON t TO u;`, dialect);
+    const view = await parseSql(`${comment}CREATE VIEW v AS SELECT 1;`, dialect);
+    expect(performance.now() - started).toBeLessThan(1000);
+    expect(grant.warnings).toEqual([]);
+    expect(view.warnings).toEqual([{ line: 4, message: 'Skipped CREATE VIEW' }]);
+  });
+
+  it('applies DROP TABLE: the table and every relation from or to it are removed, silently', async () => {
+    const { tables, relations, warnings } = await parseSql(
+      `CREATE TABLE a (id int PRIMARY KEY);
+       CREATE TABLE b (id int PRIMARY KEY, a_id int REFERENCES a(id));
+       CREATE TABLE c (id int, b_id int REFERENCES b(id));
+       DROP TABLE IF EXISTS "A", unknown CASCADE;
+       CREATE TABLE a (id int);`,
+      'postgres',
+    );
+    expect(tables.map((t) => t.name)).toEqual(['b', 'c', 'a']);
+    expect(relations.map((r) => [r.fromTable, r.toTable])).toEqual([['c', 'b']]);
+    expect(warnings).toEqual([]);
+  });
+
+  it('leaves no table behind for the MySQL 5.x view-stub sequence', async () => {
+    const { tables, warnings } = await parseSql(
+      `/*!50001 CREATE TABLE \`v1\` (\`id\` int) ENGINE=MyISAM */;
+       /*!50001 DROP TABLE IF EXISTS \`v1\`*/;
+       /*!50001 CREATE VIEW \`v1\` AS select 1 */;`,
+      'mysql',
+    );
+    expect(tables).toEqual([]);
+    expect(warnings).toEqual([{ line: 3, message: 'Skipped CREATE VIEW' }]);
+  });
+
+  it('summarises repeated INSERT and COPY statements in one warning each', async () => {
+    const inserts = await parseSql(`${'INSERT INTO t VALUES (1);\n'.repeat(1233)}REPLACE INTO t VALUES (2);`, 'mysql');
+    expect(inserts.warnings).toEqual([{ line: 1, message: 'Skipped 1,234 INSERT statements' }]);
+    const copies = await parseSql(
+      'CREATE TABLE t (a int);\nCOPY t (a) FROM stdin;\n1\n\\.\n\nCOPY t (a) FROM stdin;\n2\n\\.\n',
+      'postgres',
+    );
+    expect(copies.warnings).toEqual([{ line: 2, message: 'Skipped 2 COPY statements' }]);
+  });
+
+  describe('MySQL CREATE TABLE forms', () => {
+    it.each([
+      ['table options after the column list', "CREATE TABLE m (a int) ENGINE=InnoDB STATS_PERSISTENT=0 ENCRYPTION='N' PAGE_CHECKSUM=1 TRANSACTIONAL=1"],
+      ['a PARTITION BY clause', 'CREATE TABLE m (a int) ENGINE=InnoDB /*!50100 PARTITION BY HASH (a) PARTITIONS 4 */'],
+      ['an INVISIBLE column', 'CREATE TABLE m (a int, b int INVISIBLE)'],
+      ['a MariaDB PERSISTENT generated column', 'CREATE TABLE m (a int, b int AS (a * 2) PERSISTENT)'],
+    ])('imports the table despite %s', async (_form, sql) => {
+      const { tables, warnings } = await parseSql(sql, 'mysql');
+      expect(warnings).toEqual([]);
+      expect(tables.map((t) => t.name)).toEqual(['m']);
+      expect(at(tables, 0).columns.map((c) => c.name).slice(0, 1)).toEqual(['a']);
+    });
+
+    it('keeps the table and drops a functional key part with a warning', async () => {
+      const { tables, warnings } = await parseSql(
+        'CREATE TABLE m (a int,\n  KEY fn ((a + 1)),\n  KEY ok (a));',
+        'mysql',
+      );
+      expect(at(tables, 0).indexes).toEqual([{ name: 'ok', columns: ['a'], unique: false }]);
+      expect(warnings).toEqual([{ line: 1, message: 'Index "fn" uses an expression; skipped' }]);
+    });
+
+    it.each([
+      ['CREATE DEFINER=`root`@`localhost` EVENT e ON SCHEDULE EVERY 1 DAY DO SELECT 1', 'Skipped CREATE EVENT'],
+      ['RENAME TABLE a TO b', 'Skipped RENAME TABLE'],
+      ['ALTER EVENT e DISABLE', undefined],
+      ['FLUSH TABLES', undefined],
+      ['ANALYZE TABLE t', undefined],
+      ['OPTIMIZE TABLE t', undefined],
+      ["CREATE TABLESPACE ts ADD DATAFILE 'ts.ibd'", undefined],
+    ])('classifies %s', async (statement, message) => {
+      const { warnings } = await parseSql(`${statement};`, 'mysql');
+      expect(warnings).toEqual(message ? [{ line: 1, message }] : []);
+    });
+  });
+
+  describe('unterminated input', () => {
+    const unterminated = (line: number) => ({ line, message: 'Unterminated quote or comment starts here; the rest of the file was ignored' });
+
+    it.each(['postgres', 'mysql'] as const)('reports a quote that runs to the end of the file (%s)', async (dialect) => {
+      const { tables, warnings } = await parseSql(
+        "CREATE TABLE a (id int);\nCREATE TABLE b (n text DEFAULT 'oops);",
+        dialect,
+      );
+      expect(tables.map((t) => t.name)).toEqual(['a']);
+      expect(warnings).toEqual([
+        { line: 2, message: expect.stringMatching(/^Couldn't parse: CREATE TABLE b/) },
+        unterminated(2),
+      ]);
+    });
+
+    it('keeps a statement that fails to parse reported next to the unterminated comment', async () => {
+      const { tables, warnings } = await parseSql(
+        'CREATE TABLE a (id int);\nCREATE TABLE b (id int,, ) /* x',
+        'postgres',
+      );
+      expect(tables.map((t) => t.name)).toEqual(['a']);
+      expect(warnings).toEqual([
+        { line: 2, message: expect.stringMatching(/^Couldn't parse: CREATE TABLE b/) },
+        unterminated(2),
+      ]);
+    });
+
+    it('reports input that is only an unterminated comment', async () => {
+      const { tables, warnings } = await parseSql('/* only', 'postgres');
+      expect(tables).toEqual([]);
+      expect(warnings).toEqual([unterminated(1)]);
+    });
+
+    it('points at the comment that opened after intact statements', async () => {
+      const { tables, warnings } = await parseSql(
+        'CREATE TABLE a (id int);\n\nCREATE TABLE b (id int);\n/* never closed\nCREATE TABLE c (id int);',
+        'postgres',
+      );
+      expect(tables.map((t) => t.name)).toEqual(['a', 'b']);
+      expect(warnings).toEqual([unterminated(4)]);
+    });
   });
 });

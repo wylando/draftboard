@@ -88,4 +88,112 @@ describe('splitStatements', () => {
       { sql: 'COPY a (id) FROM stdin', line: 1 },
     ]);
   });
+
+  describe('mysql dialect', () => {
+    it('treats a backslash as an escape inside strings only for mysql', () => {
+      expect(splitStatements("SELECT 'it\\'s; ok'; SELECT 2", 'mysql')).toEqual([
+        { sql: "SELECT 'it\\'s; ok'", line: 1 },
+        { sql: 'SELECT 2', line: 1 },
+      ]);
+      expect(splitStatements("SELECT 'C:\\'; SELECT 2").map((s) => s.sql)).toEqual([
+        "SELECT 'C:\\'",
+        'SELECT 2',
+      ]);
+    });
+
+    it('treats # as a line comment only for mysql', () => {
+      const src = 'SELECT 1 # 2;\nSELECT 3;';
+      expect(splitStatements(src, 'mysql')).toEqual([{ sql: 'SELECT 1 # 2;\nSELECT 3', line: 1 }]);
+      expect(splitStatements(src)).toHaveLength(2);
+    });
+
+    it('needs whitespace after -- to start a comment only for mysql', () => {
+      const src = 'SELECT 1 --1;\nSELECT 2;';
+      expect(splitStatements(src, 'mysql').map((s) => s.sql)).toEqual(['SELECT 1 --1', 'SELECT 2']);
+      expect(splitStatements(src)).toHaveLength(1);
+    });
+
+    it('switches the delimiter with DELIMITER lines and drops the directives', () => {
+      const src =
+        'DELIMITER ;;\nCREATE TRIGGER t BEFORE INSERT ON a FOR EACH ROW BEGIN SET x=1; END;;\ndelimiter ;\nSELECT 2;';
+      expect(splitStatements(src, 'mysql')).toEqual([
+        { sql: 'CREATE TRIGGER t BEFORE INSERT ON a FOR EACH ROW BEGIN SET x=1; END', line: 2 },
+        { sql: 'SELECT 2', line: 4 },
+      ]);
+    });
+
+    it('honors DELIMITER only between statements', () => {
+      const src = 'CREATE TABLE t (\n  id int,\n  delimiter varchar(5),\n  x int\n);';
+      expect(splitStatements(src, 'mysql')).toEqual([
+        { sql: 'CREATE TABLE t (\n  id int,\n  delimiter varchar(5),\n  x int\n)', line: 1 },
+      ]);
+    });
+
+    it('does not open dollar quotes, so a $$ delimiter works', () => {
+      const src = 'DELIMITER $$\nCREATE PROCEDURE p() BEGIN SELECT 1;\nEND\n$$\nDELIMITER ;\nSELECT 2;';
+      expect(splitStatements(src, 'mysql')).toEqual([
+        { sql: 'CREATE PROCEDURE p() BEGIN SELECT 1;\nEND', line: 2 },
+        { sql: 'SELECT 2', line: 6 },
+      ]);
+    });
+
+    it('unwraps versioned comments into code and keeps plain comments as comments', () => {
+      const src = '/*!40101 SET NAMES utf8 */;\n/*!50001 CREATE VIEW v AS SELECT 1 */;\n/* plain; */ SELECT 3;';
+      expect(splitStatements(src, 'mysql')).toEqual([
+        { sql: 'SET NAMES utf8', line: 1 },
+        { sql: 'CREATE VIEW v AS SELECT 1', line: 2 },
+        { sql: '/* plain; */ SELECT 3', line: 3 },
+      ]);
+      expect(splitStatements('/*!40101 SET NAMES utf8 */;\nSELECT 3;')).toEqual([
+        { sql: 'SELECT 3', line: 2 },
+      ]);
+    });
+  });
+
+  it.each(['postgres', 'mysql'] as const)('scans a long dash comment line in linear time (%s)', (dialect) => {
+    const t0 = performance.now();
+    const out = splitStatements(`-- ${'-'.repeat(200)}\nSELECT 1;`, dialect);
+    expect(performance.now() - t0).toBeLessThan(100);
+    expect(out).toEqual([{ sql: `-- ${'-'.repeat(200)}\nSELECT 1`, line: 2 }]);
+  });
+
+  it('skips COPY data when the column list is very long', () => {
+    const cols = Array.from({ length: 40 }, (_, n) => `column_number_${n}`).join(', ');
+    const src = `COPY public.a (${cols}) FROM stdin;\n1\tO'Brien\n\\.\nCREATE TABLE b (id int);`;
+    expect(splitStatements(src).map((s) => s.sql.slice(0, 12))).toEqual(['COPY public.', 'CREATE TABLE']);
+  });
+
+  it('reports where a string that runs to the end of input began', () => {
+    const ok = splitStatements("SELECT 'a';\nSELECT 2;");
+    expect(ok.some((s) => 'unterminatedAt' in s)).toBe(false);
+    expect(splitStatements("SELECT 1;\nSELECT 'a\\'; SELECT 2;", 'mysql')).toEqual([
+      { sql: 'SELECT 1', line: 1 },
+      { sql: "SELECT 'a\\'; SELECT 2;", line: 2, unterminatedAt: 2 },
+    ]);
+  });
+
+  it.each([
+    ['block comment after a complete statement', 'postgres', 'SELECT 1;\n/* never closed; x', [
+      { sql: 'SELECT 1', line: 1 },
+      { sql: '', line: 2, unterminatedAt: 2 },
+    ]],
+    ['block comment inside a statement', 'postgres', 'SELECT 1;\nSELECT 2\n/* x\ny', [
+      { sql: 'SELECT 1', line: 1 },
+      { sql: 'SELECT 2\n/* x\ny', line: 2, unterminatedAt: 3 },
+    ]],
+    ['dollar-quoted body', 'postgres', 'SELECT 1;\nSELECT $$ never; closed', [
+      { sql: 'SELECT 1', line: 1 },
+      { sql: 'SELECT $$ never; closed', line: 2, unterminatedAt: 2 },
+    ]],
+    ['versioned comment', 'mysql', 'SELECT 1;\n/*!40101 SET x=1;', [
+      { sql: 'SELECT 1', line: 1 },
+      { sql: 'SET x=1', line: 2, unterminatedAt: 2 },
+    ]],
+    ['block comment with no statements', 'postgres', '/* only', [{ sql: '', line: 1, unterminatedAt: 1 }]],
+  ] as const)('reports an unterminated %s', (_name, dialect, src, expected) => {
+    const out = splitStatements(src, dialect);
+    expect(out).toEqual(expected);
+    expect(out.map((s) => 'unterminatedAt' in s)).toEqual(expected.map((s) => 'unterminatedAt' in s));
+  });
+
 });
