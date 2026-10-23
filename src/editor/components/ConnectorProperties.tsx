@@ -1,7 +1,7 @@
 import { Switch } from '@ark-ui/react/switch';
 import { ToggleGroup } from '@ark-ui/react/toggle-group';
-import { useId } from 'react';
-import { Section } from '../../design-system';
+import { useId, useRef } from 'react';
+import { Button, Section } from '../../design-system';
 import { useEditor } from '../EditorContext';
 import { typeMismatch } from '../model/connector';
 import { byIdOf } from '../model/tree';
@@ -44,6 +44,7 @@ const columnType = (a: Anchor, nodes: DesignNode[]) => {
 export function ConnectorProperties({ connector }: { connector: ConnectorNode }) {
   const { state, dispatch } = useEditor();
   const routingLabel = useId();
+  const routingGroup = useRef<HTMLDivElement>(null);
   const betweenColumns = connector.from.kind === 'column' && connector.to.kind === 'column';
   const mismatch = typeMismatch(connector, byIdOf(state.nodes));
   return (
@@ -62,6 +63,7 @@ export function ConnectorProperties({ connector }: { connector: ConnectorNode })
         Routing
       </p>
       <ToggleGroup.Root
+        ref={routingGroup}
         className={chips.root}
         aria-labelledby={routingLabel}
         value={[connector.routing]}
@@ -77,6 +79,18 @@ export function ConnectorProperties({ connector }: { connector: ConnectorNode })
           </ToggleGroup.Item>
         ))}
       </ToggleGroup.Root>
+      <Button
+        data-testid="connector-reset-route"
+        // A straight connector can still remember bends, and this is the only way to forget them.
+        disabled={(connector.bends ?? []).length === 0}
+        onClick={() => {
+          dispatch({ type: 'editConnector', id: connector.id, patch: { bends: undefined } });
+          // The button disables itself once the route is automatic, which would drop keyboard focus to the page.
+          routingGroup.current?.querySelector<HTMLElement>('[data-state=on]')?.focus();
+        }}
+      >
+        Reset route
+      </Button>
       {betweenColumns && (
         <Switch.Root
           className={switchClasses.root}

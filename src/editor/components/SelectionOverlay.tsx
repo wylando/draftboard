@@ -18,6 +18,9 @@ const ROTATE_ZONE_SIZE = 16;
 const ROW_GRIP = { offset: 16, width: 10, height: 16, minHeight: 6 } as const;
 // Row grips and connector end handles are dragged, not clicked.
 const grabClass = css({ cursor: 'grab' });
+// A segment moves across itself, so its cursor points the way it can go.
+const resizeXClass = css({ cursor: 'ew-resize' });
+const resizeYClass = css({ cursor: 'ns-resize' });
 /** Half the size of the × drawn where a guide meets an aligned edge or center. */
 const GUIDE_MARK = 3;
 /** Distance labels: font size and pill height in screen px; width is estimated per character. */
@@ -293,6 +296,37 @@ export function SelectionOverlay({
         />
       )}
 
+      {connector &&
+        !hideHandles &&
+        connector.routing === 'orthogonal' &&
+        // Interior segments only: the first and last are attached to their tables.
+        connector.points.slice(1, -2).map((a, k) => {
+          const i = k + 1;
+          const b = connector.points[i + 1];
+          if (!b) return null;
+          const vertical = a.x === b.x;
+          const mid = worldToScreen({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, viewport);
+          const long = HANDLE_SIZE * 2;
+          // Like the row grips: a handle on a segment too short to hold it would cover the segment's neighbours.
+          const a2 = worldToScreen(a, viewport);
+          const b2 = worldToScreen(b, viewport);
+          if (Math.hypot(b2.x - a2.x, b2.y - a2.y) < long * 2) return null;
+          return (
+            <rect
+              key={i}
+              data-connector-segment={i}
+              data-testid="connector-segment-handle"
+              className={vertical ? resizeXClass : resizeYClass}
+              x={mid.x - (vertical ? HANDLE_SIZE / 2 : long / 2)}
+              y={mid.y - (vertical ? long / 2 : HANDLE_SIZE / 2)}
+              width={vertical ? HANDLE_SIZE : long}
+              height={vertical ? long : HANDLE_SIZE}
+              rx={2}
+              fill={HANDLE_FILL}
+              stroke={SELECTION}
+            />
+          );
+        })}
       {connector &&
         !hideHandles &&
         (['from', 'to'] as const).map((end) => {

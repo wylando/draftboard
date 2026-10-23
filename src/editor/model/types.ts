@@ -137,6 +137,12 @@ export interface ConnectorNode extends BaseNode {
   /** Column to column only: `from`'s column references `to`'s, and is badged FK. */
   isForeignKey: boolean;
   routing: 'orthogonal' | 'straight';
+  /**
+   * The interior corner points the user shaped, in world px, in route order and
+   * without the ends or their stub tips. Absent means automatic routing. Only
+   * meaningful for orthogonal routing; a straight connector keeps them unused.
+   */
+  bends?: Point[];
   /** The route in world px, first point at `from`. */
   points: Point[];
 }
@@ -152,7 +158,7 @@ export type NodePatch = Partial<
   Omit<FrameNode, 'id' | 'type' | 'name'> &
     Omit<LineNode, 'id' | 'type' | 'name'> &
     Omit<TextNode, 'id' | 'type' | 'name'> &
-    Pick<ConnectorNode, 'from' | 'to'>
+    Pick<ConnectorNode, 'from' | 'to' | 'bends'>
 >;
 
 export interface Viewport {

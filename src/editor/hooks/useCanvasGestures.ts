@@ -28,7 +28,7 @@ import {
 } from '../geometry';
 import { useLatest } from '../../shared/useLatest';
 import type { EditorAction, EditorState } from '../model/editorReducer';
-import { anchorAt, createConnector, linksToItself } from '../model/connector';
+import { anchorAt, bendsMoveWith, createConnector, dragSegment, linksToItself, shiftConnector } from '../model/connector';
 import { createNode, DEFAULT_SIZE, minSizeFor, nextName } from '../model/nodes';
 import { TABLE_HEADER_HEIGHT, TABLE_ROW_HEIGHT, type RowDrop, type TableCell } from '../model/table';
 import { byIdOf, descendantIds, enteredScopes, isEffectivelyVisible, selectTarget, topLevelIds } from '../model/tree';
@@ -69,8 +69,8 @@ type Gesture =
       start: Point;
       startWorld: Point;
       origins: Map<string, Point>;
-      /** Moving connectors' ends as they were; only their loose ends move. */
-      connectorEnds: Map<string, Pick<ConnectorNode, 'from' | 'to'>>;
+      /** Connectors the drag changes, as they were, and whether their bends travel with it. */
+      connectors: Map<string, { start: ConnectorNode; moveBends: boolean }>;
       /** The moving top-level layers as they were at the start of the drag. */
       tops: DesignNode[];
       /** Their combined bounds at the start of the drag. */
@@ -98,6 +98,8 @@ type Gesture =
   | { kind: 'marker'; start: Point; connectorId: string; end: 'from' | 'to'; moved: boolean }
   /** Dragging one end of the selected connector to re-attach it. */
   | { kind: 'reattach'; start: Point; connector: ConnectorNode; end: 'from' | 'to'; moved: boolean }
+  /** Dragging one interior segment of the selected elbow connector; always computed from the route at press time. */
+  | { kind: 'segment'; start: Point; startWorld: Point; connectorId: string; index: number; points: Point[]; moved: boolean }
   | { kind: 'marquee'; start: Point; startWorld: Point; base: string[]; moved: boolean };
 
 export interface Marquee {
@@ -324,9 +326,11 @@ export function useCanvasGestures({
           g.origins.forEach((o, id) => {
             patches[id] = { x: place(o.x, dx, sx), y: place(o.y, dy, sy) };
           });
-          const moveEnd = (a: Anchor): Anchor => (a.kind === 'point' ? { ...a, x: place(a.x, dx, sx), y: place(a.y, dy, sy) } : a);
-          g.connectorEnds.forEach((ends, id) => {
-            patches[id] = { from: moveEnd(ends.from), to: moveEnd(ends.to) };
+          // One delta for every connector, so bends and loose ends land where the layers' own whole-pixel moves do.
+          const shiftX = place(0, dx, sx);
+          const shiftY = place(0, dy, sy);
+          g.connectors.forEach(({ start, moveBends }, id) => {
+            patches[id] = shiftConnector(start, shiftX, shiftY, moveBends);
           });
           dispatch({ type: 'updateNodes', patches });
           // Guides measure where the layers actually land, after each one's own rounding.
@@ -411,6 +415,31 @@ export function useCanvasGestures({
         case 'marker':
           if (dist >= DRAG_THRESHOLD) g.moved = true;
           return;
+        case 'segment': {
+          // Escape (or anything else that changes the selection) mid-drag drops the gesture; what was applied stays.
+          const { selection, nodes: current } = stateRef.current;
+          if (selection.length !== 1 || selection[0] !== g.connectorId) {
+            gestureRef.current = null;
+            return;
+          }
+          const a = g.points[g.index];
+          const b = g.points[g.index + 1];
+          if (!a || !b) return;
+          // The segment only moves across itself: a vertical one sideways, a horizontal one up and down.
+          const delta = a.x === b.x ? world.x - g.startWorld.x : world.y - g.startWorld.y;
+          // Sliding along the segment, or wobbling within the threshold, is not a drag: it must not freeze the route.
+          if (!g.moved && Math.abs(delta) * viewport.zoom < DRAG_THRESHOLD) return;
+          if (!g.moved) {
+            g.moved = true;
+            dispatch({ type: 'checkpoint' });
+          }
+          const bends = dragSegment(g.points, g.index, delta);
+          const connector = current.find((n) => n.id === g.connectorId);
+          const held = connector?.type === 'connector' ? (connector.bends ?? []) : [];
+          const same = bends.length === held.length && bends.every((p, i) => p.x === held[i]?.x && p.y === held[i]?.y);
+          if (!same) dispatch({ type: 'setConnectorBends', id: g.connectorId, bends });
+          return;
+        }
         case 'reattach': {
           if (!g.moved && dist < DRAG_THRESHOLD) return;
           g.moved = true;
@@ -539,6 +568,7 @@ export function useCanvasGestures({
       const rotateEl = target.closest('[data-rotate-handle]');
       const rowHandleEl = target.closest('[data-row-handle]');
       const endEl = target.closest('[data-connector-end]');
+      const segmentEl = target.closest('[data-connector-segment]');
       const markerEl = target.closest('[data-cardinality-end]');
       let gesture: Gesture | null = null;
 
@@ -564,6 +594,12 @@ export function useCanvasGestures({
         const end = endEl.getAttribute('data-connector-end');
         if (connector?.type === 'connector' && (end === 'from' || end === 'to')) {
           gesture = { kind: 'reattach', start: screen, connector, end, moved: false };
+        }
+      } else if (segmentEl && selection.length === 1) {
+        const connector = nodes.find((n) => n.id === selection[0]);
+        const index = Number(segmentEl.getAttribute('data-connector-segment'));
+        if (connector?.type === 'connector' && connector.routing === 'orthogonal' && Number.isInteger(index)) {
+          gesture = { kind: 'segment', start: screen, startWorld: world, connectorId: connector.id, index, points: connector.points, moved: false };
         }
       } else if (rowHandleEl && selection.length === 1) {
         const columnId = rowHandleEl.getAttribute('data-row-handle');
@@ -600,11 +636,13 @@ export function useCanvasGestures({
           const top = topLevelIds(byId, nextSelection);
           const moving = new Set([...top, ...descendantIds(nodes, top)]);
           const origins = new Map<string, Point>();
-          const connectorEnds = new Map<string, Pick<ConnectorNode, 'from' | 'to'>>();
+          const connectors = new Map<string, { start: ConnectorNode; moveBends: boolean }>();
           for (const n of nodes) {
-            if (!moving.has(n.id)) continue;
-            if (n.type === 'connector') connectorEnds.set(n.id, { from: n.from, to: n.to });
-            else origins.set(n.id, { x: n.x, y: n.y });
+            if (n.type === 'connector') {
+              // A shaped connector between two moving layers isn't selected itself, but its bends must go with them.
+              const moveBends = bendsMoveWith(n, moving);
+              if (moving.has(n.id) || (n.bends && moveBends)) connectors.set(n.id, { start: n, moveBends });
+            } else if (moving.has(n.id)) origins.set(n.id, { x: n.x, y: n.y });
           }
           // Guides line up the layers themselves; a connector's route bounds would only mislead them.
           const shapes = top.flatMap((t) => byId.get(t) ?? []);
@@ -616,7 +654,7 @@ export function useCanvasGestures({
           const clickColumn = pickColumn ? { tableId: id, columnId } : null;
           if (bounds) {
             const targets = { changing: moving, viewport: null, canvasSize: null, boxes: [] };
-            gesture = { kind: 'move', start: screen, startWorld: world, origins, connectorEnds, tops, bounds, targets, moved: false, last: world, clickColumn };
+            gesture = { kind: 'move', start: screen, startWorld: world, origins, connectors, tops, bounds, targets, moved: false, last: world, clickColumn };
           }
         }
       } else {

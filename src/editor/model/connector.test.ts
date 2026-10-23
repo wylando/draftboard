@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createConnector, ROUTE_MARGIN, routeBetween } from './connector';
+import { createConnector, bendsMoveWith, dragSegment, repairConnectorData, ROUTE_MARGIN, routeBetween, shiftConnector } from './connector';
 import { editorReducer, initialEditorState } from './editorReducer';
 import { createGroup, createNode } from './nodes';
 import { segmentHitsBox } from './orthogonalRoute';
@@ -257,5 +257,115 @@ describe('tight gaps and odd trees', () => {
     const x = { ...mid, id: 'x', parentId: 'y' };
     const y = { ...mid, id: 'y', x: 800, parentId: 'x' };
     expect(() => routeBetween({ kind: 'node', nodeId: a.id }, { kind: 'node', nodeId: b.id }, 'orthogonal', byIdOf([a, b, x, y]))).not.toThrow();
+  });
+});
+
+describe('shaped routes', () => {
+  const ends = () => {
+    const a = table({ x: 0, y: 0, width: 100, height: 64 }, []);
+    const b = table({ x: 700, y: 0, width: 100, height: 64 }, [a]);
+    return { a, b, from: { kind: 'node', nodeId: a.id } as const, to: { kind: 'node', nodeId: b.id } as const };
+  };
+  const bends: Point[] = [{ x: 300, y: 32 }, { x: 300, y: -100 }, { x: 500, y: -100 }, { x: 500, y: 32 }];
+  const shaped = [{ x: 100, y: 32 }, ...bends, { x: 700, y: 32 }];
+  const rightAngled = (route: Point[]) => route.slice(1).every((p, i) => (p.x === route[i]!.x) !== (p.y === route[i]!.y));
+
+  it('runs through every bend in order', () => {
+    const { a, b, from, to } = ends();
+    expect(routeBetween(from, to, 'orthogonal', byIdOf([a, b]), undefined, undefined, bends)).toEqual(shaped);
+  });
+
+  it('joins bends that are not in line with right-angled corners', () => {
+    const { a, b, from, to } = ends();
+    const route = routeBetween(from, to, 'orthogonal', byIdOf([a, b]), undefined, undefined, [{ x: 300, y: -100 }]);
+    expect(rightAngled(route)).toBe(true);
+    expect(route).toContainEqual({ x: 300, y: -100 });
+  });
+
+  it('follows the tables at its ends while keeping the bends', () => {
+    const { a, b, from, to } = ends();
+    const lower = { ...b, y: 200 };
+    const route = routeBetween(from, to, 'orthogonal', byIdOf([a, lower]), undefined, undefined, bends);
+    expect(route[route.length - 1]).toEqual({ x: 700, y: 232 });
+    // A bend that ends up in line with its neighbours is no corner any more, but the route still passes through it.
+    for (const bend of bends) expect(route.slice(1).some((p, i) => segmentHitsBox(route[i]!, p, { x: bend.x - 0.5, y: bend.y - 0.5, width: 1, height: 1 }))).toBe(true);
+    expect(rightAngled(route)).toBe(true);
+  });
+
+  it('ignores bends for a straight connector', () => {
+    const { a, b, from, to } = ends();
+    expect(routeBetween(from, to, 'straight', byIdOf([a, b]), undefined, undefined, bends)).toEqual(flat(a, b));
+  });
+
+  describe('dragSegment', () => {
+    it('moves exactly the dragged segment sideways', () => {
+      const { a, b, from, to } = ends();
+      const next = dragSegment(shaped, 2, -40);
+      const route = routeBetween(from, to, 'orthogonal', byIdOf([a, b]), undefined, undefined, next);
+      expect(route).toEqual([{ x: 100, y: 32 }, { x: 300, y: 32 }, { x: 300, y: -140 }, { x: 500, y: -140 }, { x: 500, y: 32 }, { x: 700, y: 32 }]);
+    });
+
+    it('moves a vertical segment along x', () => {
+      expect(dragSegment(shaped, 1, 60)).toEqual([{ x: 360, y: 32 }, { x: 360, y: -100 }, { x: 500, y: -100 }, { x: 500, y: 32 }]);
+    });
+
+    it('leaves the bends as they are for the first and last segments, which are attached to the tables', () => {
+      expect(dragSegment(shaped, 0, 20)).toEqual(bends);
+      expect(dragSegment(shaped, shaped.length - 2, 20)).toEqual(bends);
+    });
+
+    it('will not drag a segment back past its end stub', () => {
+      expect(dragSegment(shaped, 1, -250)[0]).toEqual({ x: 124, y: 32 });
+    });
+
+    it('stops short of a neighbouring parallel segment instead of folding onto it', () => {
+      // Segment 2 runs along y -100 between two runs at y 32 (the attached first and last legs).
+      for (const delta of [132, 500]) expect(dragSegment(shaped, 2, delta)[1]!.y).toBe(24);
+    });
+
+    it('stops short of the runs on both sides of an inner segment', () => {
+      const stairs = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 50 }, { x: 200, y: 50 }, { x: 200, y: 100 }, { x: 300, y: 100 }, { x: 300, y: 150 }, { x: 400, y: 150 }];
+      expect(dragSegment(stairs, 3, 500).find((p) => p.y === 50 && p.x !== 100)!.x).toBe(292);
+      expect(dragSegment(stairs, 3, -500).find((p) => p.y === 50 && p.x !== 100)!.x).toBe(108);
+      expect(dragSegment(stairs, 3, 50).find((p) => p.y === 50 && p.x !== 100)!.x).toBe(250);
+    });
+  });
+
+  it('keeps at most 64 bends on load', () => {
+    const many = Array.from({ length: 80 }, (_, i) => ({ x: i, y: 0 }));
+    const good = { routing: 'orthogonal', points: [], from: { kind: 'point', x: 0, y: 0 }, to: { kind: 'point', x: 1, y: 1 } };
+    expect(repairConnectorData({ ...good, bends: many }).bends).toEqual(many.slice(0, 64));
+  });
+
+  it('bendsMoveWith: only when everything the connector is attached to moves', () => {
+    const { a, b } = ends();
+    const c: ConnectorNode = { ...link(a, b, byIdOf([a, b])), bends };
+    expect(bendsMoveWith(c, new Set([a.id, b.id]))).toBe(true);
+    expect(bendsMoveWith(c, new Set([c.id, a.id, b.id]))).toBe(true);
+    expect(bendsMoveWith(c, new Set([a.id]))).toBe(false);
+    expect(bendsMoveWith(c, new Set([c.id, a.id]))).toBe(false);
+    expect(bendsMoveWith(c, new Set([c.id]))).toBe(false);
+    const half: ConnectorNode = { ...c, to: { kind: 'point', x: 1, y: 1 } };
+    expect(bendsMoveWith(half, new Set([a.id]))).toBe(true);
+    const loose: ConnectorNode = { ...c, from: { kind: 'point', x: 0, y: 0 }, to: { kind: 'point', x: 1, y: 1 } };
+    expect(bendsMoveWith(loose, new Set([loose.id]))).toBe(true);
+    expect(bendsMoveWith(loose, new Set([a.id, b.id]))).toBe(false);
+  });
+
+  it('shiftConnector shifts loose ends always and bends only when asked', () => {
+    const { a, b } = ends();
+    const c: ConnectorNode = { ...link(a, b, byIdOf([a, b])), to: { kind: 'point', x: 5, y: 6 }, bends };
+    const moved = bends.map((p) => ({ x: p.x + 1, y: p.y + 2 }));
+    expect(shiftConnector(c, 1, 2, true)).toEqual({ from: c.from, to: { kind: 'point', x: 6, y: 8 }, bends: moved });
+    expect(shiftConnector(c, 1, 2, false).bends).toBe(bends);
+    expect(shiftConnector({ ...c, bends: undefined }, 1, 2, true)).not.toHaveProperty('bends');
+  });
+
+  it('drops bends that are not points on load', () => {
+    const good = { routing: 'orthogonal', points: [], from: { kind: 'point', x: 0, y: 0 }, to: { kind: 'point', x: 1, y: 1 } };
+    expect(repairConnectorData({ ...good, bends }).bends).toEqual(bends);
+    for (const bad of ['x', 7, [{ x: 1, y: Number.NaN }], [{ x: 1 }], [null], []]) {
+      expect(repairConnectorData({ ...good, bends: bad }).bends).toBeUndefined();
+    }
   });
 });
