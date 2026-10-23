@@ -38,7 +38,7 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
   const [text, setText] = useState('');
   const [plan, setPlan] = useState<ImportPlan | null>(null);
   const [busy, setBusy] = useState(false);
-  // Bumped on close and on each preview, so a parse that finishes after either is dropped.
+  // Bumped on close, Back and each preview, so a parse, Add or Replace that finishes after any of them is dropped.
   const run = useRef(0);
 
   // Only PostgreSQL and MySQL grammars are bundled, so a SQLite preference reads as PostgreSQL.
@@ -84,23 +84,38 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
   };
 
   const replace = async () => {
-    if (!plan) return;
+    if (!plan || busy) return;
     const mine = run.current;
-    // Loading clears undo history, so replacing a non-empty design can't be taken back.
-    if (state.nodes.length > 0) {
-      const ok = await confirm({
-        title: 'Replace the current design?',
-        description: 'Importing replaces everything on the canvas and clears undo history. Export first to keep a copy.',
-        confirmLabel: 'Replace',
-      });
-      if (!ok || mine !== run.current) return;
+    setBusy(true);
+    try {
+      // Loading clears undo history, so replacing anything, even an emptied canvas with history, can't be taken back.
+      if (state.nodes.length > 0 || state.past.length > 0) {
+        const ok = await confirm({
+          title: 'Replace the current design?',
+          description: 'Importing replaces everything on the canvas and clears undo history. Export first to keep a copy.',
+          confirmLabel: 'Replace',
+        });
+        if (!ok || mine !== run.current) return;
+      }
+      // Planned against an empty document: nothing to rename around, and the block starts at the origin.
+      const fresh = await planImport(plan.schema, []);
+      if (mine !== run.current) return;
+      dispatch({ type: 'loadDocument', nodes: fresh.nodes });
+      showTables(fresh.nodes);
+      close(false);
+    } catch {
+      if (mine === run.current) {
+        await alert({ title: "Can't read this schema", description: 'Something went wrong while building the tables.' });
+      }
+    } finally {
+      if (mine === run.current) setBusy(false);
     }
-    // Planned against an empty document: nothing to rename around, and the block starts at the origin.
-    const fresh = await planImport(plan.schema, []);
-    if (mine !== run.current) return;
-    dispatch({ type: 'loadDocument', nodes: fresh.nodes });
-    showTables(fresh.nodes);
-    close(false);
+  };
+
+  const back = () => {
+    run.current++;
+    setBusy(false);
+    setPlan(null);
   };
 
   if (!plan) {
@@ -147,15 +162,15 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
       open={open}
       onOpenChange={close}
       title="Import schema"
-      description="Review what will be added."
+      description="Add to canvas keeps your layers and renames clashing tables. Replace document loads only these tables, with their own names."
       actions={
         <>
           {/* Focus lands on Add, or on Back when there is nothing to add. */}
-          <Button key="back" autoFocus={tableNodes.length === 0} onClick={() => setPlan(null)}>
+          <Button key="back" autoFocus={tableNodes.length === 0} disabled={busy} onClick={back}>
             Back
           </Button>
           {/* Keys make these fresh mounts, which is what lets autoFocus fire. */}
-          <Button key="replace" data-testid="import-replace" disabled={tableNodes.length === 0} onClick={() => void replace()}>
+          <Button key="replace" data-testid="import-replace" disabled={tableNodes.length === 0 || busy} onClick={() => void replace()}>
             Replace document…
           </Button>
           <Button
@@ -163,7 +178,7 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
             variant="primary"
             data-testid="import-add"
             autoFocus={tableNodes.length > 0}
-            disabled={tableNodes.length === 0}
+            disabled={tableNodes.length === 0 || busy}
             onClick={add}
           >
             Add to canvas

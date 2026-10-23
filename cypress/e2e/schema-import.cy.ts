@@ -62,14 +62,21 @@ describe('Schema import from SQL', () => {
     cy.get('[data-node-type=table]').should('have.length', 6);
   });
 
-  it('replaces the document after confirming, and clears history', () => {
+  it('replaces the document with the plain imported tables after confirming, and clears history', () => {
     cy.drawShape('rect', [100, 100], [200, 200]);
-    cy.get('[data-node-type=rect]').should('have.length', 1);
     previewFixture();
+    cy.get('[data-testid=import-add]').click();
+    cy.get('[data-node-type=table]').should('have.length', 3);
 
-    // Cancelling the confirm leaves the preview and the canvas as they were.
+    previewFixture();
+    cy.get('[data-testid=import-problems]').should('contain', '"users" already exists; imported as "users 2"');
+
     cy.get('[data-testid=import-replace]').click();
     cy.get('[role=alertdialog]').should('contain', 'Replace the current design?');
+    // Escape and Cancel close only the confirm; the preview and the canvas stay.
+    cy.get('[role=alertdialog]').type('{esc}');
+    cy.get('[role=alertdialog]').should('not.exist');
+    cy.get('[data-testid=import-replace]').click();
     cy.get('[data-testid=dialog-cancel]').click();
     cy.get('[role=alertdialog]').should('not.exist');
     cy.get('[data-testid=import-replace]').should('be.visible');
@@ -81,12 +88,21 @@ describe('Schema import from SQL', () => {
     cy.get('[data-node-type=table]').should('have.length', 3);
     cy.get('[data-node-type=connector]').should('have.length', 3);
     cy.get('[data-node-type=rect]').should('not.exist');
-    cy.contains('[data-testid^=node-]', 'users 2').should('not.exist');
-
+    // Planned against an empty document, so nothing is renamed around the old tables.
+    for (const name of ['users', 'posts', 'comments']) cy.contains('[data-node-type=table]', name).should('exist');
+    cy.contains('[data-node-type=table]', 'users 2').should('not.exist');
     cy.get('[data-testid=undo]').should('be.disabled');
-    cy.pressKey('z', { metaKey: true });
+  });
+
+  it('asks before replacing when the canvas is empty but has undo history', () => {
+    cy.drawShape('rect', [100, 100], [200, 200]);
+    cy.pressKey('Backspace');
     cy.get('[data-node-type=rect]').should('not.exist');
-    cy.get('[data-node-type=table]').should('have.length', 3);
+    previewFixture();
+    cy.get('[data-testid=import-replace]').click();
+    cy.get('[role=alertdialog]').should('be.visible');
+    cy.get('[data-testid=dialog-cancel]').click();
+    cy.get('[data-testid=import-replace]').should('be.visible');
   });
 
   it('replaces an empty canvas without asking', () => {
