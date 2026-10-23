@@ -28,7 +28,7 @@ Keep it short. Someone fixing a bug at 3am should understand this PR in 30 secon
 
 <!-- Tick only what you ran and saw pass. For a failure or a skipped step, leave the box unticked and say why. -->
 
-- [ ] `npm run verify` passed (lint, typecheck, build, E2E)
+- [ ] `npm run verify` passed (lint, typecheck, unit tests, build, E2E)
 
 ## Screenshots
 

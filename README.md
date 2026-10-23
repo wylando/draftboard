@@ -110,10 +110,11 @@ Documents autosave to `localStorage`. Use the toolbar to **export** a document a
 | `npm run preview`       | Serve the production build locally |
 | `npm run lint`          | Lint with ESLint (typescript-eslint + react-hooks) |
 | `npm run typecheck`     | Typecheck the app and the test suite |
+| `npm run test:unit`     | Run the Vitest unit tests for pure logic (`src/**/*.test.ts`) |
 | `npm run test:e2e`      | Run the Cypress suite headless against the dev server |
 | `npm run test:e2e:dist` | Run the Cypress suite against the production build |
 | `npm run cy:open`       | Open the Cypress runner interactively (start `npm run dev -- --port 5199` first) |
-| `npm run verify`        | Run everything CI runs: lint, typecheck, build and e2e |
+| `npm run verify`        | Run everything CI runs: lint, typecheck, unit tests, build and e2e |
 
 ### Tech stack
 
@@ -122,6 +123,7 @@ Documents autosave to `localStorage`. Use the toolbar to **export** a document a
 - **[Panda CSS](https://panda-css.com)** for type-safe design tokens and recipes
 - **[Ark UI](https://ark-ui.com)** headless components (dialog, tabs, radio group, toggle group, field), styled with Panda recipes
 - **SVG** rendering for every shape on the canvas
+- **[Vitest](https://vitest.dev)** unit tests for pure, React-free modules
 - **[Cypress](https://www.cypress.io)** end-to-end tests that drive the canvas with real pointer events
 
 ### Project structure
@@ -157,7 +159,7 @@ For messages and yes/no questions, call `useDialogs()` (`alert` / `confirm`, bot
 
 ### Continuous integration
 
-- **Pre-push hook:** runs lint and typecheck locally in a few seconds. `npm install` sets it up automatically.
+- **Pre-push hook:** runs lint, typecheck and unit tests locally in a few seconds. `npm install` sets it up automatically.
 - **GitHub Actions:** every pull request into `main` runs **Lint & typecheck** first, then **Build & E2E** against the production build.
 
 ## 🤝 Contributing
@@ -165,7 +167,7 @@ For messages and yes/no questions, call `useDialogs()` (`alert` / `confirm`, bot
 Contributions are welcome! Before you open a pull request:
 
 1. Follow the conventions in the surrounding code (architecture, Panda styling, test style).
-2. Add or update a Cypress spec for any user-facing change.
+2. Add or update a Cypress spec for any user-facing change, and a Vitest unit test (`*.test.ts` next to the module) for pure logic.
 3. Make sure `npm run verify` passes locally.
 
 Found a bug or have an idea? [Open an issue](../../issues).
