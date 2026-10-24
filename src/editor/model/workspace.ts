@@ -1,3 +1,4 @@
+import type { Anchor, DesignNode } from './types';
 import type { SavedBoard } from '../persistence';
 import { editorReducer, initialEditorState, type EditorAction, type EditorState } from './editorReducer';
 import { createId, nameKey, uniqueName } from './names';
@@ -21,7 +22,13 @@ export type WorkspaceAction =
   /** Ignored for an unknown id or the active board. */
   | { type: 'switchBoard'; id: string }
   /** Ignored for an unknown id or the last board. Closing the active board activates its right neighbour, else its left. */
-  | { type: 'closeBoard'; id: string };
+  | { type: 'closeBoard'; id: string }
+  /** Ignored when the trimmed name is empty, unchanged or held by another board (ignoring case). */
+  | { type: 'renameBoard'; id: string; name: string }
+  /** `toIndex` is clamped. The active board stays active. */
+  | { type: 'moveBoard'; id: string; toIndex: number }
+  /** Inserts a copy right after the board, named like a copied layer ("Board 1" → "Board 2"), and activates it. */
+  | { type: 'duplicateBoard'; id: string };
 
 /** Saved boards may be missing a name or repeat one; the first board keeps it. */
 export function initialWorkspace(saved: SavedBoard[], activeId?: string): WorkspaceState {
@@ -57,6 +64,19 @@ const activeOf = (state: WorkspaceState) => state.boards.find((b) => b.id === st
 function carryShared(from: EditorState, to: EditorState): EditorState {
   if (to.clipboard === from.clipboard && to.canvasSize === from.canvasSize) return to;
   return { ...to, clipboard: from.clipboard, canvasSize: from.canvasSize };
+}
+
+/** Fresh ids throughout; parents and connector ends inside the board point at the copies. */
+function copyNodes(nodes: DesignNode[]): DesignNode[] {
+  const ids = new Map(nodes.map((n) => [n.id, createId()]));
+  const remap = (a: Anchor): Anchor => {
+    if (a.kind === 'point') return a;
+    return a.kind === 'column' ? { ...a, tableId: ids.get(a.tableId) ?? a.tableId } : { ...a, nodeId: ids.get(a.nodeId) ?? a.nodeId };
+  };
+  return nodes.map((n) => {
+    const copy = { ...n, id: ids.get(n.id) as string, parentId: n.parentId === null ? null : (ids.get(n.parentId) ?? null) };
+    return copy.type === 'connector' ? { ...copy, from: remap(copy.from), to: remap(copy.to) } : copy;
+  });
 }
 
 export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): WorkspaceState {
@@ -101,6 +121,40 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
         boards: editor === next.editor ? boards : boards.map((b) => (b === next ? { ...b, editor } : b)),
         activeId: next.id,
       };
+    }
+ 
+    case 'renameBoard': {
+      const name = action.name.trim();
+      const board = state.boards.find((b) => b.id === action.id);
+      if (!board || name === '' || name === board.name) return state;
+      if (state.boards.some((b) => b.id !== board.id && nameKey(b.name) === nameKey(name))) return state;
+      return { ...state, boards: state.boards.map((b) => (b === board ? { ...b, name } : b)) };
+    }
+
+    case 'moveBoard': {
+      const from = state.boards.findIndex((b) => b.id === action.id);
+      if (from < 0) return state;
+      const to = Math.min(Math.max(action.toIndex, 0), state.boards.length - 1);
+      if (to === from) return state;
+      const boards = [...state.boards];
+      const [board] = boards.splice(from, 1);
+      boards.splice(to, 0, board as Board);
+      return { ...state, boards };
+    }
+
+    case 'duplicateBoard': {
+      const index = state.boards.findIndex((b) => b.id === action.id);
+      if (index < 0) return state;
+      const source = state.boards[index] as Board;
+      const name = uniqueName(source.name, new Set(state.boards.map((b) => nameKey(b.name))));
+      const editor: EditorState = {
+        ...initialEditorState(copyNodes(source.editor.nodes)),
+        viewport: source.editor.viewport,
+      };
+      const board: Board = { id: createId(), name, editor: carryShared(activeOf(state).editor, editor) };
+      const boards = [...state.boards];
+      boards.splice(index + 1, 0, board);
+      return { boards, activeId: board.id };
     }
   }
 }

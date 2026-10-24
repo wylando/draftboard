@@ -194,6 +194,120 @@ describe('Boards', () => {
     });
   });
 
+  it('renames a tab by double-click: Enter or blur commits, Escape and a taken name keep the old one', () => {
+    newBoard();
+    tab('Board 2').dblclick();
+    // "Plan" is made of tool shortcuts (L, N...); typed into the field they must not switch tools.
+    cy.get('[data-testid=board-rename-input]').should('be.focused');
+    // The native menu belongs here, not the board menu.
+    cy.get('[data-testid=board-rename-input]').rightclick();
+    cy.get('[role=menu]').should('not.exist');
+    cy.get('[data-testid=board-rename-input]').type('{selectall}Plan{enter}');
+    cy.get('[data-testid=board-rename-input]').should('not.exist');
+    tabNames(['Board 1', 'Plan']);
+    // Keyboard users keep their place.
+    tab('Plan').should('be.focused');
+    cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'select');
+
+    tab('Plan').dblclick();
+    cy.get('[data-testid=board-rename-input]').type('{selectall}board 1{enter}');
+    tabNames(['Board 1', 'Plan']);
+
+    tab('Plan').dblclick();
+    cy.get('[data-testid=board-rename-input]').type('{selectall}Nope{esc}');
+    tabNames(['Board 1', 'Plan']);
+
+    tab('Plan').dblclick();
+    cy.get('[data-testid=board-rename-input]').type('{selectall}Kept').blur();
+    tabNames(['Board 1', 'Kept']);
+    savedWorkspace((w) => expect(w.boards.map((b) => b.name)).to.deep.equal(['Board 1', 'Kept']));
+  });
+
+  it('drags a tab to reorder, leaving the open board and a plain click alone, and keeps the order after a reload', () => {
+    newBoard();
+    newBoard();
+    activeTab('Board 3');
+    tab('Board 3').then(($t) => {
+      const width = $t[0]!.getBoundingClientRect().width;
+      cy.wrap($t).pointer('pointerdown').pointer('pointermove', [-width, 0]).pointer('pointermove', [-width * 2.2, 0]).pointer('pointerup', [-width * 2.2, 0]);
+    });
+    tabNames(['Board 3', 'Board 1', 'Board 2']);
+    activeTab('Board 3');
+
+    // A drag of an inactive tab doesn't open it.
+    tab('Board 2').then(($t) => {
+      const width = $t[0]!.getBoundingClientRect().width;
+      cy.wrap($t).pointer('pointerdown').pointer('pointermove', [-width * 1.2, 0]).pointer('pointerup', [-width * 1.2, 0]);
+    });
+    tabNames(['Board 3', 'Board 2', 'Board 1']);
+    activeTab('Board 3');
+
+    // A drag cancelled by the browser drops nothing, and must not eat a later keyboard activation.
+    tab('Board 2').pointer('pointerdown').pointer('pointermove', [-60, 0]).pointer('pointercancel');
+    tabNames(['Board 3', 'Board 2', 'Board 1']);
+    tab('Board 2').then(($t) => $t[0]!.click());
+    activeTab('Board 2');
+
+    tab('Board 1').pointer('pointerdown').pointer('pointerup').click();
+    activeTab('Board 1');
+    tabNames(['Board 3', 'Board 2', 'Board 1']);
+
+    savedWorkspace((w) => expect(w.boards.map((b) => b.name)).to.deep.equal(['Board 3', 'Board 2', 'Board 1']));
+    cy.reload();
+    tabNames(['Board 3', 'Board 2', 'Board 1']);
+  });
+
+  it('opens a menu on right-click to rename, duplicate or close a board', () => {
+    cy.drawShape('rect', [100, 100], [200, 200]);
+    tab('Board 1').rightclick();
+    cy.get('[data-testid=board-menu-close]').should('have.attr', 'data-disabled');
+    cy.get('[data-testid=board-menu-duplicate]').click();
+    tabNames(['Board 1', 'Board 2']);
+    activeTab('Board 2');
+    cy.get('[data-node-type=rect]').should('have.length', 1);
+    cy.get('[role=menu]').should('not.exist');
+
+    tab('Board 2').rightclick();
+    cy.get('[data-testid=board-menu-rename]').click();
+    cy.get('[data-testid=board-rename-input]').should('be.focused').type('{selectall}Copy{enter}');
+    tabNames(['Board 1', 'Copy']);
+
+    // The menu owns its keys: an arrow key inside it must not nudge the selected layer.
+    cy.get('[data-node-type=rect]').click();
+    cy.prop('y').should('have.value', '100');
+    tab('Copy').rightclick();
+    cy.get('[role=menu]').type('{downarrow}');
+    cy.prop('y').should('have.value', '100');
+    cy.get('[role=menu]').type('{esc}');
+
+    tab('Copy').rightclick();
+    cy.get('[data-testid=board-menu-close]').click();
+    cy.get('[data-testid=dialog-confirm]').click();
+    tabNames(['Board 1']);
+  });
+
+  it('has keyboard shortcuts to add, cycle through and close boards', () => {
+    // A held key repeats keydown; that must not keep adding boards.
+    cy.pressKey('n', { altKey: true, code: 'KeyN', repeat: true });
+    cy.pressKey('n', { altKey: true, code: 'KeyN' });
+    tabNames(['Board 1', 'Board 2']);
+    activeTab('Board 2');
+
+    cy.pressKey(']', { altKey: true, code: 'BracketRight' });
+    activeTab('Board 1');
+    cy.pressKey('[', { altKey: true, code: 'BracketLeft' });
+    activeTab('Board 2');
+
+    cy.drawShape('rect', [100, 100], [200, 200]);
+    cy.pressKey('w', { altKey: true, code: 'KeyW' });
+    cy.get('[role=alertdialog]').should('be.visible');
+    cy.get('[data-testid=dialog-cancel]').click();
+    tabNames(['Board 1', 'Board 2']);
+    cy.pressKey('w', { altKey: true, code: 'KeyW' });
+    cy.get('[data-testid=dialog-confirm]').click();
+    tabNames(['Board 1']);
+  });
+
   it('keeps an edit made just before a reload', () => {
     cy.drawShape('rect', [100, 100], [200, 200]);
     cy.reload();

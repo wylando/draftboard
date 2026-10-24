@@ -3,12 +3,14 @@ import { defineSlotRecipe } from '@pandacss/dev';
 /**
  * Browser-style board tabs on the dark toolbar (Ark UI Tabs). The open tab is raised and sits on the
  * bar's bottom edge. The close button is a sibling of the trigger, so its slot sits beside it, not in it.
+ * While a tab is renamed, `input` takes the trigger's place. While one is dragged, `[data-dragging]` raises it
+ * and the others slide aside (their offsets are inline, per render).
  */
 export const boardTabsRecipe = defineSlotRecipe({
   className: 'board-tabs',
   description: 'Board tabs on the toolbar: raised open tab, dimmer others, close button on hover',
   jsx: ['BoardTabs'],
-  slots: ['root', 'list', 'tab', 'trigger', 'close'],
+  slots: ['root', 'list', 'tab', 'trigger', 'input', 'close'],
   base: {
     root: {
       display: 'flex',
@@ -36,6 +38,9 @@ export const boardTabsRecipe = defineSlotRecipe({
       borderTopLeftRadius: 'large',
       borderTopRightRadius: 'large',
       color: 'text.tabInactive',
+      userSelect: 'none',
+      transition: 'transform 120ms ease',
+      '&[data-dragging]': { zIndex: '1', transition: 'none', cursor: 'grabbing' },
       _hover: { bg: 'bg.tabHover', color: 'text.onToolbar' },
       '&[data-selected]': { bg: 'bg.tabActive', color: 'text.onToolbar' },
       '&:hover [data-board-close], &[data-selected] [data-board-close], & [data-board-close]:focus-visible': { opacity: '1' },
@@ -58,6 +63,21 @@ export const boardTabsRecipe = defineSlotRecipe({
       cursor: 'pointer',
       '&[data-selected]': { textStyle: 'body.mediumStrong' },
       _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.selected', outlineOffset: '-2px' },
+    },
+    input: {
+      flex: '1',
+      minWidth: '0',
+      height: 'full',
+      paddingInline: '3',
+      border: 'none',
+      borderRadius: 'inherit',
+      bg: 'transparent',
+      color: 'inherit',
+      textStyle: 'body.medium',
+      outlineWidth: '2px',
+      outlineStyle: 'solid',
+      outlineColor: 'border.selected',
+      outlineOffset: '-2px',
     },
     close: {
       position: 'absolute',

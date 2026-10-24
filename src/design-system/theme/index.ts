@@ -13,3 +13,4 @@ export { toggleSwitchRecipe } from './recipes/toggleSwitch';
 export { chipGroupRecipe } from './recipes/chipGroup';
 export { checkboxRecipe } from './recipes/checkbox';
 export { boardTabsRecipe } from './recipes/boardTabs';
+export { menuRecipe } from './recipes/menu';

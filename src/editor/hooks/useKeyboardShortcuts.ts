@@ -4,8 +4,10 @@ import type { CommandId } from '../../settings/keybindings/commands';
 import { bindingFromEvent } from '../../settings/keybindings/keys';
 import { useKeybindings } from '../../settings/keybindings/KeybindingsContext';
 import { useLatest } from '../../shared/useLatest';
+import { useBoards } from '../EditorContext';
 import type { EditorAction, EditorState } from '../model/editorReducer';
 import { byIdOf, isEffectivelyVisible } from '../model/tree';
+import { useCloseBoard } from './useCloseBoard';
 
 const NUDGE = 1;
 const NUDGE_LARGE = 10;
@@ -25,10 +27,18 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return target.isContentEditable || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
 }
 
-const inTabList = (target: EventTarget | null) => target instanceof Element && target.closest('[role=tablist]') !== null;
+// Both own the arrow keys and Enter while focus is inside them: tabs rove, a menu moves its highlight.
+const inOwnKeys = (target: EventTarget | null) => target instanceof Element && target.closest('[role=tablist], [role=menu]') !== null;
+
+interface BoardControls {
+  boards: Array<{ id: string }>;
+  activeId: string;
+  dispatch: ReturnType<typeof useBoards>['dispatch'];
+  closeBoard: (id: string) => void;
+}
 
 /** What each command does in the editor. Keys come from the user's bindings. */
-function runCommand(id: CommandId, o: Options): void {
+function runCommand(id: CommandId, o: Options, b: BoardControls): void {
   const { state, dispatch } = o;
   const nudge = (dx: number, dy: number) => dispatch({ type: 'nudgeSelection', dx, dy });
   switch (id) {
@@ -109,6 +119,17 @@ function runCommand(id: CommandId, o: Options): void {
       return nudge(0, -NUDGE_LARGE);
     case 'nudge.downLarge':
       return nudge(0, NUDGE_LARGE);
+    case 'board.new':
+      return b.dispatch({ type: 'newBoard' });
+    case 'board.close':
+      return b.closeBoard(b.activeId);
+    case 'board.next':
+    case 'board.previous': {
+      const at = b.boards.findIndex((x) => x.id === b.activeId);
+      const step = id === 'board.next' ? 1 : -1;
+      const target = b.boards[(at + step + b.boards.length) % b.boards.length];
+      return b.dispatch({ type: 'switchBoard', id: target?.id ?? b.activeId });
+    }
     case 'app.openSettings':
       return o.openSettings();
   }
@@ -118,18 +139,23 @@ function runCommand(id: CommandId, o: Options): void {
 export function useKeyboardShortcuts(options: Options) {
   const { commandFor } = useKeybindings();
   const { isOpen: dialogOpen } = useDialogs();
-  const latest = useLatest({ options, commandFor, dialogOpen });
+  const { boards, activeId, dispatch: boardsDispatch } = useBoards();
+  const closeBoard = useCloseBoard();
+  const latest = useLatest({ options, commandFor, dialogOpen, boardControls: { boards, activeId, dispatch: boardsDispatch, closeBoard } });
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       // A modal dialog owns the keyboard: Escape closes it, Backspace mustn't delete the selection behind it.
-      // Arrow keys on a focused board tab move between tabs; they must not also nudge the selection.
-      if (latest.current.dialogOpen || isTypingTarget(e.target) || inTabList(e.target)) return;
+      // Arrow keys on a focused board tab move between tabs, and in a menu they move its highlight;
+      // neither may also nudge the selection. Alt combos (board commands) don't use those keys, so they pass.
+      if (latest.current.dialogOpen || isTypingTarget(e.target) || (inOwnKeys(e.target) && !e.altKey)) return;
       const binding = bindingFromEvent(e);
       const id = binding ? latest.current.commandFor(binding) : undefined;
       if (!id) return;
       e.preventDefault();
-      runCommand(id, latest.current.options);
+      // Holding a nudge key should keep nudging, but holding Alt+N shouldn't keep adding boards.
+      if (e.repeat && id.startsWith('board.')) return;
+      runCommand(id, latest.current.options, latest.current.boardControls);
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);

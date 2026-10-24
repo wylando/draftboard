@@ -29,12 +29,13 @@ describe('Settings: keyboard shortcuts', () => {
   });
 
   it('lists every category with default bindings', () => {
-    for (const c of ['tools', 'edit', 'arrange', 'view', 'nudge', 'app']) {
+    for (const c of ['tools', 'edit', 'arrange', 'view', 'nudge', 'boards', 'app']) {
       cy.get(`[data-testid=category-${c}]`).should('exist');
     }
     chip('tool.rect', 'R').should('exist');
     chip('edit.redo', 'Mod+Shift+Z').should('exist');
     chip('edit.redo', 'Mod+Y').should('exist');
+    chip('board.next', 'Alt+]').should('exist');
     row('app.openSettings').should('contain', 'Not assigned');
   });
 

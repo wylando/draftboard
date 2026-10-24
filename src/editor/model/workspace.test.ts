@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { nameKey } from './names';
+import { createConnector } from './connector';
 import { createNode } from './nodes';
 import { initialWorkspace, sameSavedParts, workspaceReducer, type WorkspaceAction, type WorkspaceState } from './workspace';
 
@@ -166,6 +167,110 @@ describe('closeBoard', () => {
     expect(s.activeId).toBe(firstId);
     expect(active(s).editor.canvasSize).toEqual({ width: 640, height: 480 });
     expect(active(s).editor.clipboard.map((n) => n.id)).toEqual([r.id]);
+  });
+});
+
+describe('renameBoard', () => {
+  const named = () =>
+    initialWorkspace([
+      { id: 'a', name: 'Plan', nodes: [] },
+      { id: 'b', name: 'Notes', nodes: [] },
+    ]);
+
+  it('trims and renames', () => {
+    const s = run(named(), { type: 'renameBoard', id: 'a', name: '  Roadmap ' });
+    expect(s.boards.map((b) => b.name)).toEqual(['Roadmap', 'Notes']);
+  });
+
+  it('ignores an empty, unchanged or unknown-id rename', () => {
+    const s = named();
+    expect(run(s, { type: 'renameBoard', id: 'a', name: '   ' })).toBe(s);
+    expect(run(s, { type: 'renameBoard', id: 'a', name: 'Plan' })).toBe(s);
+    expect(run(s, { type: 'renameBoard', id: 'nope', name: 'X' })).toBe(s);
+  });
+
+  it("ignores another board's name, ignoring case, but allows a case-only change of its own", () => {
+    const s = named();
+    expect(run(s, { type: 'renameBoard', id: 'a', name: 'notes' })).toBe(s);
+    expect(run(s, { type: 'renameBoard', id: 'a', name: 'PLAN' }).boards[0]!.name).toBe('PLAN');
+  });
+});
+
+describe('moveBoard', () => {
+  const three = () => run(initialWorkspace([]), { type: 'newBoard' }, { type: 'newBoard' });
+  const ids = (s: WorkspaceState) => s.boards.map((b) => b.id);
+
+  it('moves a board to the index and keeps the active board', () => {
+    const s = three();
+    const [a, b, c] = ids(s) as [string, string, string];
+    const next = run(s, { type: 'moveBoard', id: c, toIndex: 0 });
+    expect(ids(next)).toEqual([c, a, b]);
+    expect(next.activeId).toBe(s.activeId);
+    expect(ids(run(s, { type: 'moveBoard', id: a, toIndex: 2 }))).toEqual([b, c, a]);
+  });
+
+  it('clamps the index and returns the same state for a no-op or unknown id', () => {
+    const s = three();
+    const [a, , c] = ids(s) as [string, string, string];
+    expect(ids(run(s, { type: 'moveBoard', id: a, toIndex: 99 }))[2]).toBe(a);
+    expect(ids(run(s, { type: 'moveBoard', id: c, toIndex: -5 }))[0]).toBe(c);
+    expect(run(s, { type: 'moveBoard', id: a, toIndex: 0 })).toBe(s);
+    expect(run(s, { type: 'moveBoard', id: 'nope', toIndex: 1 })).toBe(s);
+  });
+});
+
+describe('duplicateBoard', () => {
+  const withLink = () => {
+    const t1 = createNode('table', { x: 0, y: 0, width: 200, height: 100 }, []);
+    const t2 = createNode('table', { x: 400, y: 0, width: 200, height: 100 }, [t1]);
+    const byId = new Map([t1, t2].map((n) => [n.id, n]));
+    const link = createConnector({ kind: 'node', nodeId: t1.id }, { kind: 'node', nodeId: t2.id }, 'Link 1', byId);
+    const s = run(
+      initialWorkspace([]),
+      editor({ type: 'addNode', node: t1 }),
+      editor({ type: 'addNode', node: t2 }),
+      editor({ type: 'addNode', node: link }),
+      editor({ type: 'setViewport', viewport: { x: 5, y: 6, zoom: 2 } }),
+    );
+    return { s, t1, t2 };
+  };
+
+  it('inserts a uniquely named copy after the source, activates it, and keeps the source', () => {
+    const { s } = withLink();
+    const src = active(s);
+    const next = run(s, { type: 'duplicateBoard', id: src.id });
+    expect(next.boards).toHaveLength(2);
+    expect(next.boards[0]).toBe(src);
+    expect(next.boards[1]!.name).toBe('Board 2');
+    expect(next.activeId).toBe(next.boards[1]!.id);
+    const again = run(next, { type: 'duplicateBoard', id: src.id });
+    expect(again.boards.map((b) => b.name)).toEqual(['Board 1', 'Board 3', 'Board 2']);
+  });
+
+  it('gives the copy fresh ids, with connectors and parents pointing at the copied layers', () => {
+    const { s, t1, t2 } = withLink();
+    const copy = active(run(s, { type: 'duplicateBoard', id: s.activeId })).editor.nodes;
+    const original = new Set([t1.id, t2.id, ...active(s).editor.nodes.map((n) => n.id)]);
+    expect(copy).toHaveLength(3);
+    expect(copy.every((n) => !original.has(n.id))).toBe(true);
+    const tables = copy.filter((n) => n.type === 'table').map((n) => n.id);
+    const link = copy.find((n) => n.type === 'connector');
+    expect(link?.type === 'connector' && [link.from, link.to]).toEqual(tables.map((nodeId) => ({ kind: 'node', nodeId })));
+    expect(copy.map((n) => n.name)).toEqual(active(s).editor.nodes.map((n) => n.name));
+  });
+
+  it('starts with fresh undo history and the source viewport', () => {
+    const { s } = withLink();
+    expect(active(s).editor.past.length).toBeGreaterThan(0);
+    const e = active(run(s, { type: 'duplicateBoard', id: s.activeId })).editor;
+    expect(e.past).toEqual([]);
+    expect(e.selection).toEqual([]);
+    expect(e.viewport).toEqual({ x: 5, y: 6, zoom: 2 });
+  });
+
+  it('ignores an unknown id', () => {
+    const s = two();
+    expect(run(s, { type: 'duplicateBoard', id: 'nope' })).toBe(s);
   });
 });
 
