@@ -16,6 +16,10 @@ const addClass = css({ flex: 'none', marginBlockEnd: '1' });
 
 // Pointer travel before a press on a tab becomes a drag; below it the press is still a click.
 const DRAG_THRESHOLD = 4;
+// A tab held within this many px of the strip's visible edge (or past it) scrolls the strip that way,
+// up to EDGE_SCROLL_SPEED px per frame at the edge itself, so tabs scrolled out of view can be reached.
+const EDGE_SCROLL_ZONE = 32;
+const EDGE_SCROLL_SPEED = 12;
 
 // A mouse click leaves focus on the button; give it back so the arrow keys nudge the selection again.
 // Keyboard activation (detail 0) keeps focus, and with it the arrow-key roving between tabs.
@@ -27,12 +31,18 @@ interface Drag {
   id: string;
   pointerId: number;
   startX: number;
+  startScroll: number;
+  /** The latest pointer x, so edge scrolling can move the tab while the pointer is still. */
+  x: number;
   from: number;
   /** Where the tab would land now; kept here, not read from the rendered state, which can lag a quick release. */
   to: number;
-  /** Tab boxes when the press began; the strip doesn't scroll or reflow while dragging. */
+  /** Tab boxes in the strip's content coordinates, which scrolling doesn't change; tabs don't reflow while dragging. */
   slots: Array<{ left: number; width: number }>;
+  /** Where the last tab ends: the held tab stays between 0 and here. */
+  end: number;
   moved: boolean;
+  frame: number | null;
 }
 
 interface DragView {
@@ -102,16 +112,24 @@ export function BoardTabs() {
   const startDrag = (e: PointerEvent<HTMLElement>, id: string) => {
     swallowClick.current = false;
     if (e.button !== 0 || !listRef.current) return;
-    const tabs = [...listRef.current.querySelectorAll<HTMLElement>('[data-board-tab]')];
-    const slots = tabs.map((t) => t.getBoundingClientRect());
+    const list = listRef.current;
+    const origin = list.getBoundingClientRect().left - list.scrollLeft;
+    const slots = [...list.querySelectorAll<HTMLElement>('[data-board-tab]')].map((t) => {
+      const r = t.getBoundingClientRect();
+      return { left: r.left - origin, width: r.width };
+    });
     drag.current = {
       id,
       pointerId: e.pointerId,
       startX: e.clientX,
+      startScroll: list.scrollLeft,
+      x: e.clientX,
       from: boards.findIndex((b) => b.id === id),
       to: boards.findIndex((b) => b.id === id),
-      slots: slots.map((r) => ({ left: r.left, width: r.width })),
+      slots,
+      end: Math.max(...slots.map((s) => s.left + s.width)),
       moved: false,
+      frame: null,
     };
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -120,22 +138,50 @@ export function BoardTabs() {
     }
   };
 
+  const placeHeldTab = (d: Drag) => {
+    const list = listRef.current;
+    if (!list) return;
+    const travel = d.x - d.startX + list.scrollLeft - d.startScroll;
+    if (!d.moved && Math.abs(travel) < DRAG_THRESHOLD) return;
+    d.moved = true;
+    const mine = d.slots[d.from] as Drag['slots'][number];
+    const dx = Math.min(Math.max(travel, -mine.left), d.end - mine.left - mine.width);
+    const center = mine.left + mine.width / 2 + dx;
+    // Pinned at either end, the held tab's centre ties with an equal-width end tab; it should pass that tab.
+    const passed = (c: number) => (dx > 0 ? c <= center : c < center);
+    d.to = d.slots.filter((s, i) => i !== d.from && passed(s.left + s.width / 2)).length;
+    setDragView({ id: d.id, dx, from: d.from, to: d.to, width: mine.width });
+  };
+
+  const scrollAtEdge = () => {
+    const d = drag.current;
+    const list = listRef.current;
+    if (!d || !list) return;
+    d.frame = null;
+    if (!d.moved) return;
+    const strip = list.getBoundingClientRect();
+    const depth = (into: number) => Math.min(Math.max(into / EDGE_SCROLL_ZONE, 0), 1);
+    const step = (depth(d.x - (strip.right - EDGE_SCROLL_ZONE)) - depth(strip.left + EDGE_SCROLL_ZONE - d.x)) * EDGE_SCROLL_SPEED;
+    const before = list.scrollLeft;
+    list.scrollLeft += step;
+    if (list.scrollLeft === before) return;
+    placeHeldTab(d);
+    d.frame = requestAnimationFrame(scrollAtEdge);
+  };
+
   const moveDrag = (e: PointerEvent<HTMLElement>) => {
     const d = drag.current;
     if (!d || e.pointerId !== d.pointerId) return;
-    const dx = e.clientX - d.startX;
-    if (!d.moved && Math.abs(dx) < DRAG_THRESHOLD) return;
-    d.moved = true;
-    const mine = d.slots[d.from] as Drag['slots'][number];
-    const center = mine.left + mine.width / 2 + dx;
-    d.to = d.slots.filter((s, i) => i !== d.from && s.left + s.width / 2 < center).length;
-    setDragView({ id: d.id, dx, from: d.from, to: d.to, width: mine.width });
+    d.x = e.clientX;
+    placeHeldTab(d);
+    d.frame ??= requestAnimationFrame(scrollAtEdge);
   };
 
   const endDrag = (e: PointerEvent<HTMLElement>, drop: boolean) => {
     const d = drag.current;
     if (!d || e.pointerId !== d.pointerId) return;
     drag.current = null;
+    if (d.frame !== null) cancelAnimationFrame(d.frame);
     if (!d.moved) return;
     e.currentTarget.blur();
     setDragView(null);
@@ -173,6 +219,8 @@ export function BoardTabs() {
         onWheel={(e) => {
           if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) e.currentTarget.scrollLeft += e.deltaY;
         }}
+        // A held tab rides along when the strip scrolls under it.
+        onScroll={() => drag.current && placeHeldTab(drag.current)}
       >
         {boards.map((b, index) => (
           <Menu.Root

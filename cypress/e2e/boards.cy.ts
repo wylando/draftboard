@@ -7,6 +7,14 @@ const newBoard = () => cy.get('[data-testid=board-new]').click();
 const tabNames = (expected: string[]) =>
   cy.get('[data-board-name]').should(($t) => expect([...$t].map((t) => t.getAttribute('data-board-name'))).to.deep.equal(expected));
 
+// At a screen x, not relative to the tab: a held tab moves, so offsets from its centre would drift.
+const pointerAt = (el: Element, type: string, x: number | 'center') => {
+  const rect = el.getBoundingClientRect();
+  const clientX = x === 'center' ? rect.left + rect.width / 2 : x;
+  const init = { bubbles: true, cancelable: true, pointerId: 1, isPrimary: true, button: 0, buttons: type === 'pointerup' ? 0 : 1 };
+  el.dispatchEvent(new (el.ownerDocument.defaultView!.PointerEvent)(type, { ...init, clientX, clientY: rect.top + rect.height / 2 }));
+};
+
 interface Saved {
   activeId: string;
   boards: Array<{ id: string; name: string; nodes: Array<{ type: string }> }>;
@@ -267,6 +275,46 @@ describe('Boards', () => {
     savedWorkspace((w) => expect(w.boards.map((b) => b.name)).to.deep.equal(['Board 3', 'Board 2', 'Board 1']));
     cy.reload();
     tabNames(['Board 3', 'Board 2', 'Board 1']);
+  });
+
+  it('keeps a dragged tab inside the strip when every tab fits', () => {
+    newBoard();
+    newBoard();
+    tabNames(['Board 1', 'Board 2', 'Board 3']);
+    tab('Board 1').then(($t) => {
+      const win = $t[0]!.ownerDocument.defaultView!;
+      pointerAt($t[0]!, 'pointerdown', 'center');
+      pointerAt($t[0]!, 'pointermove', win.innerWidth - 2);
+    });
+    // Pinned at the strip's end, not following the pointer to the window edge.
+    tab('Board 1')
+      .closest('[data-board-tab]')
+      .should(($held) => {
+        const strip = $held[0]!.ownerDocument.querySelector('[data-testid=board-tabs]')!.getBoundingClientRect();
+        expect($held[0]!.getBoundingClientRect().right, 'held tab right edge').to.be.closeTo(strip.right, 1);
+      });
+    tab('Board 1').then(($t) => pointerAt($t[0]!, 'pointerup', $t[0]!.ownerDocument.defaultView!.innerWidth - 2));
+    tabNames(['Board 2', 'Board 3', 'Board 1']);
+  });
+
+  it('scrolls an overflowing strip while a dragged tab is held at its edge', () => {
+    cy.viewport(700, 600);
+    for (let i = 0; i < 6; i++) newBoard();
+    activeTab('Board 7');
+    cy.get('[data-testid=board-tabs]').then(($l) => ($l[0]!.scrollLeft = 0));
+    cy.get('[data-testid=board-tabs]').should(($l) => expect($l[0]!.scrollLeft).to.equal(0));
+    tab('Board 1').then(($t) => {
+      const strip = $t[0]!.ownerDocument.querySelector('[data-testid=board-tabs]')!.getBoundingClientRect();
+      pointerAt($t[0]!, 'pointerdown', 'center');
+      pointerAt($t[0]!, 'pointermove', strip.right - 2);
+    });
+    // Held still at the edge, the strip keeps scrolling until its end shows.
+    cy.get('[data-testid=board-tabs]').should(($l) => expect($l[0]!.scrollLeft).to.be.at.least($l[0]!.scrollWidth - $l[0]!.clientWidth - 1));
+    tab('Board 1').then(($t) => {
+      const strip = $t[0]!.ownerDocument.querySelector('[data-testid=board-tabs]')!.getBoundingClientRect();
+      pointerAt($t[0]!, 'pointerup', strip.right - 2);
+    });
+    tabNames(['Board 2', 'Board 3', 'Board 4', 'Board 5', 'Board 6', 'Board 7', 'Board 1']);
   });
 
   it('opens a menu on right-click to rename, duplicate or close a board', () => {
