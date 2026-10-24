@@ -206,3 +206,39 @@ describe('Settings: getting started guide', () => {
     cy.get('[data-testid=guide-options]').should('contain', 'Stroke').and('contain', 'Layer opacity');
   });
 });
+
+describe('Settings: symbols', () => {
+  it('draws each canvas symbol with the canvas renderer and explains it', () => {
+    cy.visitEmpty();
+    openSettings();
+    cy.get('[data-testid=nav-symbols]').click();
+    cy.get('[data-testid=symbols-section]').should('be.visible');
+    for (const kind of ['one', 'zeroOrOne', 'many', 'oneOrMany']) {
+      cy.get(`[data-testid=symbol-cardinality-${kind}] [data-testid=connector-marker][data-cardinality=${kind}] path`).should('exist');
+    }
+    // A 'none' end on a table still offers a (blank) marker to click.
+    cy.get('[data-testid=symbol-cardinality-none] [data-testid=connector-marker][data-cardinality=none]').should('exist').find('path').should('not.exist');
+
+    cy.get('[data-testid=symbol-end-attached] [data-testid=connector-end][data-attached=true]').should('exist');
+    cy.get('[data-testid=symbol-end-loose] [data-testid=connector-end][data-attached=false]').should('exist');
+    cy.get('[data-testid=symbol-end-broken] [data-testid=connector-line][data-broken=true]').should('exist');
+    cy.get('[data-testid=symbol-warning] [data-testid=connector-warning]').should('exist');
+    // The default highlight colour from the preferences.
+    cy.get('[data-testid=symbol-highlight] [data-testid=related-connector]').should('have.attr', 'stroke', '#80caff');
+    cy.get('[data-testid=symbol-highlight] [data-testid=related-table]').should('have.attr', 'stroke', '#80caff');
+
+    cy.get('[data-testid=symbols-rows] [data-testid=column-badge]').should(($b) => {
+      expect($b.toArray().map((e) => e.textContent)).to.include.members(['PK', 'UQ', 'FK', 'PFK', 'UFK']);
+    });
+    cy.get('[data-testid=symbols-rows] [data-testid=column-index]').should('exist');
+    cy.get('[data-testid=symbols-rows] [data-testid=column-type]').should('contain', 'text?');
+    // The badges exist even when clipped away, so check the last row is inside the drawing.
+    cy.get('[data-testid=symbols-rows] svg').should(($svg) => {
+      const rows = $svg.find('[data-testid=table-column]');
+      expect(rows).to.have.length(6);
+      expect(rows[5]!.getBoundingClientRect().bottom).to.be.at.most($svg[0]!.getBoundingClientRect().bottom);
+    });
+
+    cy.get('[data-testid=symbols-routes]').should('contain', 'index lookup').and('contain', 'scan').and('contain', 'Guaranteed route');
+  });
+});

@@ -6,13 +6,15 @@ import { Button, icons } from '../design-system';
 import { CanvasSection } from './CanvasSection';
 import { GettingStartedSection } from './GettingStartedSection';
 import { ShortcutsSection } from './ShortcutsSection';
+import { SymbolsSection } from './SymbolsSection';
 
-type SectionId = 'shortcuts' | 'canvas' | 'guide';
+type SectionId = 'shortcuts' | 'canvas' | 'guide' | 'symbols';
 
 const SECTIONS: Array<{ id: SectionId; label: string }> = [
   { id: 'shortcuts', label: 'Keyboard shortcuts' },
   { id: 'canvas', label: 'Canvas' },
   { id: 'guide', label: 'Getting started' },
+  { id: 'symbols', label: 'Symbols' },
 ];
 
 const pageClass = css({ display: 'flex', flexDirection: 'column', height: 'full' });
@@ -87,6 +89,11 @@ export function SettingsPage({ onClose }: { onClose: () => void }) {
           <Tabs.Content value="guide" className={tabsClasses.content}>
             <div className={innerClass}>
               <GettingStartedSection />
+            </div>
+          </Tabs.Content>
+          <Tabs.Content value="symbols" className={tabsClasses.content}>
+            <div className={innerClass}>
+              <SymbolsSection />
             </div>
           </Tabs.Content>
         </main>
