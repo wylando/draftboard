@@ -3,8 +3,8 @@ import { createConnector, bendsMoveWith, dragSegment, repairConnectorData, shape
 import { editorReducer, initialEditorState } from './editorReducer';
 import { createGroup, createNode } from './nodes';
 import { segmentHitsBox } from './orthogonalRoute';
-import { byIdOf, normalizeTree } from './tree';
-import type { Box, ConnectorNode, DesignNode, Point, TableNode } from './types';
+import { byIdOf, normalizeTree, relatedToTables } from './tree';
+import type { Anchor, Box, ConnectorNode, DesignNode, Point, TableNode } from './types';
 
 const table = (box: Box, others: DesignNode[]) => createNode('table', box, others);
 const inflate = (b: Box, m: number): Box => ({ x: b.x - m, y: b.y - m, width: b.width + 2 * m, height: b.height + 2 * m });
@@ -612,3 +612,66 @@ describe('shaped routes avoiding tables', () => {
   });
 });
 
+describe('relatedToTables', () => {
+  const col = (t: DesignNode): Anchor => ({ kind: 'column', tableId: t.id, columnId: (t as TableNode).columns[0]!.id });
+  const node = (n: DesignNode): Anchor => ({ kind: 'node', nodeId: n.id });
+  const loose: Anchor = { kind: 'point', x: 900, y: 900 };
+  const sets = (r: { connectors: Set<string>; tables: Set<string> }) => ({ connectors: [...r.connectors].sort(), tables: [...r.tables].sort() });
+  const hide = (n: DesignNode): DesignNode => ({ ...n, visible: false });
+
+  it('relates a connector by a column end or a node end, and the table at its other end', () => {
+    const { a, b, mid } = scene();
+    const byId = byIdOf([a, b, mid]);
+    const viaColumn = createConnector(col(a), col(b), 'c1', byId);
+    const viaNode = createConnector(node(mid), node(a), 'c2', byId);
+    const all = byIdOf([a, b, mid, viaColumn, viaNode]);
+    expect(sets(relatedToTables([a.id], all))).toEqual({ connectors: [viaColumn.id, viaNode.id].sort(), tables: [b.id, mid.id].sort() });
+  });
+
+  it('ignores loose and broken point ends', () => {
+    const { a, b } = scene();
+    const byId = byIdOf([a, b]);
+    const looseEnd = createConnector(col(a), loose, 'c1', byId);
+    const brokenEnd = createConnector({ kind: 'point', x: 5, y: 5, broken: true }, node(b), 'c2', byId);
+    const all = byIdOf([a, b, looseEnd, brokenEnd]);
+    expect(sets(relatedToTables([a.id], all))).toEqual({ connectors: [looseEnd.id], tables: [] });
+  });
+
+  it('relates a connector whose other end is not a table, without adding that layer', () => {
+    const { a } = scene();
+    const rect = createNode('rect', { x: 300, y: 300, width: 50, height: 50 }, [a]);
+    const c = createConnector(node(a), node(rect), 'c1', byIdOf([a, rect]));
+    expect(sets(relatedToTables([a.id], byIdOf([a, rect, c])))).toEqual({ connectors: [c.id], tables: [] });
+  });
+
+  it('excludes hidden connectors and hidden neighbour tables', () => {
+    const { a, b, mid } = scene();
+    const byId = byIdOf([a, b, mid]);
+    const toB = createConnector(node(a), node(b), 'c1', byId);
+    const toMid = createConnector(node(a), node(mid), 'c2', byId);
+    const all = byIdOf([a, hide(b), mid, toB, hide(toMid)]);
+    expect(sets(relatedToTables([a.id], all))).toEqual({ connectors: [toB.id], tables: [] });
+  });
+
+  it('unions a multi-selection, and two linked focused tables yield the connector but no neighbours', () => {
+    const { a, b, mid } = scene();
+    const byId = byIdOf([a, b, mid]);
+    const ab = createConnector(node(a), node(b), 'c1', byId);
+    const bm = createConnector(node(b), node(mid), 'c2', byId);
+    const all = byIdOf([a, b, mid, ab, bm]);
+    expect(sets(relatedToTables([a.id, b.id], all))).toEqual({ connectors: [ab.id, bm.id].sort(), tables: [mid.id] });
+    expect(sets(relatedToTables([a.id, mid.id], byIdOf([a, b, mid, ab])))).toEqual({ connectors: [ab.id], tables: [b.id] });
+    expect(sets(relatedToTables([a.id, b.id], byIdOf([a, b, ab])))).toEqual({ connectors: [ab.id], tables: [] });
+  });
+
+  it('gives nothing for an empty selection, a connector or a group', () => {
+    const { a, b } = scene();
+    const g = createGroup(null, [a, b]);
+    const c = createConnector(node(a), node(b), 'c1', byIdOf([a, b]));
+    const all = byIdOf([a, b, g, c]);
+    const none = { connectors: [], tables: [] };
+    expect(sets(relatedToTables([], all))).toEqual(none);
+    expect(sets(relatedToTables([c.id], all))).toEqual(none);
+    expect(sets(relatedToTables([g.id], all))).toEqual(none);
+  });
+});
