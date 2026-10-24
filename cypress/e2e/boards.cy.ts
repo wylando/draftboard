@@ -24,6 +24,18 @@ describe('Boards', () => {
     cy.visitEmpty();
   });
 
+  it('sets the open tab darker than the top bar it sits on', () => {
+    // Sum of the RGB channels from a computed `rgb(r, g, b)` colour; enough to rank two greys.
+    const lightness = (el: Element) =>
+      (getComputedStyle(el).backgroundColor.match(/\d+/g) ?? []).slice(0, 3).reduce((sum, c) => sum + Number(c), 0);
+    activeTab('Board 1')
+      .parent()
+      .should(($tab) => {
+        const bar = $tab[0].ownerDocument.querySelector('[data-testid=toolbar]') as Element;
+        expect(lightness($tab[0]), 'open tab vs top bar').to.be.lessThan(lightness(bar));
+      });
+  });
+
   it('starts with one board, and a new board is empty and separate from the others', () => {
     activeTab('Board 1').should('not.have.attr', 'aria-controls');
     closeButton('Board 1').should('not.exist');

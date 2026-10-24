@@ -15,9 +15,11 @@ export const semanticTokens = defineSemanticTokens({
       brand: { value: '{colors.blue.500}' },
       brandHover: { value: '{colors.blue.600}' },
       toolbar: { value: '{colors.grey.900}' },
-      toolbarHover: { value: '{colors.grey.700}' },
-      /** Board tabs on the dark toolbar: the open one is raised, the rest sit back until hovered. */
-      tabActive: { value: '{colors.grey.700}' },
+      toolbarHover: { value: '{colors.grey.600}' },
+      /** The top bar sits a step lighter than the open board tab, which shares the tool dock's colour. */
+      topBar: { value: '{colors.grey.700}' },
+      /** Board tabs on the top bar: the open one is set darker, the rest sit back until hovered. */
+      tabActive: { value: '{colors.grey.900}' },
       tabHover: { value: '{colors.grey.800}' },
       canvas: { value: '{colors.grey.100}' },
       /** Dims the app behind a modal dialog. */

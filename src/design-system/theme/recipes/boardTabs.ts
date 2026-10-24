@@ -1,7 +1,7 @@
 import { defineSlotRecipe } from '@pandacss/dev';
 
 /**
- * Browser-style board tabs on the dark toolbar (Ark UI Tabs). The open tab is raised and sits on the
+ * Browser-style board tabs on the top bar (Ark UI Tabs). The open tab is set darker and sits on the
  * bar's bottom edge. The close button is a sibling of the trigger, so its slot sits beside it, not in it.
  * While a tab is renamed, `input` takes the trigger's place. While one is dragged, `[data-dragging]` raises it
  * and the others slide aside (their offsets are inline, per render).

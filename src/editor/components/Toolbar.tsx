@@ -18,7 +18,7 @@ const toolbarClass = css({
   justifyContent: 'space-between',
   height: 'toolbarHeight',
   paddingInline: '2',
-  bg: 'bg.toolbar',
+  bg: 'bg.topBar',
   color: 'text.onToolbar',
 });
 const groupClass = css({ display: 'flex', alignItems: 'center', gap: '1', flex: 'none' });

@@ -25,7 +25,7 @@ const headerClass = css({
   gap: '3',
   height: 'toolbarHeight',
   paddingInline: '2',
-  bg: 'bg.toolbar',
+  bg: 'bg.topBar',
   color: 'text.onToolbar',
 });
 const titleClass = css({ textStyle: 'body.largeStrong' });
