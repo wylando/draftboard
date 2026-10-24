@@ -338,9 +338,13 @@ describe('Schema import from SQL', () => {
     });
 
     it('pages a long list of guesses and moves focus to the first new one', () => {
+      // Short enough that the guesses overflow the dialog body.
+      cy.viewport(1000, 420);
       cy.get('[data-testid=import-schema]').click();
       cy.fixture('schema/many-guesses.sql').then((sql: string) => {
-        cy.get('[data-testid=schema-source]').type(sql, { delay: 0, parseSpecialCharSequences: false });
+        // Long names with no spaces to break at, as real schemas have; they used to widen the dialog body.
+        const long = sql.replace(/\bt(\d)/g, 'order_line_item_shipping_address_history_$1').replace(/\busers\b/g, 'customer_account_identifiers').replace(/\buser_id\b/g, 'customer_account_identifier_id');
+        cy.get('[data-testid=schema-source]').type(long, { delay: 0, parseSpecialCharSequences: false });
       });
       cy.contains('button', 'Preview').click();
       cy.contains('Guessed relationships (9)').should('be.visible');
@@ -349,6 +353,16 @@ describe('Schema import from SQL', () => {
       cy.get('[data-testid^=guess-][data-testid!=guess-group]').should('have.length', 9);
       box(8).should('have.focus');
       cy.contains('button', 'Show more').should('not.exist');
+      // overflow-y: auto makes the body scroll sideways too if anything inside is wider than it.
+      cy.get('[data-testid=dialog-body]').should(($b) => {
+        expect($b[0].scrollWidth, 'no horizontal scroll').to.be.lte($b[0].clientWidth);
+      });
+      // Focusing the new row must scroll only the body: anything escaping it would scroll the dialog away.
+      cy.get('[data-testid=dialog]').should(($d) => {
+        const positioner = $d[0].parentElement!;
+        expect(positioner.scrollHeight, 'nothing overflows the dialog').to.be.lte(positioner.clientHeight);
+        expect($d[0].getBoundingClientRect().top, 'dialog stays in view').to.be.gte(0);
+      });
     });
 
     it('adds only the ticked guesses, without a foreign key badge, and resets ticks on Back', () => {
@@ -379,5 +393,41 @@ describe('Schema import from SQL', () => {
     cy.get('[data-testid=schema-source]').type('rrr{backspace}').should('have.value', 'rr');
     cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'select');
     cy.get('[data-node-type=rect]').should('have.length', 1);
+  });
+
+  it('keeps the title and actions on screen when the preview is taller than the viewport', () => {
+    const HEIGHT = 420;
+    cy.viewport(1000, HEIGHT);
+    const sql = Array.from({ length: 12 }, (_, i) => `CREATE TABLE t_${i} (id int PRIMARY KEY);\nCREATE VIEW v_${i} AS SELECT 1;`).join('\n');
+    cy.get('[data-testid=import-schema]').click();
+    cy.get('[data-testid=schema-source]').type(sql, { delay: 0, parseSpecialCharSequences: false });
+    // Typing scrolls the body only if the viewport is short; scroll it explicitly so the next step
+    // would inherit a non-zero scrollTop if the body were reused.
+    cy.get('[data-testid=dialog-body]').then(($b) => {
+      expect($b[0].scrollHeight, 'step 1 scrolls').to.be.greaterThan($b[0].clientHeight);
+      $b[0].scrollTop = $b[0].scrollHeight;
+    });
+    cy.contains('button', 'Preview').click();
+    cy.get('[data-testid=import-summary]').should('exist');
+
+    cy.get('[data-testid=dialog-body]').should(($b) => {
+      expect($b[0].scrollHeight, 'preview scrolls').to.be.greaterThan($b[0].clientHeight);
+      expect($b[0].scrollTop, 'starts at the top').to.eq(0);
+    });
+    const within = ($el: JQuery<HTMLElement>) => {
+      const r = $el[0].getBoundingClientRect();
+      expect(r.top, 'top').to.be.gte(0);
+      expect(r.bottom, 'bottom').to.be.lte($el[0].ownerDocument.defaultView!.innerHeight);
+    };
+    // The body is the only scroll area; a list with its own scrollbar nested inside would trap the wheel.
+    cy.get('[data-testid=dialog-body] *:not(textarea)').should(($els) => {
+      const scrolling = $els.toArray().filter((el) => /auto|scroll/.test(getComputedStyle(el).overflowY));
+      expect(scrolling, 'nested scroll containers').to.have.length(0);
+    });
+    cy.get('[data-testid=dialog]').should(within);
+    cy.get('[data-testid=dialog] h2').should(within);
+    cy.get('[data-testid=import-summary]').should(within);
+    cy.get('[data-testid=import-add]').should(within).click();
+    cy.get('[data-node-type=table]').should('have.length', 12);
   });
 });

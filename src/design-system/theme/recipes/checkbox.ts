@@ -13,6 +13,7 @@ export const checkboxRecipe = defineSlotRecipe({
   base: {
     root: {
       display: 'inline-flex',
+      minWidth: '0',
       gap: '2',
       alignItems: 'center',
       cursor: 'pointer',
@@ -44,6 +45,9 @@ export const checkboxRecipe = defineSlotRecipe({
       '&[data-state=unchecked]': { visibility: 'hidden' },
     },
     label: {
+      minWidth: '0',
+      // Names like order_line_items.shipping_address_id have no space to break at.
+      overflowWrap: 'anywhere',
       textStyle: 'body.large',
     },
   },

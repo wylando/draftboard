@@ -55,7 +55,7 @@ const textareaClass = css({
   _focus: { outline: 'none', borderColor: 'border.selected', bg: 'bg' },
 });
 const summaryClass = css({ display: 'flex', gap: '3', textStyle: 'body.mediumStrong' });
-const listClass = css({ margin: '0', paddingInlineStart: '4', maxHeight: '[160px]', overflowY: 'auto' });
+const listClass = css({ margin: '0', paddingInlineStart: '4' });
 const countsClass = css({ display: 'flex', gap: '3' });
 const headingClass = css({ margin: '0', textStyle: 'body.mediumStrong' });
 const hintClass = css({ margin: '0', color: 'text.secondary' });
@@ -285,6 +285,7 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
       <Dialog
         open={open}
         onOpenChange={close}
+        bodyKey="source"
         title="Import schema"
         description="Paste SQL or DBML, or choose a .sql or .dbml file or SQLite database."
         actions={
@@ -368,6 +369,7 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
     <Dialog
       open={open}
       onOpenChange={close}
+      bodyKey="preview"
       title="Import schema"
       description="Add to canvas keeps your layers and renames clashing tables. Replace document loads only these tables, with their own names."
       actions={
