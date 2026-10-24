@@ -201,6 +201,31 @@ function simplify(points: Point[]): Point[] {
 }
 
 /**
+ * `simplify`, and then drops each point where the route runs out and back
+ * along one line, except beside the ends, where the turn-back is a stub's.
+ * The route keeps to lines it already ran along, so it hits nothing new.
+ */
+function unfold(points: Point[]): Point[] {
+  const out = simplify(points);
+  for (let k = 2; k < out.length - 2; ) {
+    const p = out[k - 1]!;
+    const q = out[k]!;
+    const r = out[k + 1]!;
+    const back = (p.x === q.x && q.x === r.x) || (p.y === q.y && q.y === r.y);
+    if (!back) {
+      k++;
+      continue;
+    }
+    out.splice(k, 1);
+    // `p` may now be in line with what came before it, or turn back there itself.
+    const merged = simplify(out);
+    out.splice(0, out.length, ...merged);
+    k = Math.max(2, k - 2);
+  }
+  return out;
+}
+
+/**
  * Two attached ends whose targets overlap sideways (stacked tables) would
  * otherwise face opposite sides and route back through both; they share the
  * side the first end picked instead.
@@ -242,6 +267,13 @@ export function visibleTables(byId: ReadonlyMap<string, DesignNode>): Box[] {
  * Searching every table makes a drag frame cost grow with the whole document.
  */
 const CORRIDOR_PADS = [4 * STUB, 16 * STUB, Infinity];
+
+/**
+ * A shaped leg a table blocks is only rerouted among nearby tables. Its ends
+ * are bends the user chose, which may be walled in, and searching every table
+ * to find that out costs ~100 ms per leg on each normalize.
+ */
+const SHAPED_PADS = CORRIDOR_PADS.slice(0, 2);
 
 /** Design choice: tried in order, so a tight gap costs clearance rather than forcing the route through tables. */
 const MARGINS = [ROUTE_MARGIN, 4, 0];
@@ -316,17 +348,79 @@ function reusable(route: readonly Point[], start: Point, s0: Side, end: Point, s
 }
 
 /**
+ * The best right-angled route from `start` (leaving along `s0`) to `end`
+ * (arriving against `s1`) around `tables`, or null: the margin ladder over the
+ * corridor tiers, preferring clearance unless it costs too much length.
+ * `baseLength` is what a route is compared with to judge it short enough.
+ */
+function searchLadder(start: Point, s0: Side, end: Point, s1: Side, tables: readonly Box[], baseLength: number, pads: readonly number[] = CORRIDOR_PADS): Point[] | null {
+  const tipA = { x: start.x + NORMAL[s0].x * STUB, y: start.y + NORMAL[s0].y * STUB };
+  const tipB = { x: end.x + NORMAL[s1].x * STUB, y: end.y + NORMAL[s1].y * STUB };
+  // A tip inside a table's margin cannot be left at that margin, and a search would only exhaust the grid to say so. A table an end sits on is never a cause: its stub tip is a full stub away.
+  const tipBlocked = (margin: number) =>
+    tables.some((o) => [tipA, tipB].some((t) => {
+      const box = inflateBox(o, margin);
+      return t.x > box.x && t.x < box.x + box.width && t.y > box.y && t.y < box.y + box.height;
+    }));
+  const searchAt = (margin: number): Point[] | null => {
+    if (tipBlocked(margin)) return null;
+    for (const pad of pads) {
+      const x1 = Math.min(tipA.x, tipB.x) - pad;
+      const y1 = Math.min(tipA.y, tipB.y) - pad;
+      const x2 = Math.max(tipA.x, tipB.x) + pad;
+      const y2 = Math.max(tipA.y, tipB.y) + pad;
+      const near: Box[] = [];
+      const far: Box[] = [];
+      for (const o of tables) (o.x < x2 && o.x + o.width > x1 && o.y < y2 && o.y + o.height > y1 ? near : far).push(o);
+      const route = routeAround(start, s0, end, s1, near, margin);
+      // Left-out tables are not in the search, so a route that strays into one is searched again with a wider corridor.
+      if (route && routeClear(route, far, margin)) return route;
+      if (far.length === 0) break;
+    }
+    return null;
+  };
+  let best: Point[] | null = null;
+  for (const margin of MARGINS) {
+    const route = searchAt(margin);
+    if (!route) continue;
+    if (best && routeLength(best) <= CLEARANCE_LENGTH_RATIO * routeLength(route)) break;
+    best = route;
+    if (routeLength(best) <= CLEARANCE_LENGTH_RATIO * baseLength) break;
+  }
+  return best;
+}
+
+/**
  * The route through the user's `bends`: out of `start` by a stub, through every
  * bend in order, into `end` by a stub. Two consecutive points that differ both
  * ways are joined by a corner: the one clear of the tables if either is, and
  * otherwise the one that keeps going the way the route was heading (and, for
- * the last leg, arrives the way the end's stub leaves). Bent legs are not
- * rerouted around tables.
+ * the last leg, arrives the way the end's stub leaves). Legs a table now
+ * blocks are detoured by `avoidTables`; the detour is never stored in `bends`.
+ * The outermost bends only fix where their segment runs: how far along it they
+ * sit was the end's position when the user dragged, so they slide to the end's
+ * stub tip as it moves, or a moved table would leave the old length hanging.
+ * A segment across the stub that the end has moved up to (within a stub of it)
+ * is pushed out to the tip, as a drag there would be held.
  */
-function shapedRoute(start: Point, s0: Side, end: Point, s1: Side, bends: readonly Point[], tables: readonly Box[]): Point[] {
+function shapeChain(start: Point, s0: Side, end: Point, s1: Side, bends: readonly Point[], tables: readonly Box[]): Point[] {
   const tipA = { x: start.x + NORMAL[s0].x * STUB, y: start.y + NORMAL[s0].y * STUB };
   const tipB = { x: end.x + NORMAL[s1].x * STUB, y: end.y + NORMAL[s1].y * STUB };
-  const waypoints = [tipA, ...bends, tipB];
+  const inner = bends.map((p) => ({ ...p }));
+  const slide = (outer: Point | undefined, next: Point | undefined, at: Point, side: Side, tip: Point) => {
+    if (!outer || !next) return;
+    const key = outer.x === next.x && outer.y !== next.y ? 'x' : outer.y === next.y && outer.x !== next.x ? 'y' : null;
+    if (!key) return;
+    const along = key === 'x' ? 'y' : 'x';
+    outer[along] = tip[along];
+    const depth = (outer[key] - at[key]) * NORMAL[side][key];
+    if (NORMAL[side][key] !== 0 && depth >= 0 && depth < STUB) outer[key] = next[key] = tip[key];
+  };
+  if (inner.length >= 2) {
+    slide(inner[0], inner[1], start, s0, tipA);
+    slide(inner[inner.length - 1], inner[inner.length - 2], end, s1, tipB);
+  }
+  const waypoints = [tipA, ...inner, tipB];
   const route: Point[] = [start, tipA];
   let heading = NORMAL[s0];
   waypoints.slice(1).forEach((q, i) => {
@@ -351,11 +445,106 @@ function shapedRoute(start: Point, s0: Side, end: Point, s1: Side, bends: readon
     heading = { x: Math.sign(q.x - prev.x), y: Math.sign(q.y - prev.y) };
   });
   route.push(end);
-  return simplify(route);
+  // A bend sitting on a stub tip repeats it, which would hide a turn-back from `turnOut`.
+  const distinct = route.filter((p, i) => i === 0 || p.x !== route[i - 1]!.x || p.y !== route[i - 1]!.y);
+  // The end's turn-out is the start's on the reversed chain.
+  const startTurned = turnOut(distinct, s0, tables);
+  const turned = [...turnOut([...startTurned].reverse(), s1, tables)].reverse();
+  return unfold(turned);
 }
 
-/** Design choice: the closest a dragged segment may come to the run beside it, so both stay visible and grabbable. */
-const SEGMENT_GAP = 8;
+/**
+ * The shaped route with the legs a table blocks routed around it. Known limit:
+ * a detour is searched against tables only, so it may cross the route's own
+ * unblocked legs.
+ */
+function shapedRoute(start: Point, s0: Side, end: Point, s1: Side, bends: readonly Point[], tables: readonly Box[]): Point[] {
+  return unfold(avoidTables(shapeChain(start, s0, end, s1, bends, tables), s0, s1, tables));
+}
+
+/** The side that points along (dx, dy), which must be axis-aligned; (0, 0) gives 'top'. */
+const sideOfDirection = (dx: number, dy: number): Side => (dx > 0 ? 'right' : dx < 0 ? 'left' : dy > 0 ? 'bottom' : 'top');
+
+/** How much of the right-angled segment p-q runs through the inside of `box`. */
+function lengthInside(p: Point, q: Point, box: Box): number {
+  if (p.y === q.y) return p.y > box.y && p.y < box.y + box.height ? Math.max(0, Math.min(Math.max(p.x, q.x), box.x + box.width) - Math.max(Math.min(p.x, q.x), box.x)) : 0;
+  return p.x > box.x && p.x < box.x + box.width ? Math.max(0, Math.min(Math.max(p.y, q.y), box.y + box.height) - Math.max(Math.min(p.y, q.y), box.y)) : 0;
+}
+
+/**
+ * If the second leg of `chain` (start, stub tip, next, ...) goes straight back
+ * the way the stub came, the route would double over itself; sidestep by a stub
+ * first (to the side that runs through the tables for less) so it leaves along the stub.
+ */
+function turnOut(chain: Point[], side: Side, tables: readonly Box[]): Point[] {
+  const [, tip, next] = chain;
+  if (!tip || !next) return chain;
+  const n = NORMAL[side];
+  if (Math.sign(next.x - tip.x) !== -n.x || Math.sign(next.y - tip.y) !== -n.y || (n.x === 0 && next.x !== tip.x) || (n.y === 0 && next.y !== tip.y)) return chain;
+  const across = (sign: number): Point[] => {
+    const off = { x: Math.abs(n.y) * sign * STUB, y: Math.abs(n.x) * sign * STUB };
+    return [{ x: tip.x + off.x, y: tip.y + off.y }, { x: next.x + off.x, y: next.y + off.y }];
+  };
+  const overlap = (corners: Point[]) =>
+    [tip, ...corners, next].reduce((sum, p, i, all) => (i === 0 ? 0 : sum + tables.reduce((inside, o) => inside + lengthInside(all[i - 1]!, p, o), 0)), 0);
+  const corners = overlap(across(1)) <= overlap(across(-1)) ? across(1) : across(-1);
+  return [chain[0]!, tip, ...corners, ...chain.slice(2)];
+}
+
+/**
+ * Replaces each run of legs that a table blocks with a route around it, from
+ * the run's first to its last point, leaving along the first leg and arriving
+ * along the last. The legs beside it keep their bends; where no way round is
+ * found the user's leg stays. A leg is blocked when it comes within
+ * `KEEP_MARGIN` of a table, or passes through the table an end sits on.
+ */
+function avoidTables(route: Point[], s0: Side, s1: Side, tables: readonly Box[]): Point[] {
+  const last = route.length - 1;
+  const blocked = route.slice(1).map((p, i) =>
+    tables.some((o) => segmentHitsBox(route[i]!, p, boxTouches(o, route[0]!) || boxTouches(o, route[last]!) ? o : inflateBox(o, KEEP_MARGIN))),
+  );
+  if (!blocked.includes(true)) return route;
+  const out: Point[] = [route[0]!];
+  const dir = (k: number) => ({ dx: Math.sign(route[k + 1]!.x - route[k]!.x), dy: Math.sign(route[k + 1]!.y - route[k]!.y) });
+  // `baseLength` is the user's own run: a detour is judged by how much longer than that it is.
+  const detourFor = (lo: number, hi: number) =>
+    searchLadder(
+      route[lo]!,
+      lo === 0 ? s0 : sideOfDirection(dir(lo).dx, dir(lo).dy),
+      route[hi + 1]!,
+      hi + 1 === last ? s1 : sideOfDirection(-dir(hi).dx, -dir(hi).dy),
+      tables,
+      routeLength(route.slice(lo, hi + 2)),
+      SHAPED_PADS,
+    );
+  let replacedTo = 0;
+  for (let i = 0; i < last; ) {
+    if (!blocked[i]) {
+      out.push(route[++i]!);
+      continue;
+    }
+    let j = i;
+    while (j + 1 < last && blocked[j + 1]) j++;
+    let lo = i;
+    let hi = j;
+    let detour = detourFor(lo, hi);
+    // A bend next to a table can leave the run with no room for a stub of its own: start from the points beside it, whose headings are real.
+    if (!detour && (i > replacedTo || j + 1 < last)) {
+      lo = i > replacedTo ? i - 1 : i;
+      hi = j + 1 < last ? j + 1 : j;
+      detour = detourFor(lo, hi);
+    }
+    if (detour) {
+      out.length -= i - lo;
+      out.push(...detour.slice(1));
+      i = replacedTo = hi + 1;
+    } else {
+      out.push(...route.slice(i + 1, j + 2));
+      i = replacedTo = j + 1;
+    }
+  }
+  return simplify(out);
+}
 
 /** Design choice: a shape needs a handful of corners; the cap only stops a damaged file making an enormous route. */
 const MAX_BENDS = 64;
@@ -367,8 +556,10 @@ const MAX_BENDS = 64;
  * dragged: the first and the last are attached to their tables and stay put
  * (the current bends come back unchanged). A segment next to an end can't be
  * dragged back closer than one stub to that end, so the stub keeps its length.
+ * It may cross the parallel runs beside it; landing within `snap` of one, it
+ * joins that run, so the jog between them is gone.
  */
-export function dragSegment(points: Point[], segment: number, delta: number): Point[] {
+export function dragSegment(points: Point[], segment: number, delta: number, snap: number): Point[] {
   const last = points.length - 1;
   const current = points.slice(1, last);
   if (segment < 1 || segment > last - 2) return current;
@@ -384,20 +575,15 @@ export function dragSegment(points: Point[], segment: number, delta: number): Po
     const room = Math.min(STUB, Math.abs(corner[key] - end[key]));
     if (side !== 0 && (to - end[key]) * side < room) to = end[key] + side * room;
   };
+  // A parallel run's coordinate is that of the corner next to the dragged segment.
+  const runs = [segment >= 2 ? points[segment - 1]![key] : null, segment + 2 <= last - 1 ? points[segment + 2]![key] : null];
+  const near = runs.filter((c): c is number => c !== null && Math.abs(c - to) <= snap).sort((m, n) => Math.abs(m - to) - Math.abs(n - to))[0];
+  if (near !== undefined) to = near;
   if (segment === 1) hold(points[0]!, a);
   if (segment === last - 2) hold(points[last]!, a);
-  // Nor onto the parallel run on either side (its coordinate is that of the corner next to it), which would fold the route into a spike.
-  const origin = a[key];
-  const keepApart = (other: number) => {
-    const side = Math.sign(origin - other);
-    const room = Math.min(SEGMENT_GAP, Math.abs(origin - other));
-    if (side !== 0 && (to - other) * side < room) to = other + side * room;
-  };
-  if (segment >= 2) keepApart(points[segment - 1]![key]);
-  if (segment + 2 <= last - 1) keepApart(points[segment + 2]![key]);
   a[key] = to;
   b[key] = to;
-  return simplify(moved).slice(1, -1);
+  return unfold(moved).slice(1, -1);
 }
 
 /** Design choice: out from each side by a stub, then right angles, ignoring everything else on the canvas. */
@@ -434,6 +620,66 @@ function elbow(startAt: Point, endAt: Point, s0: Side, s1: Side): Point[] {
   return simplify([startAt, a, ...middle, b, endAt]);
 }
 
+/**
+ * Design choice: an attached end whose stub would run into another table (one
+ * moved up against its side) leaves by another side of its own instead, the
+ * one facing the other end most, since no route can get out past that table. A
+ * column end has only its row's two edges. When every side is blocked, or the
+ * table in the way is one of the connector's own, the end keeps its side; so
+ * does an end inside a table stacked over its own, as a duplicate is.
+ */
+function clearSide(anchor: Anchor, end: { at: Point; side: Side | null }, toward: Point, own: ReadonlySet<Box>, tables: readonly Box[], byId: ReadonlyMap<string, DesignNode>) {
+  const t = target(anchor, byId);
+  if (!t || !end.side) return end;
+  // `buried`: an end under a table counts as blocked for a side to move to, though not for the side it has.
+  const blocked = (e: { at: Point; side: Side }, buried: boolean) => {
+    const tip = { x: e.at.x + NORMAL[e.side].x * STUB, y: e.at.y + NORMAL[e.side].y * STUB };
+    const covers = (o: Box) => e.at.x > o.x && e.at.x < o.x + o.width && e.at.y > o.y && e.at.y < o.y + o.height;
+    return tables.some((o) => !own.has(o) && (covers(o) ? buried : segmentHitsBox(e.at, tip, o)));
+  };
+  if (!blocked({ at: end.at, side: end.side }, false)) return end;
+  const { box } = t;
+  const c = boxCenter(box);
+  const y = t.rowY ?? c.y;
+  const sides: Array<{ at: Point; side: Side }> = [
+    { at: { x: box.x, y }, side: 'left' },
+    { at: { x: box.x + box.width, y }, side: 'right' },
+    ...(t.rowY === undefined ? ([{ at: { x: c.x, y: box.y }, side: 'top' }, { at: { x: c.x, y: box.y + box.height }, side: 'bottom' }] as const) : []),
+  ];
+  const facing = (e: { at: Point; side: Side }) => NORMAL[e.side].x * (toward.x - e.at.x) + NORMAL[e.side].y * (toward.y - e.at.y);
+  return sides.filter((e) => e.side !== end.side && !blocked(e, true)).sort((p, q) => facing(q) - facing(p))[0] ?? end;
+}
+
+/**
+ * Where a connector's two ends sit and which side each leaves by (a loose end
+ * picks the side facing the other). With `tables`, an end blocked by one of them
+ * moves to a clear side (`clearSide`).
+ */
+function routeEnds(from: Anchor, to: Anchor, byId: ReadonlyMap<string, DesignNode>, tables?: readonly Box[]): { start: Point; end: Point; s0: Side; s1: Side } {
+  let first = endpoint(from, aim(to, byId), byId);
+  let second = endpoint(to, aim(from, byId), byId);
+  const shared = sharedSide(from, to, first.side, second.side, byId);
+  if (shared) second = endpoint(to, first.at, byId, shared);
+  if (tables) {
+    const own = new Set<Box>([targetId(from), targetId(to)].flatMap((id) => (id ? (byId.get(id) ?? []) : [])));
+    first = clearSide(from, first, second.at, own, tables, byId);
+    second = clearSide(to, second, first.at, own, tables, byId);
+  }
+  return { start: first.at, end: second.at, s0: first.side ?? looseSide(first.at, second.at), s1: second.side ?? looseSide(second.at, first.at) };
+}
+
+/**
+ * The route the user shaped, before any detour round tables: what a segment
+ * drag has to start from, or the detour would be baked into the bends. A
+ * connector without bends (or a straight one) has no shape of its own, so this is its routed points.
+ */
+export function shapePoints(connector: ConnectorNode, byId: ReadonlyMap<string, DesignNode>): Point[] {
+  if (connector.routing !== 'orthogonal' || !connector.bends?.length) return connector.points;
+  const tables = visibleTables(byId);
+  const { start, end, s0, s1 } = routeEnds(connector.from, connector.to, byId, tables);
+  return shapeChain(start, s0, end, s1, connector.bends, tables);
+}
+
 /** The route from `from` to `to`: straight, or design choice: out from each side by a stub, then right angles, around tables in the way. */
 export function routeBetween(
   from: Anchor,
@@ -444,57 +690,21 @@ export function routeBetween(
   tables: readonly Box[] = visibleTables(byId),
   bends?: readonly Point[],
 ): Point[] {
-  const start = endpoint(from, aim(to, byId), byId);
-  let end = endpoint(to, aim(from, byId), byId);
-  const shared = sharedSide(from, to, start.side, end.side, byId);
-  if (shared) end = endpoint(to, start.at, byId, shared);
-  if (routing === 'straight') return [start.at, end.at];
-  const s0 = start.side ?? looseSide(start.at, end.at);
-  const s1 = end.side ?? looseSide(end.at, start.at);
-  if (bends && bends.length > 0) return shapedRoute(start.at, s0, end.at, s1, bends, tables);
-  const plain = elbow(start.at, end.at, s0, s1);
+  if (routing === 'straight') {
+    const { start, end } = routeEnds(from, to, byId);
+    return [start, end];
+  }
+  const { start, end, s0, s1 } = routeEnds(from, to, byId, tables);
+  if (bends && bends.length > 0) return shapedRoute(start, s0, end, s1, bends, tables);
+  const plain = elbow(start, end, s0, s1);
   if (routeClear(plain, tables, ROUTE_MARGIN)) return plain;
   // Keeping a still-valid detour stops the route flipping between equally good ones as unrelated tables move about.
-  if (previous && reusable(previous, start.at, s0, end.at, s1) && routeClear(previous, tables, KEEP_MARGIN)) {
+  if (previous && reusable(previous, start, s0, end, s1) && routeClear(previous, tables, KEEP_MARGIN)) {
     // A long detour stays only while it is about as short as the blockers allow; when one moves away a much shorter way appears and it is searched again.
     if (routeLength(previous) <= REUSE_LENGTH_RATIO * detourEstimate(plain, tables)) return [...previous];
   }
 
-  const tipA = { x: start.at.x + NORMAL[s0].x * STUB, y: start.at.y + NORMAL[s0].y * STUB };
-  const tipB = { x: end.at.x + NORMAL[s1].x * STUB, y: end.at.y + NORMAL[s1].y * STUB };
-  // A tip inside a table's margin cannot be left at that margin, and a search would only exhaust the grid to say so. A table an end sits on is never a cause: its stub tip is a full stub away.
-  const tipBlocked = (margin: number) =>
-    tables.some((o) => [tipA, tipB].some((t) => {
-      const box = inflateBox(o, margin);
-      return t.x > box.x && t.x < box.x + box.width && t.y > box.y && t.y < box.y + box.height;
-    }));
-  const plainLength = routeLength(plain);
-  const searchAt = (margin: number): Point[] | null => {
-    if (tipBlocked(margin)) return null;
-    for (const pad of CORRIDOR_PADS) {
-      const x1 = Math.min(tipA.x, tipB.x) - pad;
-      const y1 = Math.min(tipA.y, tipB.y) - pad;
-      const x2 = Math.max(tipA.x, tipB.x) + pad;
-      const y2 = Math.max(tipA.y, tipB.y) + pad;
-      const near: Box[] = [];
-      const far: Box[] = [];
-      for (const o of tables) (o.x < x2 && o.x + o.width > x1 && o.y < y2 && o.y + o.height > y1 ? near : far).push(o);
-      const route = routeAround(start.at, s0, end.at, s1, near, margin);
-      // Left-out tables are not in the search, so a route that strays into one is searched again with a wider corridor.
-      if (route && routeClear(route, far, margin)) return route;
-      if (far.length === 0) break;
-    }
-    return null;
-  };
-  let best: Point[] | null = null;
-  for (const margin of MARGINS) {
-    const route = searchAt(margin);
-    if (!route) continue;
-    if (best && routeLength(best) <= CLEARANCE_LENGTH_RATIO * routeLength(route)) break;
-    best = route;
-    if (routeLength(best) <= CLEARANCE_LENGTH_RATIO * plainLength) break;
-  }
-  return best ?? plain;
+  return searchLadder(start, s0, end, s1, tables, routeLength(plain)) ?? plain;
 }
 
 /**
@@ -553,12 +763,13 @@ export function bendsMoveWith(connector: ConnectorNode, movedIds: ReadonlySet<st
 /**
  * A connector's ends and bends after a move by (dx, dy): loose ends shift, as
  * `shiftLooseEnds` does, and the bends only when `moveBends` (see `bendsMoveWith`).
- * `bends` is left out when there are none.
+ * `bends` is left out unless they move: a patch that re-sent the old ones would
+ * bring back a shape the reducer dropped because an end moved.
  */
 export function shiftConnector(connector: ConnectorNode, dx: number, dy: number, moveBends: boolean): Pick<ConnectorNode, 'from' | 'to'> & { bends?: Point[] } {
   const ends = shiftLooseEnds(connector, dx, dy);
-  if (!connector.bends) return ends;
-  return { ...ends, bends: moveBends ? connector.bends.map((p) => ({ x: p.x + dx, y: p.y + dy })) : connector.bends };
+  if (!connector.bends || !moveBends) return ends;
+  return { ...ends, bends: connector.bends.map((p) => ({ x: p.x + dx, y: p.y + dy })) };
 }
 
 /** Whether two anchors attach to the same place. */

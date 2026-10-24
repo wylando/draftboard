@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { createConnector, bendsMoveWith, dragSegment, repairConnectorData, ROUTE_MARGIN, routeBetween, shiftConnector } from './connector';
+import { createConnector, bendsMoveWith, dragSegment, repairConnectorData, shapePoints, ROUTE_MARGIN, routeBetween, shiftConnector } from './connector';
 import { editorReducer, initialEditorState } from './editorReducer';
 import { createGroup, createNode } from './nodes';
 import { segmentHitsBox } from './orthogonalRoute';
 import { byIdOf, normalizeTree } from './tree';
-import type { Box, ConnectorNode, DesignNode, Point } from './types';
+import type { Box, ConnectorNode, DesignNode, Point, TableNode } from './types';
 
 const table = (box: Box, others: DesignNode[]) => createNode('table', box, others);
 const inflate = (b: Box, m: number): Box => ({ x: b.x - m, y: b.y - m, width: b.width + 2 * m, height: b.height + 2 * m });
+const rightAngledRoute = (route: Point[]) => route.slice(1).every((p, i) => (p.x === route[i]!.x) !== (p.y === route[i]!.y));
 const hits = (route: Point[], box: Box) => route.slice(1).some((p, i) => segmentHitsBox(route[i]!, p, box));
 
 function scene() {
@@ -252,6 +253,49 @@ describe('tight gaps and odd trees', () => {
     expect(routeBetween(from, to, 'orthogonal', byIdOf([a, b, group, inside]))).toEqual(flat(a, b));
   });
 
+  describe('a table pushed up against an end', () => {
+    // A column link from A's right edge to C's left edge, with B moved to 10 px right of A, across the `id` row.
+    const columns = () => {
+      const a = table({ x: 30, y: 100, width: 240, height: 64 }, []);
+      const c = table({ x: 690, y: 300, width: 240, height: 64 }, [a]);
+      const b = table({ x: 280, y: 120, width: 240, height: 64 }, [a, c]);
+      const column = (t: DesignNode) => ({ kind: 'column', tableId: t.id, columnId: (t as TableNode).columns[0]!.id }) as const;
+      return { a, b, c, from: column(a), to: column(c) };
+    };
+
+    it('leaves from the other side of its table instead of running through it', () => {
+      const { a, b, c, from, to } = columns();
+      const route = routeBetween(from, to, 'orthogonal', byIdOf([a, c, b]));
+      expect(route[0]).toEqual({ x: 30, y: 150 });
+      expect(hits(route, b)).toBe(false);
+    });
+
+    it('does so for a shaped route too, keeping the shape beyond it', () => {
+      const { a, b, c, from, to } = columns();
+      const route = routeBetween(from, to, 'orthogonal', byIdOf([a, c, b]), undefined, undefined, [{ x: 540, y: 150 }, { x: 540, y: 350 }]);
+      expect(route[0]).toEqual({ x: 30, y: 150 });
+      expect(hits(route, b)).toBe(false);
+      expect(route.slice(-2)).toEqual([{ x: 540, y: 350 }, { x: 690, y: 350 }]);
+    });
+
+    it('keeps its side when the other side is blocked too, even by a table lying over that side', () => {
+      const { a, b, c, from, to } = columns();
+      const left = table({ x: -230, y: 120, width: 240, height: 64 }, [a, b, c]);
+      expect(routeBetween(from, to, 'orthogonal', byIdOf([a, c, b, left]))[0]).toEqual({ x: 270, y: 150 });
+      const overLeft = { ...left, x: -100 };
+      expect(routeBetween(from, to, 'orthogonal', byIdOf([a, c, b, overLeft]))[0]).toEqual({ x: 270, y: 150 });
+    });
+
+    it('keeps its side when the table in the way is the other end, or lies over this end', () => {
+      const { a, b, c, from, to } = columns();
+      const near = { ...c, x: 280, y: 120 };
+      expect(routeBetween(from, to, 'orthogonal', byIdOf([a, near]))[0]).toEqual({ x: 270, y: 150 });
+      // Stacked over A's edge, as a duplicate 10 px on would be: the end is under it, not merely up against it.
+      const over = { ...b, x: 260 };
+      expect(routeBetween(from, to, 'orthogonal', byIdOf([a, c, over]))[0]).toEqual({ x: 270, y: 150 });
+    });
+  });
+
   it('terminates on a parent cycle', () => {
     const { a, b, mid } = scene();
     const x = { ...mid, id: 'x', parentId: 'y' };
@@ -300,34 +344,113 @@ describe('shaped routes', () => {
   describe('dragSegment', () => {
     it('moves exactly the dragged segment sideways', () => {
       const { a, b, from, to } = ends();
-      const next = dragSegment(shaped, 2, -40);
+      const next = dragSegment(shaped, 2, -40, 0);
       const route = routeBetween(from, to, 'orthogonal', byIdOf([a, b]), undefined, undefined, next);
       expect(route).toEqual([{ x: 100, y: 32 }, { x: 300, y: 32 }, { x: 300, y: -140 }, { x: 500, y: -140 }, { x: 500, y: 32 }, { x: 700, y: 32 }]);
     });
 
     it('moves a vertical segment along x', () => {
-      expect(dragSegment(shaped, 1, 60)).toEqual([{ x: 360, y: 32 }, { x: 360, y: -100 }, { x: 500, y: -100 }, { x: 500, y: 32 }]);
+      expect(dragSegment(shaped, 1, 60, 0)).toEqual([{ x: 360, y: 32 }, { x: 360, y: -100 }, { x: 500, y: -100 }, { x: 500, y: 32 }]);
     });
 
     it('leaves the bends as they are for the first and last segments, which are attached to the tables', () => {
-      expect(dragSegment(shaped, 0, 20)).toEqual(bends);
-      expect(dragSegment(shaped, shaped.length - 2, 20)).toEqual(bends);
+      expect(dragSegment(shaped, 0, 20, 0)).toEqual(bends);
+      expect(dragSegment(shaped, shaped.length - 2, 20, 0)).toEqual(bends);
     });
 
     it('will not drag a segment back past its end stub', () => {
-      expect(dragSegment(shaped, 1, -250)[0]).toEqual({ x: 124, y: 32 });
+      expect(dragSegment(shaped, 1, -250, 0)[0]).toEqual({ x: 124, y: 32 });
     });
 
-    it('stops short of a neighbouring parallel segment instead of folding onto it', () => {
-      // Segment 2 runs along y -100 between two runs at y 32 (the attached first and last legs).
-      for (const delta of [132, 500]) expect(dragSegment(shaped, 2, delta)[1]!.y).toBe(24);
-    });
-
-    it('stops short of the runs on both sides of an inner segment', () => {
+    it('moves past the parallel runs beside it', () => {
       const stairs = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 50 }, { x: 200, y: 50 }, { x: 200, y: 100 }, { x: 300, y: 100 }, { x: 300, y: 150 }, { x: 400, y: 150 }];
-      expect(dragSegment(stairs, 3, 500).find((p) => p.y === 50 && p.x !== 100)!.x).toBe(292);
-      expect(dragSegment(stairs, 3, -500).find((p) => p.y === 50 && p.x !== 100)!.x).toBe(108);
-      expect(dragSegment(stairs, 3, 50).find((p) => p.y === 50 && p.x !== 100)!.x).toBe(250);
+      expect(dragSegment(stairs, 3, 150, 0)).toEqual([{ x: 100, y: 0 }, { x: 100, y: 50 }, { x: 350, y: 50 }, { x: 350, y: 100 }, { x: 300, y: 100 }, { x: 300, y: 150 }]);
+      expect(dragSegment(stairs, 3, -150, 0)).toEqual([{ x: 100, y: 0 }, { x: 100, y: 50 }, { x: 50, y: 50 }, { x: 50, y: 100 }, { x: 300, y: 100 }, { x: 300, y: 150 }]);
+    });
+
+    it('merges a jog into one segment when dragged onto the run beside it, snapping within the distance given', () => {
+      const stairs = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 50 }, { x: 200, y: 50 }, { x: 200, y: 100 }, { x: 300, y: 100 }, { x: 300, y: 150 }, { x: 400, y: 150 }];
+      const merged = [{ x: 100, y: 0 }, { x: 100, y: 50 }, { x: 300, y: 50 }, { x: 300, y: 150 }];
+      expect(dragSegment(stairs, 2, 50, 0)).toEqual([{ x: 100, y: 0 }, { x: 100, y: 100 }, { x: 300, y: 100 }, { x: 300, y: 150 }]);
+      expect(dragSegment(stairs, 3, 100, 0)).toEqual(merged);
+      expect(dragSegment(stairs, 3, 95, 6)).toEqual(merged);
+      expect(dragSegment(stairs, 3, 90, 6)).not.toEqual(merged);
+    });
+
+    it('drops the spike left when a jog merges into a run going back the other way', () => {
+      const hook = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 200, y: 100 }, { x: 200, y: 50 }, { x: 150, y: 50 }, { x: 150, y: 200 }, { x: 300, y: 200 }];
+      expect(dragSegment(hook, 4, 50, 0)).toEqual([{ x: 100, y: 0 }, { x: 100, y: 100 }, { x: 150, y: 100 }, { x: 150, y: 200 }]);
+    });
+
+    it('folds a loop flat into one run when its far side is dragged onto the near one', () => {
+      // Segment 2 runs along y -100 between two runs at y 32: dragged down onto them, the loop is gone.
+      expect(dragSegment(shaped, 2, 130, 6)).toEqual([]);
+      const { a, b, from, to } = ends();
+      expect(routeBetween(from, to, 'orthogonal', byIdOf([a, b]), undefined, undefined, dragSegment(shaped, 2, 132, 0))).toEqual(flat(a, b));
+    });
+  });
+
+  describe('after a segment drag, an end table moves', () => {
+    // A right of B's left side: the drag moved the middle segment from x 250 to x 350.
+    const setup = () => {
+      const a = table({ x: 0, y: 0, width: 100, height: 64 }, []);
+      const b = table({ x: 400, y: 200, width: 100, height: 64 }, [a]);
+      const from = { kind: 'node', nodeId: a.id } as const;
+      const to = { kind: 'node', nodeId: b.id } as const;
+      const bends = dragSegment(routeBetween(from, to, 'orthogonal', byIdOf([a, b])), 1, 100, 0);
+      return { a, b, from, to, bends, route: (moved: DesignNode, shape = bends) => routeBetween(from, to, 'orthogonal', byIdOf([a, moved]), undefined, undefined, shape) };
+    };
+    const reversesInside = (route: Point[]) =>
+      route.slice(2, -2).some((q, k) => {
+        const p = route[k + 1]!;
+        const r = route[k + 3]!;
+        const inLine = (p.x === q.x && q.x === r.x) || (p.y === q.y && q.y === r.y);
+        return inLine && (Math.sign(q.x - p.x) === -Math.sign(r.x - q.x) && Math.sign(q.y - p.y) === -Math.sign(r.y - q.y));
+      });
+
+    it('shortens the dragged segment to meet the table where it is now', () => {
+      const { b, bends, route } = setup();
+      expect(bends).toEqual([{ x: 350, y: 32 }, { x: 350, y: 232 }]);
+      expect(route({ ...b, y: 100 })).toEqual([{ x: 100, y: 32 }, { x: 350, y: 32 }, { x: 350, y: 132 }, { x: 400, y: 132 }]);
+      expect(route({ ...b, y: -100 })).toEqual([{ x: 100, y: 32 }, { x: 350, y: 32 }, { x: 350, y: -68 }, { x: 400, y: -68 }]);
+    });
+
+    it('never runs back over itself, wherever either table goes', () => {
+      const { a, b, from, to, bends, route } = setup();
+      const startMoved = (moved: DesignNode) => routeBetween(from, to, 'orthogonal', byIdOf([moved, b]), undefined, undefined, bends);
+      for (let x = 150; x <= 700; x += 25)
+        for (let y = -200; y <= 400; y += 25)
+          for (const r of [route({ ...b, x, y }), startMoved({ ...a, x: x - 400, y: y - 200 })]) {
+            expect(rightAngledRoute(r), `${x},${y}`).toBe(true);
+            expect(reversesInside(r), `${x},${y} ${JSON.stringify(r)}`).toBe(false);
+          }
+    });
+
+    it('arrives along its stub when a sliding bend lands on the stub tip', () => {
+      const a = table({ x: 0, y: 0, width: 100, height: 64 }, []);
+      const b = table({ x: 131, y: 44, width: 100, height: 64 }, [a]);
+      // The last bend slides to B's stub tip (107, 76) and repeats it; the route must still turn out rather than run back over the stub.
+      const route = routeBetween({ kind: 'node', nodeId: a.id }, { kind: 'node', nodeId: b.id }, 'orthogonal', byIdOf([a, b]), undefined, undefined, [{ x: 50, y: 76 }, { x: 92, y: 76 }]);
+      expect(route).toEqual([{ x: 100, y: 32 }, { x: 124, y: 32 }, { x: 124, y: 100 }, { x: 107, y: 100 }, { x: 107, y: 76 }, { x: 131, y: 76 }]);
+    });
+
+    it('moves a segment left on an end stub out to the stub tip instead of stepping round it', () => {
+      const a = table({ x: 60, y: 40, width: 100, height: 64 }, []);
+      const b = table({ x: 20, y: 250, width: 100, height: 64 }, [a]);
+      const from = { kind: 'node', nodeId: a.id } as const;
+      const to = { kind: 'node', nodeId: b.id } as const;
+      // As far toward B as the stub allows: 24 px above B's top.
+      const bends = dragSegment(routeBetween(from, to, 'orthogonal', byIdOf([a, b])), 1, 60, 0);
+      expect(bends).toEqual([{ x: 110, y: 226 }, { x: 70, y: 226 }]);
+      const route = routeBetween(from, to, 'orthogonal', byIdOf([a, { ...b, y: 245 }]), undefined, undefined, bends);
+      expect(route).toEqual([{ x: 110, y: 104 }, { x: 110, y: 221 }, { x: 70, y: 221 }, { x: 70, y: 245 }]);
+    });
+
+    it('returns to the same route when the table moves back after a second drag', () => {
+      const { b, route } = setup();
+      const away = { ...b, y: 100 };
+      const again = dragSegment(route(away), 1, 20, 0);
+      expect(route(b, again)).toEqual([{ x: 100, y: 32 }, { x: 370, y: 32 }, { x: 370, y: 232 }, { x: 400, y: 232 }]);
     });
   });
 
@@ -357,7 +480,7 @@ describe('shaped routes', () => {
     const c: ConnectorNode = { ...link(a, b, byIdOf([a, b])), to: { kind: 'point', x: 5, y: 6 }, bends };
     const moved = bends.map((p) => ({ x: p.x + 1, y: p.y + 2 }));
     expect(shiftConnector(c, 1, 2, true)).toEqual({ from: c.from, to: { kind: 'point', x: 6, y: 8 }, bends: moved });
-    expect(shiftConnector(c, 1, 2, false).bends).toBe(bends);
+    expect(shiftConnector(c, 1, 2, false)).not.toHaveProperty('bends');
     expect(shiftConnector({ ...c, bends: undefined }, 1, 2, true)).not.toHaveProperty('bends');
   });
 
@@ -369,3 +492,123 @@ describe('shaped routes', () => {
     }
   });
 });
+
+describe('shaped routes avoiding tables', () => {
+  const ends = () => {
+    const a = table({ x: 0, y: 0, width: 100, height: 64 }, []);
+    const b = table({ x: 700, y: 0, width: 100, height: 64 }, [a]);
+    return { a, b, from: { kind: 'node', nodeId: a.id } as const, to: { kind: 'node', nodeId: b.id } as const };
+  };
+  const bends: Point[] = [{ x: 300, y: 32 }, { x: 300, y: -100 }, { x: 500, y: -100 }, { x: 500, y: 32 }];
+  const shapedRoute = [{ x: 100, y: 32 }, ...bends, { x: 700, y: 32 }];
+  const route = (tables: DesignNode[]) => {
+    const [a, b] = [tables[0]!, tables[1]!];
+    return routeBetween({ kind: 'node', nodeId: a.id }, { kind: 'node', nodeId: b.id }, 'orthogonal', byIdOf(tables), undefined, undefined, bends);
+  };
+  const doublesBack = (r: Point[]) =>
+    r.slice(2).some((p, i) => {
+      const a = r[i]!;
+      const b = r[i + 1]!;
+      return (a.y === b.y && b.y === p.y && (b.x - a.x) * (p.x - b.x) < 0) || (a.x === b.x && b.x === p.x && (b.y - a.y) * (p.y - b.y) < 0);
+    });
+
+  it('goes round a table that now sits on one of its segments, keeping its other bends', () => {
+    const { a, b } = ends();
+    const blocker = wall(350, -130, 100, 60, [a, b]);
+    const r = route([a, b, blocker]);
+    expect(hits(r, blocker)).toBe(false);
+    expect(r).toContainEqual({ x: 300, y: 32 });
+    expect(r).toContainEqual({ x: 500, y: 32 });
+    expect(r).not.toEqual(shapedRoute);
+  });
+
+  it('returns to exactly the shape once the table has moved away', () => {
+    const { a, b } = ends();
+    const blocker = wall(350, -130, 100, 60, [a, b]);
+    expect(route([a, b, { ...blocker, y: 400 }])).toEqual(shapedRoute);
+  });
+
+  it('turns out along its stub when the end table has moved past the first bend', () => {
+    const { a, b } = ends();
+    const moved = { ...a, x: 400 };
+    const r = route([moved, b]);
+    expect(hits(r, moved)).toBe(false);
+    expect(doublesBack(r)).toBe(false);
+    expect(r[0]).toEqual({ x: 500, y: 32 });
+  });
+
+  it('keeps the shaped leg when no way round is found', () => {
+    const { a, b } = ends();
+    // A closed ring round A, beyond its stubs: the first leg must cross it, and nothing gets out.
+    const ring = [wall(-60, -60, 220, 10, [a, b]), wall(-60, 114, 220, 10, [a, b]), wall(-60, -60, 10, 184, [a, b]), wall(150, -60, 10, 184, [a, b])];
+    expect(route([a, b, ...ring])).toEqual(shapedRoute);
+  });
+
+  it('drags 30 shaped connectors across 100 jittered tables within a frame', () => {
+    const nodes = normalizeTree(jitteredSchema(100, 100));
+    const routed = nodes.filter((n): n is ConnectorNode => n.type === 'connector').slice(0, 30);
+    const shaped = new Map(routed.map((c) => [c.id, c.points.slice(1, -1)]));
+    let state = normalizeTree(nodes.map((n) => (shaped.has(n.id) ? { ...n, bends: shaped.get(n.id)! } : n)));
+    const hub = state[50]!.id;
+    const times: number[] = [];
+    for (let i = 0; i < 20; i++) {
+      const moved = state.map((n) => (n.id === hub ? { ...n, x: n.x + 40, y: n.y + 15 } : n));
+      const t0 = performance.now();
+      state = normalizeTree(moved);
+      times.push(performance.now() - t0);
+    }
+    expect(times.reduce((sum, t) => sum + t, 0) / times.length).toBeLessThan(16);
+  });
+
+  it('hands the shape, not the detour, to a segment drag', () => {
+    const { a, b } = ends();
+    const blocker = wall(350, -130, 100, 60, [a, b]);
+    const byId = byIdOf([a, b, blocker]);
+    const shaped: ConnectorNode = { ...link(a, b, byId), routing: 'orthogonal', bends };
+    const detour = route([a, b, blocker]);
+    expect(detour).not.toEqual(shapedRoute);
+    expect(shapePoints(shaped, byId)).toEqual(shapedRoute);
+    expect(dragSegment(shapePoints(shaped, byId), 2, -40, 0)).toEqual(dragSegment(shapedRoute, 2, -40, 0));
+    expect(dragSegment(detour, 2, -40, 0)).not.toEqual(dragSegment(shapedRoute, 2, -40, 0));
+    const plain = link(a, b, byIdOf([a, b]));
+    expect(shapePoints({ ...plain, points: shapedRoute }, byId)).toEqual(shapedRoute);
+  });
+
+  it('searches again from the neighbouring points when a bend is hemmed in by its own table', () => {
+    const { a, b } = ends();
+    const moved = { ...a, x: 225, y: 50 };
+    const r = routeBetween({ kind: 'node', nodeId: a.id }, { kind: 'node', nodeId: b.id }, 'orthogonal', byIdOf([moved, b]), undefined, undefined, [{ x: 300, y: 32 }, { x: 300, y: 232 }]);
+    expect(hits(r, moved)).toBe(false);
+  });
+
+  it('sidesteps its stub on the side that crosses the tables least', () => {
+    const { a, b } = ends();
+    const across = wall(-90, 46, 300, 20, [a, b]);
+    const r = routeBetween({ kind: 'node', nodeId: a.id }, { kind: 'node', nodeId: b.id }, 'orthogonal', byIdOf([a, b, across]), undefined, undefined, [{ x: -81, y: 32 }]);
+    expect(r).toContainEqual({ x: 124, y: 8 });
+    expect(doublesBack(r)).toBe(false);
+  });
+
+  it('gives up fast on shaped legs it cannot get round', () => {
+    // A closed ring of tables with two bends inside it, among a hundred other tables: the legs in from outside have no way round,
+    // and a search over every table to find that out is what this must not do.
+    const tables: DesignNode[] = jitteredSchema(100, 0);
+    const place = (x: number, y: number) => tables.push(table({ x: x + 4000, y, width: 240, height: 64 }, tables));
+    place(-600, 968);
+    place(2000, 968);
+    const [p, q] = tables.slice(-2);
+    for (const x of [760, 1000, 1240]) for (const y of [850, 1086]) place(x, y);
+    for (const x of [760, 1240]) for (const y of [914, 970, 1022]) place(x, y);
+    const byId = byIdOf(tables);
+    const links = Array.from({ length: 10 }, (_, i) => ({
+      ...createConnector({ kind: 'node', nodeId: p!.id }, { kind: 'node', nodeId: q!.id }, `l${i}`, byId),
+      bends: [{ x: 5120, y: 1000 }, { x: 5120, y: 1040 }],
+    }));
+    const nodes = [...tables, ...links];
+    normalizeTree(nodes);
+    const t0 = performance.now();
+    normalizeTree(nodes);
+    expect(performance.now() - t0).toBeLessThan(50);
+  });
+});
+

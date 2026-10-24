@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createConnector } from './connector';
+import { createConnector, shiftConnector } from './connector';
 import { editorReducer, initialEditorState } from './editorReducer';
 import { createNode } from './nodes';
 import type { ConnectorNode, DesignNode, TableNode } from './types';
@@ -177,10 +177,12 @@ describe('connector bends', () => {
       expect(connectorOf(s, link.id).bends).toEqual(shifted(10, 20));
     });
 
-    it('leaves the bends where they were when the connector moves with only one of its tables', () => {
+    it('drops the shape when the connector moves with only one of its tables, routing it afresh', () => {
       const { link, a, shaped } = shapedSeed();
       const s = editorReducer({ ...shaped, selection: [a.id, link.id] }, { type: 'nudgeSelection', dx: 10, dy: 20 });
-      expect(connectorOf(s, link.id).bends).toEqual(bends);
+      expect('bends' in connectorOf(s, link.id)).toBe(false);
+      const automatic = editorReducer(initialEditorState(s.nodes.map((n) => (n.id === link.id ? { ...n, points: [] } : n))), { type: 'checkpoint' });
+      expect(connectorOf(s, link.id).points).toEqual(connectorOf(automatic, link.id).points);
     });
 
     it('nudges a connector with both ends loose, only when it is selected', () => {
@@ -191,9 +193,38 @@ describe('connector bends', () => {
       expect(connectorOf(editorReducer({ ...loose, selection: [other.id] }, { type: 'nudgeSelection', dx: 10, dy: 20 }), link.id).bends).toEqual(bends);
     });
 
-    it('leaves the bends where they were when only one table moves', () => {
+    it('drops the shape when one of its tables moves, by a nudge or a drag, and undo brings it back', () => {
+      const { link, a, b, shaped } = shapedSeed();
+      expect('bends' in connectorOf(editorReducer({ ...shaped, selection: [a.id] }, { type: 'nudgeSelection', dx: 10, dy: 20 }), link.id)).toBe(false);
+      const dragged = editorReducer(editorReducer(shaped, { type: 'checkpoint' }), { type: 'updateNodes', patches: { [b.id]: { y: 200 } } });
+      expect('bends' in connectorOf(dragged, link.id)).toBe(false);
+      expect(connectorOf(editorReducer(dragged, { type: 'undo' }), link.id).bends).toEqual(bends);
+    });
+
+    it('stays dropped through every frame of a drag that moves the connector with one of its tables', () => {
       const { link, a, shaped } = shapedSeed();
-      const s = editorReducer({ ...shaped, selection: [a.id] }, { type: 'nudgeSelection', dx: 10, dy: 20 });
+      const start = connectorOf(shaped, link.id);
+      let s = editorReducer(shaped, { type: 'checkpoint' });
+      // What the move gesture sends each frame for a selected connector whose shape doesn't travel.
+      for (let frame = 1; frame <= 4; frame++) {
+        s = editorReducer(s, { type: 'updateNodes', patches: { [a.id]: { x: a.x + 10 * frame }, [link.id]: shiftConnector(start, 10 * frame, 0, false) } });
+        expect('bends' in connectorOf(s, link.id), `frame ${frame}`).toBe(false);
+      }
+    });
+
+    it('carries the shape along when a frame holding both its tables moves', () => {
+      const { link, a, b, shaped } = shapedSeed();
+      const frame = { ...createNode('frame', { x: -50, y: -200, width: 1000, height: 400 }, shaped.nodes), parentId: null };
+      const inside = shaped.nodes.map((n) => (n.id === a.id || n.id === b.id ? { ...n, parentId: frame.id } : n));
+      const s0 = editorReducer(initialEditorState([frame, ...inside]), { type: 'setConnectorBends', id: link.id, bends });
+      const s = editorReducer(s0, { type: 'transformNode', id: frame.id, box: { x: -40, y: -170 } });
+      expect(connectorOf(s, link.id).bends).toEqual(shifted(10, 30));
+    });
+
+    it('keeps the shape when a table it is not attached to moves', () => {
+      const { link, shaped } = shapedSeed();
+      const other = createNode('table', { x: 300, y: 400, width: 100, height: 64 }, shaped.nodes);
+      const s = editorReducer(initialEditorState([...shaped.nodes, other]), { type: 'updateNodes', patches: { [other.id]: { y: -140 } } });
       expect(connectorOf(s, link.id).bends).toEqual(bends);
     });
 

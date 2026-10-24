@@ -1,5 +1,8 @@
 import { boxCenter, HANDLES, rotatedBounds, rotatePoint, unionBoxes, worldToScreen } from '../geometry';
 import type { Guides, SnapGuide, Span } from '../geometry';
+import { useEditor } from '../EditorContext';
+import { shapePoints } from '../model/connector';
+import { byIdOf } from '../model/tree';
 import { TABLE_ROW_HEIGHT, tableRowTop, type RowDrop } from '../model/table';
 import type { Box, DesignNode, Point, Viewport } from '../model/types';
 import { css } from 'styled-system/css';
@@ -136,6 +139,9 @@ export function SelectionOverlay({
   const single = selected.length === 1 && selected[0]?.type !== 'connector' ? selected[0] : undefined;
   const toScreen = (points: Point[]) => points.map((p) => worldToScreen(p, viewport)).map((p) => `${p.x},${p.y}`).join(' ');
   const connector = selected.length === 1 && selected[0]?.type === 'connector' ? selected[0] : undefined;
+  const { state } = useEditor();
+  // Handles sit on the user's shape, not on a detour round a table, so dragging one can't bake the detour into the bends.
+  const shape = connector ? shapePoints(connector, byIdOf(state.nodes)) : [];
   const table = single?.type === 'table' ? single : undefined;
   const rowTop = (i: number) => (table ? tableRowTop(table, i) : 0);
   // Zoomed out, a full-size grip would reach into the neighbouring rows' grips; far out, rows are too thin to grab.
@@ -300,9 +306,9 @@ export function SelectionOverlay({
         !hideHandles &&
         connector.routing === 'orthogonal' &&
         // Interior segments only: the first and last are attached to their tables.
-        connector.points.slice(1, -2).map((a, k) => {
+        shape.slice(1, -2).map((a, k) => {
           const i = k + 1;
-          const b = connector.points[i + 1];
+          const b = shape[i + 1];
           if (!b) return null;
           const vertical = a.x === b.x;
           const mid = worldToScreen({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, viewport);
