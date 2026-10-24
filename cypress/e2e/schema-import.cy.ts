@@ -380,4 +380,35 @@ describe('Schema import from SQL', () => {
     cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'select');
     cy.get('[data-node-type=rect]').should('have.length', 1);
   });
+
+  it('keeps the title and actions on screen when the preview is taller than the viewport', () => {
+    const HEIGHT = 420;
+    cy.viewport(1000, HEIGHT);
+    const sql = Array.from({ length: 12 }, (_, i) => `CREATE TABLE t_${i} (id int PRIMARY KEY);\nCREATE VIEW v_${i} AS SELECT 1;`).join('\n');
+    cy.get('[data-testid=import-schema]').click();
+    cy.get('[data-testid=schema-source]').type(sql, { delay: 0, parseSpecialCharSequences: false });
+    // Typing scrolls the body only if the viewport is short; scroll it explicitly so the next step
+    // would inherit a non-zero scrollTop if the body were reused.
+    cy.get('[data-testid=dialog-body]').then(($b) => {
+      expect($b[0].scrollHeight, 'step 1 scrolls').to.be.greaterThan($b[0].clientHeight);
+      $b[0].scrollTop = $b[0].scrollHeight;
+    });
+    cy.contains('button', 'Preview').click();
+    cy.get('[data-testid=import-summary]').should('exist');
+
+    cy.get('[data-testid=dialog-body]').should(($b) => {
+      expect($b[0].scrollHeight, 'preview scrolls').to.be.greaterThan($b[0].clientHeight);
+      expect($b[0].scrollTop, 'starts at the top').to.eq(0);
+    });
+    const within = ($el: JQuery<HTMLElement>) => {
+      const r = $el[0].getBoundingClientRect();
+      expect(r.top, 'top').to.be.gte(0);
+      expect(r.bottom, 'bottom').to.be.lte($el[0].ownerDocument.defaultView!.innerHeight);
+    };
+    cy.get('[data-testid=dialog]').should(within);
+    cy.get('[data-testid=dialog] h2').should(within);
+    cy.get('[data-testid=import-summary]').should(within);
+    cy.get('[data-testid=import-add]').should(within).click();
+    cy.get('[data-node-type=table]').should('have.length', 12);
+  });
 });

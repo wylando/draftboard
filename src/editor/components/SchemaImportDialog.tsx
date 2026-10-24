@@ -285,6 +285,7 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
       <Dialog
         open={open}
         onOpenChange={close}
+        bodyKey="source"
         title="Import schema"
         description="Paste SQL or DBML, or choose a .sql or .dbml file or SQLite database."
         actions={
@@ -368,6 +369,7 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
     <Dialog
       open={open}
       onOpenChange={close}
+      bodyKey="preview"
       title="Import schema"
       description="Add to canvas keeps your layers and renames clashing tables. Replace document loads only these tables, with their own names."
       actions={

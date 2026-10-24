@@ -1,6 +1,6 @@
 import { Dialog as ArkDialog } from '@ark-ui/react/dialog';
 import { Portal } from '@ark-ui/react/portal';
-import { createContext, useContext, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, type Key, type ReactNode } from 'react';
 import { dialog } from 'styled-system/recipes';
 
 const classes = dialog();
@@ -20,6 +20,8 @@ export interface DialogProps {
   role?: 'dialog' | 'alertdialog';
   /** Body content between the description and the actions. */
   children?: ReactNode;
+  /** Changing it starts the body at the top, so a dialog that swaps steps doesn't keep the old scroll position. */
+  bodyKey?: Key;
   /** Buttons along the bottom. Wrap the dismissing one in `<DialogClose asChild>`. */
   actions?: ReactNode;
 }
@@ -29,7 +31,7 @@ export interface DialogProps {
  * `onOpenChange(false)`; focus is trapped inside and returns to where it was.
  * For a plain alert or yes/no question, use `useDialogs()` instead.
  */
-export function Dialog({ open, onOpenChange, title, description, role = 'dialog', children, actions }: DialogProps) {
+export function Dialog({ open, onOpenChange, title, description, role = 'dialog', children, bodyKey, actions }: DialogProps) {
   const track = useContext(OpenDialogTracker);
   useEffect(() => {
     if (!open || !track) return;
@@ -48,7 +50,7 @@ export function Dialog({ open, onOpenChange, title, description, role = 'dialog'
             {description !== undefined && (
               <ArkDialog.Description className={classes.description}>{description}</ArkDialog.Description>
             )}
-            {children}
+            {children !== undefined && <div key={bodyKey} className={classes.body} data-testid="dialog-body">{children}</div>}
             {actions !== undefined && <div className={classes.actions}>{actions}</div>}
           </ArkDialog.Content>
         </ArkDialog.Positioner>
