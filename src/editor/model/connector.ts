@@ -779,7 +779,8 @@ export function sameAnchor(a: Anchor, b: Anchor): boolean {
   return b.kind === 'point' && a.x === b.x && a.y === b.y && a.broken === b.broken;
 }
 
-const targetId = (a: Anchor) => (a.kind === 'column' ? a.tableId : a.kind === 'node' ? a.nodeId : null);
+/** The layer an end is attached to; null for a loose or broken end. */
+export const targetId = (a: Anchor) => (a.kind === 'column' ? a.tableId : a.kind === 'node' ? a.nodeId : null);
 
 /**
  * Whether linking `from` to `to` would loop a layer onto itself. Two different

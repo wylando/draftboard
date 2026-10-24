@@ -1,5 +1,5 @@
 import { pointInRotatedBox, rotatedBounds, unionBoxes } from '../geometry';
-import { routeConnector, visibleTables } from './connector';
+import { routeConnector, targetId, visibleTables } from './connector';
 import { tableHeight } from './table';
 import type { DesignNode, Point } from './types';
 
@@ -210,4 +210,32 @@ export function normalizeTree(input: readonly DesignNode[]): DesignNode[] {
   const final = byIdOf(out);
   const tables = visibleTables(final);
   return out.map((n) => (n.type === 'connector' ? routeConnector(n, final, tables) : n));
+}
+
+/**
+ * What focusing tables highlights: the visible connectors with an end on one of
+ * the selected tables, and the visible tables at those connectors' other ends
+ * (never a focused table). A table counts as focused only when it is itself
+ * selected; groups and frames holding tables do not. Loose and broken ends
+ * attach to nothing, and a non-table layer at the far end adds no table.
+ */
+export function relatedToTables(selection: readonly string[], byId: ById): { connectors: Set<string>; tables: Set<string> } {
+  const connectors = new Set<string>();
+  const tables = new Set<string>();
+  const focused = new Set(selection.filter((id) => {
+    const node = byId.get(id);
+    return node?.type === 'table' && isEffectivelyVisible(byId, node);
+  }));
+  if (focused.size === 0) return { connectors, tables };
+  for (const node of byId.values()) {
+    if (node.type !== 'connector' || !isEffectivelyVisible(byId, node)) continue;
+    const ends = [targetId(node.from), targetId(node.to)];
+    const i = ends.findIndex((id) => id !== null && focused.has(id));
+    if (i < 0) continue;
+    connectors.add(node.id);
+    const other = ends[1 - i];
+    const neighbour = other ? byId.get(other) : undefined;
+    if (neighbour?.type === 'table' && !focused.has(neighbour.id) && isEffectivelyVisible(byId, neighbour)) tables.add(neighbour.id);
+  }
+  return { connectors, tables };
 }

@@ -15,7 +15,7 @@ import {
   typeMismatch,
 } from '../model/connector';
 import { SQL_DIALECTS, type RowDrop, type TableCell } from '../model/table';
-import { byIdOf, childrenByParent, enteredScopes, isEffectivelyVisible, selectTarget } from '../model/tree';
+import { byIdOf, childrenByParent, enteredScopes, isEffectivelyVisible, relatedToTables, selectTarget } from '../model/tree';
 import type { Anchor, DesignNode, TableNode, TextNode, Viewport } from '../model/types';
 import { CANVAS_FONT_FAMILY, measureText } from '../textMetrics';
 import { usePreferences } from '../../settings/preferences/PreferencesContext';
@@ -196,6 +196,10 @@ export function Canvas() {
     }
     return { foreignKeys: foreignKeyColumns(nodes), mismatched, relationalEnds };
   }, [nodes, byId]);
+  const related = useMemo(() => {
+    const { connectors, tables } = relatedToTables(selection, byId);
+    return nodes.filter((n) => connectors.has(n.id) || tables.has(n.id));
+  }, [selection, nodes, byId]);
   const selectedSet = new Set(selection);
   const selected = nodes.filter((n) => selectedSet.has(n.id) && isEffectivelyVisible(byId, n));
   const picked = state.selectedColumn;
@@ -282,6 +286,7 @@ export function Canvas() {
           connectTarget={connectTarget}
           connectPreview={previewRoute}
           hideHandles={editingId !== null || editingTable !== undefined || tool === 'connector'}
+          related={related}
         />
       </svg>
       {editingTable && tableCell && (
