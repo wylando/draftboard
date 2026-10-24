@@ -95,6 +95,11 @@ export const tokens = defineTokens({
     treeRow: { value: '24px' },
     treeIndent: { value: '16px' },
     zoomLabel: { value: '48px' },
+    /** Board tabs: height, the width they shrink to before the strip scrolls, and their widest. */
+    boardTab: { value: '36px' },
+    boardTabMin: { value: '96px' },
+    boardTabMax: { value: '180px' },
+    boardTabClose: { value: '20px' },
     kbd: { value: '20px' },
     content: { value: '760px' },
     dialog: { value: '400px' },

@@ -103,7 +103,7 @@ describe('Relationships', () => {
     // From Table 1's end: one → zero-or-one, then many and one-or-many are skipped → none.
     cy.canvasClick([352, 150]);
     marker('to').should('have.attr', 'data-cardinality', 'zeroOrOne');
-    cy.window().its('localStorage').invoke('getItem', 'draftboard:document:v1').should('contain', 'zeroOrOne');
+    cy.window().its('localStorage').invoke('getItem', 'draftboard:workspace:v1').should('contain', 'zeroOrOne');
     cy.reload();
     marker('to').should('have.attr', 'data-cardinality', 'zeroOrOne');
     badge(1, 1).should('have.text', 'FK');

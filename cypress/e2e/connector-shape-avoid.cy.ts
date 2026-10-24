@@ -58,8 +58,8 @@ const centre = () =>
 /** The saved tables (left to right: A, B, C by their x at the start) and the connector, retried until saved. */
 const saved = (check: (tables: Saved[], connector: Saved) => void) =>
   cy.window().should((win) => {
-    const raw = win.localStorage.getItem('draftboard:document:v1');
-    const nodes = raw ? (JSON.parse(raw) as { nodes: Saved[] }).nodes : [];
+    const raw = win.localStorage.getItem('draftboard:workspace:v1');
+    const nodes = raw ? (JSON.parse(raw) as { boards: Array<{ nodes: Saved[] }> }).boards[0]!.nodes : [];
     const connector = nodes.find((n) => n.type === 'connector');
     expect(connector, 'saved connector').to.not.equal(undefined);
     check(nodes.filter((n) => n.type === 'table'), connector as Saved);
@@ -106,7 +106,7 @@ describe('A shaped connector still avoids tables', () => {
 
   /** The saved connector as it is right now. */
   const connectorNow = () =>
-    cy.window().then((win) => (JSON.parse(win.localStorage.getItem('draftboard:document:v1') as string) as { nodes: Saved[] }).nodes.find((n) => n.type === 'connector') as Saved);
+    cy.window().then((win) => (JSON.parse(win.localStorage.getItem('draftboard:workspace:v1') as string) as { boards: Array<{ nodes: Saved[] }> }).boards[0]!.nodes.find((n) => n.type === 'connector') as Saved);
 
   /** Drags B so it straddles the shaped segment; the returned offset puts it back. */
   const dragBOntoSegment = (segmentX: number) => {

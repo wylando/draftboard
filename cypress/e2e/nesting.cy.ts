@@ -161,7 +161,7 @@ describe('Groups', () => {
   });
 
   it('groups survive a reload', () => {
-    cy.window().its('localStorage').invoke('getItem', 'draftboard:document:v1').should('contain', '"group"');
+    cy.window().its('localStorage').invoke('getItem', 'draftboard:workspace:v1').should('contain', '"group"');
     cy.reload();
     layer('Group 1').should('exist');
     layer('Rectangle 1').should('have.attr', 'aria-level', '2');

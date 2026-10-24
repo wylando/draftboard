@@ -1,7 +1,7 @@
 import { css } from 'styled-system/css';
 import { DialogProvider } from './design-system';
 import { useHashRoute } from './app/useHashRoute';
-import { EditorProvider, useEditor } from './editor/EditorContext';
+import { EditorProvider, useBoards, useEditor } from './editor/EditorContext';
 import { Canvas } from './editor/components/Canvas';
 import { LayersPanel } from './editor/components/LayersPanel';
 import { PropertiesPanel } from './editor/components/PropertiesPanel';
@@ -20,6 +20,7 @@ const bodyClass = css({ flex: '1', display: 'flex', minHeight: '0' });
 
 function Editor({ onOpenSettings }: { onOpenSettings: () => void }) {
   const { state, dispatch } = useEditor();
+  const { activeId } = useBoards();
   const controls = useViewportControls();
   useKeyboardShortcuts({ state, dispatch, ...controls, openSettings: onOpenSettings });
 
@@ -27,12 +28,13 @@ function Editor({ onOpenSettings }: { onOpenSettings: () => void }) {
     <div className={editorClass}>
       <Toolbar onOpenSettings={onOpenSettings} />
       <div className={bodyClass}>
-        <LayersPanel />
+        <LayersPanel key={activeId} />
         <div className={canvasAreaClass}>
-          <Canvas />
+          {/* Keyed so marquee, guides, hover and in-place editors start fresh on each board. */}
+          <Canvas key={activeId} />
           <ToolDock />
         </div>
-        <PropertiesPanel />
+        <PropertiesPanel key={activeId} />
       </div>
     </div>
   );

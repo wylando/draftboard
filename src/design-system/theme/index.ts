@@ -12,3 +12,4 @@ export { radioGroupRecipe } from './recipes/radioGroup';
 export { toggleSwitchRecipe } from './recipes/toggleSwitch';
 export { chipGroupRecipe } from './recipes/chipGroup';
 export { checkboxRecipe } from './recipes/checkbox';
+export { boardTabsRecipe } from './recipes/boardTabs';

@@ -1,0 +1,83 @@
+import { defineSlotRecipe } from '@pandacss/dev';
+
+/**
+ * Browser-style board tabs on the dark toolbar (Ark UI Tabs). The open tab is raised and sits on the
+ * bar's bottom edge. The close button is a sibling of the trigger, so its slot sits beside it, not in it.
+ */
+export const boardTabsRecipe = defineSlotRecipe({
+  className: 'board-tabs',
+  description: 'Board tabs on the toolbar: raised open tab, dimmer others, close button on hover',
+  jsx: ['BoardTabs'],
+  slots: ['root', 'list', 'tab', 'trigger', 'close'],
+  base: {
+    root: {
+      display: 'flex',
+      alignItems: 'flex-end',
+      gap: '1',
+      minWidth: '0',
+      height: 'boardTab',
+    },
+    // Tabs shrink to their minimum, then the strip scrolls; the add button stays outside it.
+    list: {
+      display: 'flex',
+      alignItems: 'flex-end',
+      minWidth: '0',
+      height: 'full',
+      overflowX: 'auto',
+      scrollbarWidth: 'none',
+    },
+    tab: {
+      position: 'relative',
+      display: 'flex',
+      flex: '0 1 auto',
+      width: 'boardTabMax',
+      minWidth: 'boardTabMin',
+      height: 'full',
+      borderTopLeftRadius: 'large',
+      borderTopRightRadius: 'large',
+      color: 'text.tabInactive',
+      _hover: { bg: 'bg.tabHover', color: 'text.onToolbar' },
+      '&[data-selected]': { bg: 'bg.tabActive', color: 'text.onToolbar' },
+      '&:hover [data-board-close], &[data-selected] [data-board-close], & [data-board-close]:focus-visible': { opacity: '1' },
+    },
+    trigger: {
+      flex: '1',
+      minWidth: '0',
+      height: 'full',
+      paddingInlineStart: '3',
+      paddingInlineEnd: '6',
+      border: 'none',
+      borderRadius: 'inherit',
+      bg: 'transparent',
+      color: 'inherit',
+      textAlign: 'start',
+      textStyle: 'body.medium',
+      whiteSpace: 'nowrap',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      cursor: 'pointer',
+      '&[data-selected]': { textStyle: 'body.mediumStrong' },
+      _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.selected', outlineOffset: '-2px' },
+    },
+    close: {
+      position: 'absolute',
+      insetInlineEnd: '1',
+      top: '50%',
+      transform: 'translateY(-50%)',
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      width: 'boardTabClose',
+      height: 'boardTabClose',
+      padding: '0',
+      border: 'none',
+      borderRadius: 'full',
+      bg: 'transparent',
+      color: 'inherit',
+      opacity: '0',
+      cursor: 'pointer',
+      _hover: { bg: 'bg.toolbarHover' },
+      _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.selected' },
+    },
+  },
+});

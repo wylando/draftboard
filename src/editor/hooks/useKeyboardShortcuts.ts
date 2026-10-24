@@ -25,6 +25,8 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return target.isContentEditable || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
 }
 
+const inTabList = (target: EventTarget | null) => target instanceof Element && target.closest('[role=tablist]') !== null;
+
 /** What each command does in the editor. Keys come from the user's bindings. */
 function runCommand(id: CommandId, o: Options): void {
   const { state, dispatch } = o;
@@ -121,7 +123,8 @@ export function useKeyboardShortcuts(options: Options) {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       // A modal dialog owns the keyboard: Escape closes it, Backspace mustn't delete the selection behind it.
-      if (latest.current.dialogOpen || isTypingTarget(e.target)) return;
+      // Arrow keys on a focused board tab move between tabs; they must not also nudge the selection.
+      if (latest.current.dialogOpen || isTypingTarget(e.target) || inTabList(e.target)) return;
       const binding = bindingFromEvent(e);
       const id = binding ? latest.current.commandFor(binding) : undefined;
       if (!id) return;

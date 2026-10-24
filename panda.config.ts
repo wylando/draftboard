@@ -1,5 +1,6 @@
 import { defineConfig } from '@pandacss/dev';
 import {
+  boardTabsRecipe,
   buttonRecipe,
   checkboxRecipe,
   chipGroupRecipe,
@@ -45,6 +46,7 @@ export default defineConfig({
       section: sectionRecipe,
       dialog: dialogRecipe,
       tabs: tabsRecipe,
+      boardTabs: boardTabsRecipe,
       radioGroup: radioGroupRecipe,
       toggleSwitch: toggleSwitchRecipe,
       checkbox: checkboxRecipe,

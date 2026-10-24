@@ -1,6 +1,7 @@
 import { lazy, Suspense, useRef, useState } from 'react';
 import { Button, IconButton, icons, useDialogs } from '../../design-system';
 import { useEditor } from '../EditorContext';
+import { BoardTabs } from './BoardTabs';
 import { useViewportControls } from '../hooks/useViewportControls';
 import { isBroken } from '../model/connector';
 import { downloadDocument, parseDocument } from '../persistence';
@@ -20,8 +21,10 @@ const toolbarClass = css({
   bg: 'bg.toolbar',
   color: 'text.onToolbar',
 });
-const groupClass = css({ display: 'flex', alignItems: 'center', gap: '1' });
-const brandClass = css({ paddingInlineStart: '2', paddingInlineEnd: '3', textStyle: 'body.largeStrong' });
+const groupClass = css({ display: 'flex', alignItems: 'center', gap: '1', flex: 'none' });
+// Takes the space the right-hand group leaves; the tabs sit on the bar's bottom edge and scroll when they run out.
+const leftGroupClass = css({ display: 'flex', alignItems: 'flex-end', gap: '1', flex: '1', minWidth: '0', alignSelf: 'stretch' });
+const brandClass = css({ alignSelf: 'center', paddingInlineStart: '2', paddingInlineEnd: '3', textStyle: 'body.largeStrong' });
 const zoomClass = css({ minWidth: 'zoomLabel' });
 const problemsClass = css({ color: 'text.danger' });
 
@@ -56,8 +59,9 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
 
   return (
     <header className={toolbarClass} data-testid="toolbar">
-      <div className={groupClass}>
+      <div className={leftGroupClass}>
         <span className={brandClass}>Draftboard</span>
+        <BoardTabs />
       </div>
 
       <div className={groupClass}>

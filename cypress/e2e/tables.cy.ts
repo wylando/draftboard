@@ -189,7 +189,7 @@ describe('Tables', () => {
   it('keeps tables across a reload', () => {
     placeTable();
     cy.get('[data-testid=add-column]').click();
-    cy.window().its('localStorage').invoke('getItem', 'draftboard:document:v1').should('contain', 'column_1');
+    cy.window().its('localStorage').invoke('getItem', 'draftboard:workspace:v1').should('contain', 'column_1');
     cy.reload();
     cy.get('[data-node-type=table] [data-testid=table-column]').should('have.length', 2);
   });
