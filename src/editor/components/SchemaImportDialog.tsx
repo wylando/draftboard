@@ -136,7 +136,7 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
         setTicked(next);
       }
     } catch {
-      if (mine === run.current) await alert({ title: "Can't read this schema", description: 'Something went wrong while adding the relationship.' });
+      if (mine === run.current) await alert({ title: "Can't read this schema", description: 'Something went wrong while updating the relationships.' });
     } finally {
       if (mine === run.current) setBusy(false);
     }

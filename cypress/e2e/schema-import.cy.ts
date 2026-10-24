@@ -376,13 +376,18 @@ describe('Schema import from SQL', () => {
       box(0).check({ force: true });
       cy.get('[data-testid=import-summary]').should('contain', '1 relationship');
       cy.get('[data-testid=guess-all]').should('have.attr', 'data-state', 'indeterminate');
-      // The dash is the only visible indicator; the tick's indicator is hidden.
-      cy.get('[data-testid=guess-all] [data-part=indicator]:visible').should('have.length', 1).find('path[d="M3 8h10"]').should('exist');
+      // Screen readers hear "mixed" from the hidden input, not from data-state.
+      cy.get('[data-testid=guess-all] input').should('have.prop', 'indeterminate', true);
+      // Only the dash (the second indicator) shows; both would if the recipe overrode Ark's `hidden`.
+      cy.get('[data-testid=guess-all] [data-part=indicator]').should('have.length', 2).last().should('be.visible');
+      cy.get('[data-testid=guess-all] [data-part=indicator]:visible').should('have.length', 1);
 
       cy.get('[data-testid=guess-all]').click();
       cy.get('[data-testid=import-summary]').should('contain', '9 relationships');
       cy.get('[data-testid=guess-all]').should('have.attr', 'data-state', 'checked');
-      cy.get('[data-testid=guess-all] [data-part=indicator]:visible').should('have.length', 1).find('path[d="M3 8h10"]').should('not.exist');
+      cy.get('[data-testid=guess-all] input').should('have.prop', 'indeterminate', false).and('be.checked');
+      cy.get('[data-testid=guess-all] [data-part=indicator]').first().should('be.visible');
+      cy.get('[data-testid=guess-all] [data-part=indicator]:visible').should('have.length', 1);
       for (let i = 0; i < 8; i++) box(i).should('be.checked');
 
       cy.get('[data-testid=guess-all]').click();

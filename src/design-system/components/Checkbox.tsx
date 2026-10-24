@@ -6,7 +6,10 @@ import { icons } from '../icons';
 const classes = checkbox();
 
 export interface CheckboxProps {
-  /** `'indeterminate'` is the mixed state of a select-all; a click turns it into checked. */
+  /**
+   * `'indeterminate'` is the mixed state of a select-all; a click turns it into checked. Ark marks the
+   * hidden input indeterminate (what screen readers announce) only when this changes, so mount it as a boolean.
+   */
   checked: boolean | 'indeterminate';
   onCheckedChange: (checked: boolean) => void;
   /** The label; it is the checkbox's accessible name. */
