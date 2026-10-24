@@ -6,7 +6,11 @@ import { icons } from '../icons';
 const classes = checkbox();
 
 export interface CheckboxProps {
-  checked: boolean;
+  /**
+   * `'indeterminate'` is the mixed state of a select-all; a click turns it into checked. Ark marks the
+   * hidden input indeterminate (what screen readers announce) only when this changes, so mount it as a boolean.
+   */
+  checked: boolean | 'indeterminate';
   onCheckedChange: (checked: boolean) => void;
   /** The label; it is the checkbox's accessible name. */
   children: ReactNode;
@@ -17,7 +21,7 @@ export interface CheckboxProps {
   'data-testid'?: string;
 }
 
-/** Two-state checkbox on Ark UI; a hidden input carries the form and keyboard semantics (Space toggles). */
+/** Checkbox on Ark UI (checked, unchecked or indeterminate); a hidden input carries the form and keyboard semantics (Space toggles). */
 export function Checkbox({ checked, onCheckedChange, children, disabled, name, value, 'data-testid': testId }: CheckboxProps) {
   return (
     <ArkCheckbox.Root
@@ -31,6 +35,9 @@ export function Checkbox({ checked, onCheckedChange, children, disabled, name, v
     >
       <ArkCheckbox.Control className={classes.control}>
         <ArkCheckbox.Indicator className={classes.indicator}>{icons.check()}</ArkCheckbox.Indicator>
+        <ArkCheckbox.Indicator indeterminate className={classes.indicator}>
+          {icons.minus()}
+        </ArkCheckbox.Indicator>
       </ArkCheckbox.Control>
       <ArkCheckbox.Label className={classes.label}>{children}</ArkCheckbox.Label>
       <ArkCheckbox.HiddenInput />
