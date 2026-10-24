@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { detectFormat, type DetectedFormat } from './detectFormat';
+import { growth, MAX_LINEAR_GROWTH } from './testGrowth';
 
 const sqliteHeader = new TextEncoder().encode('SQLite format 3\0' + 'x'.repeat(20));
 
@@ -170,25 +171,22 @@ const rows: Row[] = [
 
 describe('detectFormat', () => {
   it.each([
-    ['dash', '-- ' + '-'.repeat(200)],
-    ['slash', '/'.repeat(200)],
-  ])('skips a long %s comment line before content quickly', (_kind, line) => {
-    const text = `${line}\nTable users {\n id int\n}`;
-    const start = performance.now();
-    const format = detectFormat({ name: '', text }, 'sqlite');
-    expect(performance.now() - start).toBeLessThan(100);
+    ['dash', (n: number) => '-- ' + '-'.repeat(n)],
+    ['slash', (n: number) => '/'.repeat(n)],
+  ])('skips a long %s comment line before content in linear time', async (_kind, lineOf) => {
+    const textAt = (scale: number) => `${lineOf(8_000_000 * scale)}\nTable users {\n id int\n}`;
     // The dash line is a SQL comment, so DBML is not recognized behind it.
-    expect(format).toBe(line.startsWith('/') ? 'dbml' : 'sqlite');
+    expect(detectFormat({ name: '', text: textAt(1) }, 'sqlite')).toBe(_kind === 'slash' ? 'dbml' : 'sqlite');
+    expect(await growth((scale) => { const text = textAt(scale); return () => detectFormat({ name: '', text }, 'sqlite'); })).toBeLessThan(MAX_LINEAR_GROWTH);
   });
 
   it.each(rows)('$why', ({ input, fallback, expected }) => {
     expect(detectFormat(input, fallback)).toBe(expected);
   });
 
-  it('scans 1 MB of a near-miss marker in linear time', () => {
-    const text = 'GENERATED '.repeat(100_000);
-    const start = performance.now();
-    expect(detectFormat({ name: '', text }, 'sqlite')).toBe('sqlite');
-    expect(performance.now() - start).toBeLessThan(200);
+  it('scans a near-miss marker in linear time', async () => {
+    const textAt = (scale: number) => 'GENERATED '.repeat(50_000 * scale);
+    expect(detectFormat({ name: '', text: textAt(1) }, 'sqlite')).toBe('sqlite');
+    expect(await growth((scale) => { const text = textAt(scale); return () => detectFormat({ name: '', text }, 'sqlite'); })).toBeLessThan(MAX_LINEAR_GROWTH);
   });
 });

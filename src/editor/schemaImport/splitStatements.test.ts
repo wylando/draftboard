@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { splitStatements } from './splitStatements';
+import { growth, MAX_LINEAR_GROWTH } from './testGrowth';
 
 describe('splitStatements', () => {
   it('splits on semicolons and records each statement start line', () => {
@@ -150,11 +151,10 @@ describe('splitStatements', () => {
     });
   });
 
-  it.each(['postgres', 'mysql'] as const)('scans a long dash comment line in linear time (%s)', (dialect) => {
-    const t0 = performance.now();
-    const out = splitStatements(`-- ${'-'.repeat(200)}\nSELECT 1;`, dialect);
-    expect(performance.now() - t0).toBeLessThan(100);
-    expect(out).toEqual([{ sql: `-- ${'-'.repeat(200)}\nSELECT 1`, line: 2 }]);
+  it.each(['postgres', 'mysql'] as const)('scans a long dash comment line in linear time (%s)', async (dialect) => {
+    expect(splitStatements(`-- ${'-'.repeat(200)}\nSELECT 1;`, dialect)).toEqual([{ sql: `-- ${'-'.repeat(200)}\nSELECT 1`, line: 2 }]);
+    const sqlAt = (scale: number) => `-- ${'-'.repeat(8_000_000 * scale)}\nSELECT 1;`;
+    expect(await growth((scale) => { const sql = sqlAt(scale); return () => splitStatements(sql, dialect); })).toBeLessThan(MAX_LINEAR_GROWTH);
   });
 
   it('skips COPY data when the column list is very long', () => {

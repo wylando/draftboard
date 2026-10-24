@@ -1,6 +1,7 @@
 import initSqlJs from 'sql.js';
 import { describe, expect, it } from 'vitest';
 import { parseSqliteDb, parseSqliteSql } from './fromSqlite';
+import { growth, MAX_LINEAR_GROWTH } from './testGrowth';
 
 async function dbFrom(ddl: string): Promise<Uint8Array> {
   const SQL = await initSqlJs();
@@ -277,10 +278,11 @@ CREATE TABLE b (y INT);`);
   });
 
   it('does not run CREATE TABLE ... AS, so a runaway query cannot hang the import', async () => {
-    const started = performance.now();
-    const s = await parseSqliteSql(`CREATE TABLE a (x INT);
-CREATE TABLE r AS WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n) SELECT i FROM n;`);
-    expect(performance.now() - started).toBeLessThan(1000);
+    const runaway = 'CREATE TABLE r AS WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n) SELECT i FROM n;';
+    const s = await parseSqliteSql(`CREATE TABLE a (x INT);\n${runaway}`);
+    // A run query never ends, so the cost per skipped statement staying flat is the guard.
+    const manyAt = (scale: number) => Array.from({ length: 2_000 * scale }, (_, i) => runaway.replace(' r ', ` r${i} `)).join('\n');
+    expect(await growth((scale) => { const sql = manyAt(scale); return () => parseSqliteSql(sql); })).toBeLessThan(MAX_LINEAR_GROWTH);
     expect(s.tables.map((t) => t.name)).toEqual(['a']);
     expect(s.warnings).toEqual([{ line: 2, message: 'Skipped CREATE TABLE … AS SELECT (its columns come from a query)' }]);
   });
