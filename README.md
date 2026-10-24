@@ -137,7 +137,7 @@ src/
 │   ├── model/        # Document types, node factories, reducer with undo history
 │   ├── schemaImport/ # SQL schema import: parsers, layout, conversion to table nodes
 │   ├── hooks/        # Pointer gestures, keyboard shortcuts, viewport
-│   ├── components/   # Canvas, selection overlay, layers and properties panels, toolbar
+│   ├── components/   # Canvas, selection overlay, layers and properties panels, top bar, floating tool dock
 │   ├── geometry.ts   # Pure math: transforms, resize, bounds
 │   └── persistence.ts# localStorage + JSON import/export
 ├── settings/         # Command registry, keybinding storage, Settings page

@@ -66,6 +66,8 @@ export const tokens = defineTokens({
     3: { value: '0.75rem' }, // 12px
     4: { value: '1rem' }, // 16px
     6: { value: '1.5rem' }, // 24px
+    /** Ours: bottom offset that lifts canvas notices above the floating tool dock (16px gap + 44px dock + 12px air). */
+    toolDockClearance: { value: '4.5rem' },
   },
   radii: {
     none: { value: '0' },

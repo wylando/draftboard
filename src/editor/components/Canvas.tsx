@@ -39,7 +39,7 @@ const svgClass = css({ display: 'block' });
 const noticeClass = css({
   position: 'absolute',
   left: '[50%]',
-  bottom: '4',
+  bottom: 'toolDockClearance',
   transform: 'translateX(-50%)',
   margin: '0',
   paddingBlock: '1',
