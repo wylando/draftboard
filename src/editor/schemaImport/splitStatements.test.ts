@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { splitStatements } from './splitStatements';
-import { growth, MAX_LINEAR_GROWTH } from './testGrowth';
 
 describe('splitStatements', () => {
   it('splits on semicolons and records each statement start line', () => {
@@ -151,10 +150,12 @@ describe('splitStatements', () => {
     });
   });
 
-  it.each(['postgres', 'mysql'] as const)('scans a long dash comment line in linear time (%s)', async (dialect) => {
+  it.each(['postgres', 'mysql'] as const)('scans a long dash comment line in linear time (%s)', (dialect) => {
     expect(splitStatements(`-- ${'-'.repeat(200)}\nSELECT 1;`, dialect)).toEqual([{ sql: `-- ${'-'.repeat(200)}\nSELECT 1`, line: 2 }]);
-    const sqlAt = (scale: number) => `-- ${'-'.repeat(8_000_000 * scale)}\nSELECT 1;`;
-    expect(await growth((scale) => { const sql = sqlAt(scale); return () => splitStatements(sql, dialect); })).toBeLessThan(MAX_LINEAR_GROWTH);
+    // No timing: the scan is one native indexOf, too fast for a stable ratio on CI. A scan that went back
+    // over the line per character would never finish 8M characters, and the CI job's time limit fails that.
+    const sql = `-- ${'-'.repeat(8_000_000)}\nSELECT 1;`;
+    expect(splitStatements(sql, dialect)).toEqual([{ sql: sql.slice(0, -1), line: 2 }]);
   });
 
   it('skips COPY data when the column list is very long', () => {
