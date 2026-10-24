@@ -47,6 +47,7 @@ describe('Table focus highlight', () => {
     overlay().find(`[data-testid=related-table][data-related-id="${b}"]`).should('exist');
     relatedConnectors().should('have.length', 1);
     relatedTables().should('have.length', 1);
+    cy.get('[data-testid=section-join-route]').should('not.exist');
     overlay().find(`[data-testid=related-table][data-related-id="${a}"]`).should('not.exist');
     overlay().find(`[data-testid=related-table][data-related-id="${c}"]`).should('not.exist');
   };
@@ -63,13 +64,16 @@ describe('Table focus highlight', () => {
     expectFocusOnA();
   });
 
-  it('shows nothing for two selected tables that are not connected', () => {
+  it('highlights nothing for two unlinked tables and says there is no route', () => {
     layerRow('Table 1').click();
     expectFocusOnA();
     layerRow('Table 3').click({ shiftKey: true });
     cy.get('[data-testid=layers-panel] [role=treeitem][aria-selected=true]').should('have.length', 2);
     relatedConnectors().should('not.exist');
     relatedTables().should('not.exist');
+    cy.get('[data-testid=section-join-route]').should('contain', 'Estimated fastest route');
+    cy.get('[data-testid=join-route-none]').should('have.text', 'No route between these tables.');
+    cy.get('[data-testid=join-route-step]').should('not.exist');
   });
 
   it('keeps the highlight while a cell of the table is being edited', () => {
@@ -174,13 +178,22 @@ describe('Table focus highlight for two selected tables', () => {
     for (const id of tables) overlay().find(`[data-testid=related-table][data-related-id="${id}"]`).should('exist');
   };
 
+  // Each step's whole visible text, so a swapped "index lookup" / "scan" label fails too.
+  const expectRoute = (steps: string[]) => {
+    cy.get('[data-testid=section-join-route]').should('contain', 'Estimated fastest route');
+    cy.get('[data-testid=join-route-step]').should('have.length', steps.length);
+    steps.forEach((text, i) => cy.get('[data-testid=join-route-step]').eq(i).should('have.text', text));
+  };
+
   it('highlights the cheaper path through an indexed column, not the direct link', () => {
     pick('accounts', 'orders');
+    expectRoute(['accounts', '→ owners · index lookup', '→ orders · index lookup']);
     expectRelated([link('accounts', 'owners'), link('owners', 'orders')], [ids.owners]);
   });
 
   it('follows the selection order: the other way round the direct link enters a primary key', () => {
     pick('orders', 'accounts');
+    expectRoute(['orders', '→ accounts · index lookup']);
     expectRelated([link('accounts', 'orders')], []);
   });
 });

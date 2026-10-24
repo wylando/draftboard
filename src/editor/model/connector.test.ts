@@ -689,6 +689,7 @@ describe('cheapestJoinPath', () => {
   const join = (from: Anchor, to: Anchor, name: string, all: DesignNode[]) => createConnector(from, to, name, byIdOf(all));
   const sets = (r: { connectors: Set<string>; tables: Set<string> } | null) => r && { connectors: [...r.connectors].sort(), tables: [...r.tables].sort() };
   const none = { connectors: [], tables: [] };
+  const routeOf = (r: ReturnType<typeof cheapestJoinPath>) => r?.route.map((s) => (s.via ? [s.table, s.via.indexed] : [s.table]));
   const hide = (n: DesignNode): DesignNode => ({ ...n, visible: false });
 
   // b.fk (a plain column) references a's key directly; c is an indexed stepping stone linked by key to both.
@@ -705,12 +706,17 @@ describe('cheapestJoinPath', () => {
 
   it('prefers an indexed two-hop route over a direct join into an unindexed foreign key column', () => {
     const { a, b, c, base, direct, ac, cb } = scene();
-    expect(sets(cheapestJoinPath([a.id, b.id], byIdOf([...base, direct, ac, cb])))).toEqual({ connectors: [ac.id, cb.id].sort(), tables: [c.id] });
+    const r = cheapestJoinPath([a.id, b.id], byIdOf([...base, direct, ac, cb]));
+    expect(sets(r)).toEqual({ connectors: [ac.id, cb.id].sort(), tables: [c.id] });
+    expect(routeOf(r)).toEqual([[a.id], [c.id, true], [b.id, true]]);
+    expect(r?.route[1]?.via?.connector).toBe(ac.id);
   });
 
   it('costs a step by the column it enters, so the direction of the selection matters', () => {
     const { a, b, base, direct, ac, cb } = scene();
-    expect(sets(cheapestJoinPath([b.id, a.id], byIdOf([...base, direct, ac, cb])))).toEqual({ connectors: [direct.id], tables: [] });
+    const r = cheapestJoinPath([b.id, a.id], byIdOf([...base, direct, ac, cb]));
+    expect(sets(r)).toEqual({ connectors: [direct.id], tables: [] });
+    expect(routeOf(r)).toEqual([[b.id], [a.id, true]]);
   });
 
   describe('which columns count as indexed', () => {
@@ -757,7 +763,9 @@ describe('cheapestJoinPath', () => {
     const ac = join(whole(a), colOf(c), 'ac', base);
     const cb = join(colOf(c), colOf(b), 'cb', base);
     expect(sets(cheapestJoinPath([a.id, b.id], byIdOf([...base, direct, ac, cb])))).toEqual({ connectors: [ac.id, cb.id].sort(), tables: [c.id] });
-    expect(sets(cheapestJoinPath([a.id, b.id], byIdOf([...base, direct])))).toEqual({ connectors: [direct.id], tables: [] });
+    const only = cheapestJoinPath([a.id, b.id], byIdOf([...base, direct]));
+    expect(sets(only)).toEqual({ connectors: [direct.id], tables: [] });
+    expect(routeOf(only)).toEqual([[a.id], [b.id, false]]);
   });
 
   it('breaks a cost tie with fewer hops, even when the longer path reaches the goal first', () => {
@@ -805,6 +813,7 @@ describe('cheapestJoinPath', () => {
     expect(path([a, b, hide(c), direct, ac, cb])?.connectors).toEqual([direct.id]);
     expect(path([a, b, rect, ...viaRect])).toEqual(none);
     expect(path([a, b, c, ac])).toEqual(none);
+    expect(cheapestJoinPath([a.id, b.id], byIdOf([a, b, c, ac]))?.route).toEqual([]);
   });
 
   it('returns null unless exactly two visible tables are selected, ignoring other selected layers', () => {

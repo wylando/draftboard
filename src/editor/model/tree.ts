@@ -261,10 +261,16 @@ function isIndexed(table: TableNode, columnId: string): boolean {
  * The cheapest join path from the first of exactly two selected visible tables to the second, as the connectors on
  * it and the tables it passes through (not the two selected). Each step costs the lookup into the table it enters:
  * `INDEXED_JOIN_COST` when the connector's end there is an indexed column, else `SCAN_JOIN_COST`; ties go to fewer
- * hops. Selection order therefore matters. Both sets are empty when no path exists; `null` when the selection is
- * not two visible tables, so callers can fall back to `relatedToTables`.
+ * hops. Selection order therefore matters. `route` lists the tables from the first selected to the second; each
+ * after the first carries the connector it is entered by and whether that step cost `INDEXED_JOIN_COST`. The sets
+ * and `route` are empty when no path exists; `null` when the selection is not two visible tables, so callers can
+ * fall back to `relatedToTables`.
  */
-export function cheapestJoinPath(selection: readonly string[], byId: ById): { connectors: Set<string>; tables: Set<string> } | null {
+export function cheapestJoinPath(selection: readonly string[], byId: ById): {
+  connectors: Set<string>;
+  tables: Set<string>;
+  route: { table: string; via?: { connector: string; indexed: boolean } }[];
+} | null {
   const isTable = (id: string | null): id is string => {
     const node = id ? byId.get(id) : undefined;
     return node?.type === 'table' && isEffectivelyVisible(byId, node);
@@ -272,24 +278,23 @@ export function cheapestJoinPath(selection: readonly string[], byId: ById): { co
   const [start, goal, ...extra] = selection.filter(isTable);
   if (!start || !goal || extra.length > 0) return null;
 
-  const edges = new Map<string, { to: string; cost: number; connector: string }[]>();
+  const edges = new Map<string, { to: string; indexed: boolean; connector: string }[]>();
   for (const node of byId.values()) {
     if (node.type !== 'connector' || !isEffectivelyVisible(byId, node)) continue;
     const a = targetId(node.from);
     const b = targetId(node.to);
     if (!isTable(a) || !isTable(b) || a === b) continue;
-    const enter = (end: Anchor, id: string) =>
-      end.kind === 'column' && isIndexed(byId.get(id) as TableNode, end.columnId) ? INDEXED_JOIN_COST : SCAN_JOIN_COST;
+    const enters = (end: Anchor, id: string) => end.kind === 'column' && isIndexed(byId.get(id) as TableNode, end.columnId);
     const out = edges.get(a) ?? [];
-    out.push({ to: b, cost: enter(node.to, b), connector: node.id });
+    out.push({ to: b, indexed: enters(node.to, b), connector: node.id });
     edges.set(a, out);
     const back = edges.get(b) ?? [];
-    back.push({ to: a, cost: enter(node.from, a), connector: node.id });
+    back.push({ to: a, indexed: enters(node.from, a), connector: node.id });
     edges.set(b, back);
   }
 
   // Imported schemas reach hundreds of tables; an O(V^2) scan for the next node is well under a frame there, so no heap.
-  const best = new Map<string, { cost: number; hops: number; via?: { from: string; connector: string } }>([[start, { cost: 0, hops: 0 }]]);
+  const best = new Map<string, { cost: number; hops: number; via?: { from: string; connector: string; indexed: boolean } }>([[start, { cost: 0, hops: 0 }]]);
   const done = new Set<string>();
   for (;;) {
     let current: string | null = null;
@@ -302,20 +307,25 @@ export function cheapestJoinPath(selection: readonly string[], byId: ById): { co
     done.add(current);
     const here = best.get(current)!;
     for (const edge of edges.get(current) ?? []) {
-      const cost = here.cost + edge.cost;
+      const cost = here.cost + (edge.indexed ? INDEXED_JOIN_COST : SCAN_JOIN_COST);
       const hops = here.hops + 1;
       const known = best.get(edge.to);
       if (!known || cost < known.cost || (cost === known.cost && hops < known.hops)) {
-        best.set(edge.to, { cost, hops, via: { from: current, connector: edge.connector } });
+        best.set(edge.to, { cost, hops, via: { from: current, connector: edge.connector, indexed: edge.indexed } });
       }
     }
   }
 
   const connectors = new Set<string>();
   const tables = new Set<string>();
+  const route: { table: string; via?: { connector: string; indexed: boolean } }[] = [];
+  let entered = goal;
   for (let step = best.get(goal)?.via; step; step = best.get(step.from)?.via) {
     connectors.add(step.connector);
     if (step.from !== start) tables.add(step.from);
+    route.unshift({ table: entered, via: { connector: step.connector, indexed: step.indexed } });
+    entered = step.from;
   }
-  return { connectors, tables };
+  if (route.length > 0) route.unshift({ table: start });
+  return { connectors, tables, route };
 }
