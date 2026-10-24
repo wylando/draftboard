@@ -58,7 +58,7 @@ const TOOL_CURSORS: Record<string, string> = {
 
 export function Canvas() {
   const { state, dispatch } = useEditor();
-  const { gridStyle, snapToLayers, sqlDialect } = usePreferences().preferences;
+  const { gridStyle, snapToLayers, sqlDialect, relationHighlight } = usePreferences().preferences;
   const containerRef = useRef<HTMLDivElement>(null);
   const [marquee, setMarquee] = useState<Marquee | null>(null);
   const [guides, setGuides] = useState<Guides>({ lines: [], spacing: [] });
@@ -287,6 +287,7 @@ export function Canvas() {
           connectPreview={previewRoute}
           hideHandles={editingId !== null || editingTable !== undefined || tool === 'connector'}
           related={related}
+          relatedColor={relationHighlight}
         />
       </svg>
       {editingTable && tableCell && (

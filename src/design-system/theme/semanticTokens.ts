@@ -49,8 +49,6 @@ export const semanticTokens = defineSemanticTokens({
     selection: {
       DEFAULT: { value: '{colors.blue.500}' },
       fill: { value: '#0d99ff1a' },
-      /** Connectors and tables linked to the selected tables; lighter than the selection so the two stay apart. */
-      related: { value: '{colors.blue.400}' },
       /** Smart guides while a layer snaps; set apart from the selection blue they cross. */
       guide: { value: '{colors.red.500}' },
       /** Distance labels on the guide colour; dark, since white on it falls short of 4.5:1. */
