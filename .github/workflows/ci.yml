@@ -1,6 +1,8 @@
 name: CI
 
-# Pre-merge gate. Pull requests into main must pass both jobs.
+# Pre-merge gate. Pull requests into main must pass both jobs. "Lint &
+# typecheck" also runs unit tests; it keeps that name because branch
+# protection requires the check by name.
 # Pushes to main also run, so main's status stays accurate and the
 # npm/Cypress caches are saved where every PR can reuse them.
 on:
@@ -40,6 +42,10 @@ jobs:
         # Run even if lint failed, so one CI run reports every problem.
         if: ${{ !cancelled() }}
         run: npm run typecheck
+      - name: Unit tests
+        # Run even if an earlier step failed, so one CI run reports every problem.
+        if: ${{ !cancelled() }}
+        run: npm run test:unit
 
   e2e:
     name: Build & E2E
