@@ -55,7 +55,7 @@ const textareaClass = css({
   _focus: { outline: 'none', borderColor: 'border.selected', bg: 'bg' },
 });
 const summaryClass = css({ display: 'flex', gap: '3', textStyle: 'body.mediumStrong' });
-const listClass = css({ margin: '0', paddingInlineStart: '4', maxHeight: '[160px]', overflowY: 'auto' });
+const listClass = css({ margin: '0', paddingInlineStart: '4' });
 const countsClass = css({ display: 'flex', gap: '3' });
 const headingClass = css({ margin: '0', textStyle: 'body.mediumStrong' });
 const hintClass = css({ margin: '0', color: 'text.secondary' });

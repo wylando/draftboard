@@ -48,11 +48,17 @@ export const dialogRecipe = defineSlotRecipe({
       color: 'text.secondary',
     },
     body: {
+      // Contains absolutely positioned descendants (Ark's hidden checkbox inputs), which would otherwise
+      // escape the scroll clip and make the whole positioner scroll when one takes focus.
+      position: 'relative',
       display: 'grid',
+      // An auto track grows to the widest unbreakable child, which would make the body scroll sideways.
+      gridTemplateColumns: 'minmax(0, 1fr)',
       gap: '2',
       flex: '1 1 auto',
       minHeight: '0',
       overflowY: 'auto',
+      overflowX: 'hidden',
       // Room for focus rings at the edges, which overflow would clip; the negative margin keeps alignment.
       padding: '1',
       margin: '-1',
