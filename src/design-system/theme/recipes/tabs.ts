@@ -1,12 +1,12 @@
 import { defineSlotRecipe } from '@pandacss/dev';
 
 /**
- * Vertical tabs used as section navigation (Ark UI Tabs). Ark marks the active
- * trigger with `data-selected`.
+ * Tabs (Ark UI Tabs). `vertical` (the default) is section navigation; `horizontal`
+ * is a row of tabs above their panel. Ark marks the active trigger with `data-selected`.
  */
 export const tabsRecipe = defineSlotRecipe({
   className: 'tabs',
-  description: 'Sidebar section navigation (Ark UI Tabs, vertical)',
+  description: 'Tabs (Ark UI Tabs), vertical sidebar or horizontal row',
   slots: ['root', 'list', 'trigger', 'content'],
   base: {
     root: {
@@ -16,14 +16,12 @@ export const tabsRecipe = defineSlotRecipe({
     list: {
       flex: 'none',
       display: 'flex',
-      flexDirection: 'column',
       gap: '1',
     },
     trigger: {
       display: 'flex',
       alignItems: 'center',
       gap: '2',
-      width: 'full',
       height: 'layerRow',
       paddingInline: '3',
       border: 'none',
@@ -42,4 +40,18 @@ export const tabsRecipe = defineSlotRecipe({
       outline: 'none',
     },
   },
+  variants: {
+    orientation: {
+      vertical: {
+        list: { flexDirection: 'column' },
+        trigger: { width: 'full' },
+      },
+      horizontal: {
+        root: { flexDirection: 'column', gap: '2' },
+        list: { flexDirection: 'row' },
+        trigger: { width: 'auto' },
+      },
+    },
+  },
+  defaultVariants: { orientation: 'vertical' },
 });

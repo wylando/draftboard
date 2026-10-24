@@ -4,6 +4,8 @@ export { IconButton } from './components/IconButton';
 export type { IconButtonProps } from './components/IconButton';
 export { NumberInput, TextInput, ColorInput } from './components/Field';
 export { Panel, Section } from './components/Panel';
+export { Checkbox } from './components/Checkbox';
+export type { CheckboxProps } from './components/Checkbox';
 export { Kbd } from './components/Kbd';
 export { SearchInput } from './components/SearchInput';
 export { Dialog, DialogClose } from './components/Dialog';

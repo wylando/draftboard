@@ -1,5 +1,8 @@
 import { boxCenter, HANDLES, rotatedBounds, rotatePoint, unionBoxes, worldToScreen } from '../geometry';
 import type { Guides, SnapGuide, Span } from '../geometry';
+import { useEditor } from '../EditorContext';
+import { shapePoints } from '../model/connector';
+import { byIdOf } from '../model/tree';
 import { TABLE_ROW_HEIGHT, tableRowTop, type RowDrop } from '../model/table';
 import type { Box, DesignNode, Point, Viewport } from '../model/types';
 import { css } from 'styled-system/css';
@@ -18,6 +21,9 @@ const ROTATE_ZONE_SIZE = 16;
 const ROW_GRIP = { offset: 16, width: 10, height: 16, minHeight: 6 } as const;
 // Row grips and connector end handles are dragged, not clicked.
 const grabClass = css({ cursor: 'grab' });
+// A segment moves across itself, so its cursor points the way it can go.
+const resizeXClass = css({ cursor: 'ew-resize' });
+const resizeYClass = css({ cursor: 'ns-resize' });
 /** Half the size of the × drawn where a guide meets an aligned edge or center. */
 const GUIDE_MARK = 3;
 /** Distance labels: font size and pill height in screen px; width is estimated per character. */
@@ -113,6 +119,10 @@ interface Props {
   /** The route of the connector being drawn, in world px. */
   connectPreview: Point[] | null;
   hideHandles: boolean;
+  /** Connectors on the selected tables and the tables at their other ends (`relatedToTables`). */
+  related: DesignNode[];
+  /** The user's colour for `related` (Settings → Canvas). */
+  relatedColor: string;
 }
 
 /** Drawn in screen space so outlines and handles stay a constant size at any zoom. */
@@ -128,11 +138,16 @@ export function SelectionOverlay({
   connectTarget,
   connectPreview,
   hideHandles,
+  related,
+  relatedColor,
 }: Props) {
   // A connector's shape comes from its ends: it gets a highlight along its route, never box handles.
   const single = selected.length === 1 && selected[0]?.type !== 'connector' ? selected[0] : undefined;
   const toScreen = (points: Point[]) => points.map((p) => worldToScreen(p, viewport)).map((p) => `${p.x},${p.y}`).join(' ');
   const connector = selected.length === 1 && selected[0]?.type === 'connector' ? selected[0] : undefined;
+  const { state } = useEditor();
+  // Handles sit on the user's shape, not on a detour round a table, so dragging one can't bake the detour into the bends.
+  const shape = connector ? shapePoints(connector, byIdOf(state.nodes)) : [];
   const table = single?.type === 'table' ? single : undefined;
   const rowTop = (i: number) => (table ? tableRowTop(table, i) : 0);
   // Zoomed out, a full-size grip would reach into the neighbouring rows' grips; far out, rows are too thin to grab.
@@ -143,6 +158,14 @@ export function SelectionOverlay({
 
   return (
     <g data-testid="selection-overlay">
+      {/* Kept while handles hide: editing a table's cells still shows what it links to. */}
+      {related.map((n) =>
+        n.type === 'connector' ? (
+          <polyline key={n.id} data-testid="related-connector" data-related-id={n.id} points={toScreen(n.points)} fill="none" stroke={relatedColor} strokeWidth={2} pointerEvents="none" />
+        ) : (
+          <polygon key={n.id} data-testid="related-table" data-related-id={n.id} points={outline(n, viewport)} fill="none" stroke={relatedColor} strokeWidth={2} pointerEvents="none" />
+        ),
+      )}
       {selected.map((n) =>
         n.type === 'connector' ? (
           <polyline key={n.id} points={toScreen(n.points)} fill="none" stroke={SELECTION} strokeWidth={3} strokeOpacity={0.5} pointerEvents="none" />
@@ -293,6 +316,37 @@ export function SelectionOverlay({
         />
       )}
 
+      {connector &&
+        !hideHandles &&
+        connector.routing === 'orthogonal' &&
+        // Interior segments only: the first and last are attached to their tables.
+        shape.slice(1, -2).map((a, k) => {
+          const i = k + 1;
+          const b = shape[i + 1];
+          if (!b) return null;
+          const vertical = a.x === b.x;
+          const mid = worldToScreen({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, viewport);
+          const long = HANDLE_SIZE * 2;
+          // Like the row grips: a handle on a segment too short to hold it would cover the segment's neighbours.
+          const a2 = worldToScreen(a, viewport);
+          const b2 = worldToScreen(b, viewport);
+          if (Math.hypot(b2.x - a2.x, b2.y - a2.y) < long * 2) return null;
+          return (
+            <rect
+              key={i}
+              data-connector-segment={i}
+              data-testid="connector-segment-handle"
+              className={vertical ? resizeXClass : resizeYClass}
+              x={mid.x - (vertical ? HANDLE_SIZE / 2 : long / 2)}
+              y={mid.y - (vertical ? long / 2 : HANDLE_SIZE / 2)}
+              width={vertical ? HANDLE_SIZE : long}
+              height={vertical ? long : HANDLE_SIZE}
+              rx={2}
+              fill={HANDLE_FILL}
+              stroke={SELECTION}
+            />
+          );
+        })}
       {connector &&
         !hideHandles &&
         (['from', 'to'] as const).map((end) => {

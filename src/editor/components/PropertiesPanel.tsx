@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { css } from 'styled-system/css';
 import { Button, ColorInput, NumberInput, Panel, Section, TextInput } from '../../design-system';
 import { useEditor, useSelectedNodes } from '../EditorContext';
 import { useViewportControls } from '../hooks/useViewportControls';
 import { nameTaken } from '../model/names';
 import { minSizeFor } from '../model/nodes';
+import { byIdOf, cheapestJoinPath, type ById } from '../model/tree';
 import type { Box, DesignNode, NodePatch } from '../model/types';
 import { emptyHint, sidebarRight, twoColumnGrid } from '../styles';
 import { CANVAS_FONT_FAMILY, measureText } from '../textMetrics';
@@ -126,6 +128,65 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
   );
 }
 
+const routeList = css({ margin: '0', paddingLeft: '0', listStyle: 'none' });
+// Imported names like customer_order_line_items have no spaces to wrap at.
+const routeStep = css({ overflowWrap: 'anywhere' });
+const routeKind = css({ color: 'text.secondary' });
+
+type JoinStep = NonNullable<ReturnType<typeof cheapestJoinPath>>['route'][number];
+
+function RouteSteps({ route, byId, testId }: { route: JoinStep[]; byId: ById; testId: string }) {
+  return (
+    // Safari drops list semantics from an unstyled list unless the role is explicit.
+    <ol className={routeList} role="list">
+      {route.map(({ table, via }) => (
+        <li key={table} className={routeStep} data-testid={testId}>
+          {via && <span aria-hidden="true">→ </span>}
+          {byId.get(table)?.name}
+          {via && (
+            <span className={routeKind}>
+              <span aria-hidden="true"> · </span>
+              {via.indexed ? 'index lookup' : 'scan'}
+            </span>
+          )}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function JoinRoute() {
+  const { state } = useEditor();
+  const found = useMemo(() => {
+    // Skips building the map on drag ticks with fewer than two layers selected.
+    if (state.selection.length < 2) return null;
+    const byId = byIdOf(state.nodes);
+    const path = cheapestJoinPath(state.selection, byId);
+    const guaranteed = path && cheapestJoinPath(state.selection, byId, true);
+    return path && guaranteed && { path, guaranteed, byId };
+  }, [state.selection, state.nodes]);
+  if (!found) return null;
+  const { path, guaranteed, byId } = found;
+  // Equal-cost ties can make the guaranteed search pick another route, so judge the fastest route itself.
+  const showGuaranteed = guaranteed.route.length > 0 && path.route.some((s) => s.via && !s.via.guaranteed);
+  return (
+    <>
+      <Section title="Estimated fastest route" testId="section-join-route">
+        {path.route.length === 0 ? (
+          <p className={emptyHint} data-testid="join-route-none">No route between these tables.</p>
+        ) : (
+          <RouteSteps route={path.route} byId={byId} testId="join-route-step" />
+        )}
+      </Section>
+      {showGuaranteed && (
+        <Section title="Guaranteed route" testId="section-guaranteed-route">
+          <RouteSteps route={guaranteed.route} byId={byId} testId="guaranteed-route-step" />
+        </Section>
+      )}
+    </>
+  );
+}
+
 export function PropertiesPanel() {
   const { dispatch } = useEditor();
   const selected = useSelectedNodes();
@@ -146,6 +207,7 @@ export function PropertiesPanel() {
           <p className={emptyHint}>Drag to move them together, or use ⌘D / Delete.</p>
         </Section>
       )}
+      <JoinRoute />
       {selected.length > 0 && (
         <Section title="Arrange">
           <div className={twoColumnGrid}>

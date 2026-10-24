@@ -1,9 +1,10 @@
 import { RadioGroup } from '@ark-ui/react/radio-group';
 import { Switch } from '@ark-ui/react/switch';
+import { Button, ColorInput } from '../design-system';
 import { css, cx } from 'styled-system/css';
 import { radioGroup, toggleSwitch } from 'styled-system/recipes';
 import { usePreferences } from './preferences/PreferencesContext';
-import { GRID_STYLES, type GridStyle } from './preferences/storage';
+import { DEFAULT_PREFERENCES, GRID_STYLES, type GridStyle } from './preferences/storage';
 import { SQL_DIALECT_IDS, SQL_DIALECTS, type SqlDialect } from '../editor/model/table';
 
 const classes = radioGroup();
@@ -11,6 +12,7 @@ const switchClasses = toggleSwitch();
 const headingClass = css({ margin: '0', marginTop: '6' });
 const sectionHeadingClass = css({ margin: '0', marginTop: '6', textStyle: 'body.largeStrong' });
 const mutedClass = css({ margin: '0', color: 'text.secondary' });
+const colorRowClass = css({ display: 'flex', alignItems: 'center', gap: '2', marginTop: '2', maxWidth: 'sidebarWidth' });
 
 export function CanvasSection() {
   const { preferences, setPreference } = usePreferences();
@@ -74,6 +76,26 @@ export function CanvasSection() {
           </RadioGroup.Item>
         ))}
       </RadioGroup.Root>
+
+      <h2 className={sectionHeadingClass}>Relationship highlight</h2>
+      <p className={mutedClass}>Outlines the connectors on the selected tables and the tables they link to.</p>
+      <div className={colorRowClass}>
+        <ColorInput
+          value={preferences.relationHighlight}
+          onCommit={(v) => setPreference('relationHighlight', v)}
+          testId="relation-highlight"
+          label="Relationship highlight color"
+        />
+        {/* Never disabled: disabling it on click would drop keyboard focus to the page. */}
+        <Button
+          variant="ghost"
+          data-testid="relation-highlight-reset"
+          aria-label="Reset relationship highlight color"
+          onClick={() => setPreference('relationHighlight', DEFAULT_PREFERENCES.relationHighlight)}
+        >
+          Reset
+        </Button>
+      </div>
     </section>
   );
 }

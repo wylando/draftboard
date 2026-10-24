@@ -2,7 +2,7 @@ import { boxCenter, mapBoxBetween, rotatePoint } from '../geometry';
 import type { Anchor, Box, ConnectorNode, DesignNode, NodePatch, Point, ToolId, Viewport } from './types';
 import { createId, nameKey, nameTaken, uniqueName } from './names';
 import { createGroup } from './nodes';
-import { allowsManyToMany, isMany, linkKind, linksToItself, nextCardinality, relationDefaults, sameAnchor, shiftLooseEnds } from './connector';
+import { allowsManyToMany, bendsMoveWith, isMany, linkKind, linksToItself, nextCardinality, relationDefaults, routeConnector, sameAnchor, shiftConnector, visibleTables } from './connector';
 import { applyTableEdit, type TableEdit } from './table';
 import { byIdOf, descendantIds, type ById, frameAt, isContainer, mapSiblings, normalizeTree, topLevelIds } from './tree';
 
@@ -39,6 +39,8 @@ export type EditorAction =
   | { type: 'escape' }
   /** `parentAt`: put the node in the deepest frame under this world point. */
   | { type: 'addNode'; node: DesignNode; select?: boolean; parentAt?: Point }
+  /** Nodes must have fresh ids; they're added at the top level as one undo step, selecting the tables. */
+  | { type: 'importNodes'; nodes: DesignNode[] }
   /** Transient: does not snapshot history. Pair with a prior checkpoint. */
   | { type: 'updateNodes'; patches: Record<string, NodePatch> }
   /** Ignored when the trimmed name is empty, unchanged or held by another layer (ignoring case). */
@@ -50,8 +52,14 @@ export type EditorAction =
   | {
       type: 'editConnector';
       id: string;
-      patch: Partial<Pick<ConnectorNode, 'from' | 'to' | 'routing' | 'fromCardinality' | 'toCardinality' | 'isForeignKey'>>;
+      patch: Partial<Pick<ConnectorNode, 'from' | 'to' | 'routing' | 'fromCardinality' | 'toCardinality' | 'isForeignKey' | 'bends'>>;
     }
+  /**
+   * Transient, for dragging a connector's segment: the caller sends `checkpoint` once at the start of
+   * the drag. Sets the corners the route runs through (empty clears them). Ignored for anything but an
+   * orthogonal connector. "Reset route" is `editConnector` with `bends: undefined`.
+   */
+  | { type: 'setConnectorBends'; id: string; bends: Point[] }
   /** Steps one end's cardinality to the next allowed one, as one undo step. */
   | { type: 'cycleCardinality'; id: string; end: 'from' | 'to' }
   /** One change to a table's columns or indexes, as one undo step. Ignored when `applyTableEdit` refuses it. */
@@ -191,7 +199,10 @@ function cloneOffset(nodes: DesignNode[], existing: ById): { copies: DesignNode[
       x: n.x + PASTE_OFFSET,
       y: n.y + PASTE_OFFSET,
     };
-    return copy.type === 'connector' ? { ...copy, ...copyEnds(copy, newIds) } : copy;
+    if (copy.type !== 'connector') return copy;
+    // Bends are world points, so they are offset like the copy's box.
+    const bends = copy.bends?.map((p) => ({ x: p.x + PASTE_OFFSET, y: p.y + PASTE_OFFSET }));
+    return { ...copy, ...copyEnds(copy, newIds), ...(bends ? { bends } : {}) };
   });
   return { copies, newIds };
 }
@@ -231,6 +242,12 @@ function transformPatches(
     if (!inner.has(d.id)) continue;
     patches[d.id] = resized ? mapBoxBetween(d, node, next) : { x: d.x + dx, y: d.y + dy };
   }
+  if (resized || (dx === 0 && dy === 0)) return patches;
+  // Connectors sit at the top level, outside the container, yet a shape between two of its layers travels with them.
+  inner.add(id);
+  for (const d of nodes) {
+    if (d.type === 'connector' && d.bends && bendsMoveWith(d, inner)) patches[d.id] = { bends: shiftConnector(d, dx, dy, true).bends };
+  }
   return patches;
 }
 
@@ -247,8 +264,40 @@ function livePick(state: EditorState): { tableId: string; columnId: string } | n
  * exists, whichever action changed the selection or the document.
  */
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
-  const next = reduce(state, action);
+  const next = forgetMovedShapes(state, reduce(state, action), action);
   return next.selectedColumn && !livePick(next) ? { ...next, selectedColumn: null } : next;
+}
+
+const samePoint = (p: Point | undefined, q: Point | undefined) => p?.x === q?.x && p?.y === q?.y;
+
+/**
+ * Design choice: a shape is drawn for where its ends were. Once an end moves
+ * (its table moved, or a table pushed it to another side) and the edit didn't
+ * carry the bends along, the shape is dropped and the connector routes
+ * afresh, as Reset route would. Undo, redo and loading restore documents as
+ * they were, so they keep whatever bends those hold.
+ */
+function forgetMovedShapes(state: EditorState, next: EditorState, action: EditorAction): EditorState {
+  if (next.nodes === state.nodes || action.type === 'undo' || action.type === 'redo' || action.type === 'loadDocument') return next;
+  const before = new Map<string, ConnectorNode>();
+  for (const n of state.nodes) if (n.type === 'connector' && n.bends) before.set(n.id, n);
+  if (before.size === 0) return next;
+  const stale = new Set<string>();
+  for (const n of next.nodes) {
+    const was = n.type === 'connector' && n.bends ? before.get(n.id) : undefined;
+    if (!was || n.type !== 'connector' || n.bends !== was.bends || n.routing !== was.routing) continue;
+    if (!samePoint(n.points[0], was.points[0]) || !samePoint(n.points[n.points.length - 1], was.points[was.points.length - 1])) stale.add(n.id);
+  }
+  if (stale.size === 0) return next;
+  const byId = byIdOf(next.nodes);
+  const tables = visibleTables(byId);
+  const nodes = next.nodes.map((n) => {
+    if (n.type !== 'connector' || !stale.has(n.id)) return n;
+    const fresh: ConnectorNode = { ...n, points: [] };
+    delete fresh.bends;
+    return routeConnector(fresh, byId, tables);
+  });
+  return { ...next, nodes };
 }
 
 function reduce(state: EditorState, action: EditorAction): EditorState {
@@ -310,6 +359,16 @@ function reduce(state: EditorState, action: EditorAction): EditorState {
       };
     }
 
+    case 'importNodes': {
+      if (action.nodes.length === 0) return state;
+      const s = pushHistory(state);
+      return {
+        ...s,
+        nodes: normalizeTree([...s.nodes, ...action.nodes.map((n) => ({ ...n, parentId: null }))]),
+        selection: action.nodes.filter((n) => n.type === 'table').map((n) => n.id),
+      };
+    }
+
     case 'updateNodes': {
       const nodes = patchNodes(state.nodes, action.patches);
       return nodes ? { ...state, nodes } : state;
@@ -338,13 +397,31 @@ function reduce(state: EditorState, action: EditorAction): EditorState {
         // A re-attach out of a table-to-table many-to-many: the moved end becomes one.
         next = patch.from ? { ...next, fromCardinality: 'one' } : { ...next, toCardinality: 'one' };
       }
+      if ('bends' in patch) next.bends = patch.bends?.filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
+      // A new anchor changes where the shape would sit, so the old corners no longer mean anything.
+      else if (!sameAnchor(next.from, connector.from) || !sameAnchor(next.to, connector.to)) next.bends = undefined;
+      if (next.bends === undefined || next.bends.length === 0) delete next.bends;
+      // The old shaped points would be kept as the "previous" route, so the automatic one has to be searched afresh.
+      if (connector.bends?.length && !next.bends) next.points = [];
+      const sameBends = (next.bends ?? []).length === (connector.bends ?? []).length && (next.bends ?? []).every((p, i) => p.x === connector.bends![i]!.x && p.y === connector.bends![i]!.y);
       const unchanged =
+        sameBends &&
         sameAnchor(next.from, connector.from) &&
         sameAnchor(next.to, connector.to) &&
         (['routing', 'fromCardinality', 'toCardinality', 'isForeignKey'] as const).every((k) => next[k] === connector[k]);
       if (unchanged || linksToItself(next.from, next.to)) return state;
       const s = pushHistory(state);
       return { ...s, nodes: normalizeTree(s.nodes.map((n) => (n.id === action.id ? next : n))) };
+    }
+
+    case 'setConnectorBends': {
+      const connector = state.nodes.find((n) => n.id === action.id);
+      if (connector?.type !== 'connector' || connector.routing !== 'orthogonal') return state;
+      const bends = action.bends.filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
+      const next: ConnectorNode = { ...connector, bends };
+      if (bends.length === 0) delete next.bends;
+      if (connector.bends?.length && !next.bends) next.points = [];
+      return { ...state, nodes: normalizeTree(state.nodes.map((n) => (n.id === action.id ? next : n))) };
     }
 
     case 'cycleCardinality': {
@@ -457,9 +534,14 @@ function reduce(state: EditorState, action: EditorAction): EditorState {
         ...s,
         nodes: normalizeTree(
           s.nodes.map((n) => {
+            // A connector's attached ends follow their layers; only its loose ends move, and its bends travel with it (see `shiftConnector`).
+            if (n.type === 'connector') {
+              const moveBends = bendsMoveWith(n, moving);
+              if (moving.has(n.id)) return { ...n, ...shiftConnector(n, action.dx, action.dy, moveBends) };
+              // Not selected: its loose ends stay, but a shape between two moving layers goes with them.
+              return moveBends && n.bends ? { ...n, bends: shiftConnector(n, action.dx, action.dy, true).bends } : n;
+            }
             if (!moving.has(n.id)) return n;
-            // A connector's attached ends follow their layers; only its loose ends move.
-            if (n.type === 'connector') return { ...n, ...shiftLooseEnds(n, action.dx, action.dy) };
             return { ...n, x: n.x + action.dx, y: n.y + action.dy };
           }),
         ),
