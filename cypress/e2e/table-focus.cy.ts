@@ -95,4 +95,23 @@ describe('Table focus highlight', () => {
     overlay().find(`[data-testid=related-table][data-related-id="${b}"]`).should('not.exist');
     overlay().find(`[data-testid=related-connector][data-related-id="${link}"]`).should('exist');
   });
+
+  it('draws the highlight in the colour chosen in Settings, until it is reset', () => {
+    cy.get('[data-testid=open-settings]').click();
+    cy.get('[data-testid=nav-canvas]').click();
+    cy.get('[data-testid=relation-highlight]').clear().type('FF00AA{enter}');
+    cy.get('[data-testid=relation-highlight]').should('have.value', 'FF00AA');
+    cy.get('[data-testid=close-settings]').click();
+    cy.canvasClick(A);
+    relatedConnectors().should('have.attr', 'stroke', '#ff00aa');
+    relatedTables().should('have.attr', 'stroke', '#ff00aa');
+
+    cy.get('[data-testid=open-settings]').click();
+    cy.get('[data-testid=nav-canvas]').click();
+    cy.get('[data-testid=relation-highlight-reset]').click();
+    cy.get('[data-testid=relation-highlight]').should('have.value', '80CAFF');
+    cy.get('[data-testid=close-settings]').click();
+    cy.canvasClick(A);
+    relatedConnectors().should('have.attr', 'stroke', '#80caff');
+  });
 });

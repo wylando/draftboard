@@ -236,6 +236,8 @@ export interface ColorInputProps {
   value: string;
   onCommit: (value: string) => void;
   testId?: string;
+  /** Accessible name for the hex field, where no visible label names it. */
+  label?: string;
 }
 
 /**
@@ -244,7 +246,7 @@ export interface ColorInputProps {
  * so the swatch keeps a local draft and commits once on the native `change`
  * event, giving one undo step per color pick.
  */
-export function ColorInput({ value, onCommit, testId }: ColorInputProps) {
+export function ColorInput({ value, onCommit, testId, label }: ColorInputProps) {
   const [draft, setDraft] = useDraft(value, (v: string) => v.replace('#', '').toUpperCase());
   const [swatch, setSwatch] = useDraft(value, (v: string) => v);
   const swatchRef = useRef<HTMLInputElement>(null);
@@ -278,13 +280,14 @@ export function ColorInput({ value, onCommit, testId }: ColorInputProps) {
         type="color"
         className={classes.swatch}
         value={swatch}
-        aria-label="Pick color"
+        aria-label={label ? `${label} picker` : 'Pick color'}
         data-testid={testId && `${testId}-swatch`}
         onChange={(e) => setSwatch(e.target.value)}
       />
       <Field.Input
         className={classes.input}
         value={draft}
+        aria-label={label}
         data-testid={testId}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commitText}

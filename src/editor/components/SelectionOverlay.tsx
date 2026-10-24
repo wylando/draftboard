@@ -11,7 +11,6 @@ import { token } from 'styled-system/tokens';
 // SVG presentation attributes take CSS variables, resolved from semantic tokens.
 const SELECTION = token.var('colors.selection');
 const SELECTION_FILL = token.var('colors.selection.fill');
-const RELATED = token.var('colors.selection.related');
 const HANDLE_FILL = token.var('colors.bg');
 const GUIDE = token.var('colors.selection.guide');
 const GUIDE_TEXT = token.var('colors.selection.guideText');
@@ -122,6 +121,8 @@ interface Props {
   hideHandles: boolean;
   /** Connectors on the selected tables and the tables at their other ends (`relatedToTables`). */
   related: DesignNode[];
+  /** The user's colour for `related` (Settings → Canvas). */
+  relatedColor: string;
 }
 
 /** Drawn in screen space so outlines and handles stay a constant size at any zoom. */
@@ -138,6 +139,7 @@ export function SelectionOverlay({
   connectPreview,
   hideHandles,
   related,
+  relatedColor,
 }: Props) {
   // A connector's shape comes from its ends: it gets a highlight along its route, never box handles.
   const single = selected.length === 1 && selected[0]?.type !== 'connector' ? selected[0] : undefined;
@@ -159,9 +161,9 @@ export function SelectionOverlay({
       {/* Kept while handles hide: editing a table's cells still shows what it links to. */}
       {related.map((n) =>
         n.type === 'connector' ? (
-          <polyline key={n.id} data-testid="related-connector" data-related-id={n.id} points={toScreen(n.points)} fill="none" stroke={RELATED} strokeWidth={2} pointerEvents="none" />
+          <polyline key={n.id} data-testid="related-connector" data-related-id={n.id} points={toScreen(n.points)} fill="none" stroke={relatedColor} strokeWidth={2} pointerEvents="none" />
         ) : (
-          <polygon key={n.id} data-testid="related-table" data-related-id={n.id} points={outline(n, viewport)} fill="none" stroke={RELATED} strokeWidth={2} pointerEvents="none" />
+          <polygon key={n.id} data-testid="related-table" data-related-id={n.id} points={outline(n, viewport)} fill="none" stroke={relatedColor} strokeWidth={2} pointerEvents="none" />
         ),
       )}
       {selected.map((n) =>
