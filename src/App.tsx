@@ -28,13 +28,13 @@ function Editor({ onOpenSettings }: { onOpenSettings: () => void }) {
     <div className={editorClass}>
       <Toolbar onOpenSettings={onOpenSettings} />
       <div className={bodyClass}>
-        <LayersPanel key={activeId} />
+        <LayersPanel key={`layers-${activeId}`} />
         <div className={canvasAreaClass}>
           {/* Keyed so marquee, guides, hover and in-place editors start fresh on each board. */}
           <Canvas key={activeId} />
           <ToolDock />
         </div>
-        <PropertiesPanel key={activeId} />
+        <PropertiesPanel key={`properties-${activeId}`} />
       </div>
     </div>
   );

@@ -39,6 +39,9 @@ describe('Boards', () => {
     activeTab('Board 1');
     cy.get('[data-node-type=rect]').should('have.length', 1);
     cy.get('[data-node-type=ellipse]').should('not.exist');
+    // Panels are remounted per board; a switch must replace them, not add another copy.
+    cy.get('[data-testid=layers-panel]').should('have.length', 1);
+    cy.get('[data-testid=properties-panel]').should('have.length', 1);
   });
 
   it('keeps undo history per board', () => {
