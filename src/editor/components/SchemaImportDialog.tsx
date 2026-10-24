@@ -124,11 +124,8 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
     focusGuess.current = null;
   }, [guessesShown]);
 
-  const toggleGuess = async (index: number, on: boolean) => {
+  const applyTicks = async (next: ReadonlySet<number>) => {
     if (!baseSchema || busy) return;
-    const next = new Set(ticked);
-    if (on) next.add(index);
-    else next.delete(index);
     const mine = ++run.current;
     setBusy(true);
     try {
@@ -144,6 +141,15 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
       if (mine === run.current) setBusy(false);
     }
   };
+
+  const toggleGuess = (index: number, on: boolean) => {
+    const next = new Set(ticked);
+    if (on) next.add(index);
+    else next.delete(index);
+    return applyTicks(next);
+  };
+
+  const toggleAllGuesses = (on: boolean) => applyTicks(on ? new Set(guesses.keys()) : new Set());
 
   const parseWith = async (src: Source, forced?: SqlKind) => {
     const title = src.bytes ? "Can't read this file" : "Can't read this schema";
@@ -452,6 +458,13 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
               Matched by column names, like user_id → users. Not foreign keys in the source.
             </p>
             {/* Not disabled while re-planning: that would drop keyboard focus from the checkbox. */}
+            <Checkbox
+              data-testid="guess-all"
+              checked={ticked.size === guesses.length ? true : ticked.size > 0 ? 'indeterminate' : false}
+              onCheckedChange={(on) => void toggleAllGuesses(on)}
+            >
+              Select all
+            </Checkbox>
             {guesses.slice(0, guessesShown).map((g, i) => (
               <Checkbox key={i} data-testid={`guess-${i}`} checked={ticked.has(i)} onCheckedChange={(on) => void toggleGuess(i, on)}>
                 {`${g.fromTable}.${g.fromColumn} → ${g.toTable}.${g.toColumn}`}

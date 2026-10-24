@@ -348,9 +348,9 @@ describe('Schema import from SQL', () => {
       });
       cy.contains('button', 'Preview').click();
       cy.contains('Guessed relationships (9)').should('be.visible');
-      cy.get('[data-testid^=guess-][data-testid!=guess-group]').should('have.length', 8);
+      cy.get('[data-testid^=guess-][data-testid!=guess-group][data-testid!=guess-all]').should('have.length', 8);
       cy.contains('button', 'Show more').click();
-      cy.get('[data-testid^=guess-][data-testid!=guess-group]').should('have.length', 9);
+      cy.get('[data-testid^=guess-][data-testid!=guess-group][data-testid!=guess-all]').should('have.length', 9);
       box(8).should('have.focus');
       cy.contains('button', 'Show more').should('not.exist');
       // overflow-y: auto makes the body scroll sideways too if anything inside is wider than it.
@@ -363,6 +363,32 @@ describe('Schema import from SQL', () => {
         expect(positioner.scrollHeight, 'nothing overflows the dialog').to.be.lte(positioner.clientHeight);
         expect($d[0].getBoundingClientRect().top, 'dialog stays in view').to.be.gte(0);
       });
+    });
+
+    it('selects all guesses, including unshown ones, shows a mixed state, and clears them', () => {
+      cy.get('[data-testid=import-schema]').click();
+      cy.fixture('schema/many-guesses.sql').then((sql: string) => {
+        cy.get('[data-testid=schema-source]').type(sql, { delay: 0, parseSpecialCharSequences: false });
+      });
+      cy.contains('button', 'Preview').click();
+      cy.get('[data-testid=guess-all]').should('have.attr', 'data-state', 'unchecked');
+
+      box(0).check({ force: true });
+      cy.get('[data-testid=import-summary]').should('contain', '1 relationship');
+      cy.get('[data-testid=guess-all]').should('have.attr', 'data-state', 'indeterminate');
+      // The dash is the only visible indicator; the tick's indicator is hidden.
+      cy.get('[data-testid=guess-all] [data-part=indicator]:visible').should('have.length', 1).find('path[d="M3 8h10"]').should('exist');
+
+      cy.get('[data-testid=guess-all]').click();
+      cy.get('[data-testid=import-summary]').should('contain', '9 relationships');
+      cy.get('[data-testid=guess-all]').should('have.attr', 'data-state', 'checked');
+      cy.get('[data-testid=guess-all] [data-part=indicator]:visible').should('have.length', 1).find('path[d="M3 8h10"]').should('not.exist');
+      for (let i = 0; i < 8; i++) box(i).should('be.checked');
+
+      cy.get('[data-testid=guess-all]').click();
+      cy.get('[data-testid=import-summary]').should('contain', '0 relationships');
+      cy.get('[data-testid=guess-all]').should('have.attr', 'data-state', 'unchecked');
+      for (let i = 0; i < 8; i++) box(i).should('not.be.checked');
     });
 
     it('adds only the ticked guesses, without a foreign key badge, and resets ticks on Back', () => {
