@@ -63,6 +63,15 @@ describe('Table focus highlight', () => {
     expectFocusOnA();
   });
 
+  it('shows nothing for two selected tables that are not connected', () => {
+    layerRow('Table 1').click();
+    expectFocusOnA();
+    layerRow('Table 3').click({ shiftKey: true });
+    cy.get('[data-testid=layers-panel] [role=treeitem][aria-selected=true]').should('have.length', 2);
+    relatedConnectors().should('not.exist');
+    relatedTables().should('not.exist');
+  });
+
   it('keeps the highlight while a cell of the table is being edited', () => {
     cy.canvasClick(A);
     expectFocusOnA();
@@ -113,5 +122,65 @@ describe('Table focus highlight', () => {
     cy.get('[data-testid=close-settings]').click();
     cy.canvasClick(A);
     relatedConnectors().should('have.attr', 'stroke', '#80caff');
+  });
+});
+
+// accounts -> orders is linked directly (into the unindexed orders.account_id) and also through owners (into the
+// unique owners.account_id, then orders' primary key), so the cheaper path depends on which table is picked first.
+describe('Table focus highlight for two selected tables', () => {
+  const SQL = [
+    'CREATE TABLE accounts (id int PRIMARY KEY);',
+    'CREATE TABLE orders (id int PRIMARY KEY, account_id int REFERENCES accounts(id));',
+    'CREATE TABLE owners (id int PRIMARY KEY, account_id int UNIQUE REFERENCES accounts(id), order_id int REFERENCES orders(id));',
+  ].join('\n');
+  type Saved = { id: string; type: string; name: string; from?: { tableId: string }; to?: { tableId: string } };
+  let ids: Record<string, string>;
+  let saved: Saved[];
+  const link = (x: string, y: string) => {
+    const found = saved.find((c) => [c.from?.tableId, c.to?.tableId].sort().join() === [ids[x], ids[y]].sort().join());
+    expect(found, `connector ${x}-${y}`).to.not.equal(undefined);
+    return (found as Saved).id;
+  };
+
+  beforeEach(() => {
+    cy.visitEmpty();
+    cy.get('[data-testid=import-schema]').click();
+    cy.get('[data-testid=schema-source]').should('be.visible').type(SQL, { delay: 0, parseSpecialCharSequences: false });
+    cy.contains('button', 'Preview').click();
+    cy.get('[data-testid=import-summary]').should('contain', '3 tables').and('contain', '3 relationships');
+    cy.get('[data-testid=import-add]').click();
+    cy.get('[data-testid=dialog]').should('not.exist');
+    cy.get('[data-node-type=connector]').should('have.length', 3);
+    cy.window().should((win) => {
+      const nodes = (JSON.parse(win.localStorage.getItem('draftboard:document:v1') ?? '{"nodes":[]}') as { nodes: Saved[] }).nodes;
+      const tables = nodes.filter((n) => n.type === 'table');
+      const connectors = nodes.filter((n) => n.type === 'connector');
+      expect(tables).to.have.length(3);
+      expect(connectors).to.have.length(3);
+      ids = Object.fromEntries(tables.map((t) => [t.name, t.id]));
+      saved = connectors;
+    });
+  });
+
+  const pick = (first: string, second: string) => {
+    layerRow(first).click().should('have.attr', 'aria-selected', 'true');
+    layerRow(second).click({ shiftKey: true });
+    cy.get('[data-testid=layers-panel] [role=treeitem][aria-selected=true]').should('have.length', 2);
+  };
+  const expectRelated = (connectors: string[], tables: string[]) => {
+    relatedConnectors().should('have.length', connectors.length);
+    relatedTables().should('have.length', tables.length);
+    for (const id of connectors) overlay().find(`[data-testid=related-connector][data-related-id="${id}"]`).should('exist');
+    for (const id of tables) overlay().find(`[data-testid=related-table][data-related-id="${id}"]`).should('exist');
+  };
+
+  it('highlights the cheaper path through an indexed column, not the direct link', () => {
+    pick('accounts', 'orders');
+    expectRelated([link('accounts', 'owners'), link('owners', 'orders')], [ids.owners]);
+  });
+
+  it('follows the selection order: the other way round the direct link enters a primary key', () => {
+    pick('orders', 'accounts');
+    expectRelated([link('accounts', 'orders')], []);
   });
 });

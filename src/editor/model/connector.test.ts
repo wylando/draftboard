@@ -3,7 +3,8 @@ import { createConnector, bendsMoveWith, dragSegment, repairConnectorData, shape
 import { editorReducer, initialEditorState } from './editorReducer';
 import { createGroup, createNode } from './nodes';
 import { segmentHitsBox } from './orthogonalRoute';
-import { byIdOf, normalizeTree, relatedToTables } from './tree';
+import { createColumn } from './table';
+import { byIdOf, cheapestJoinPath, SCAN_JOIN_COST, normalizeTree, relatedToTables } from './tree';
 import type { Anchor, Box, ConnectorNode, DesignNode, Point, TableNode } from './types';
 
 const table = (box: Box, others: DesignNode[]) => createNode('table', box, others);
@@ -653,15 +654,15 @@ describe('relatedToTables', () => {
     expect(sets(relatedToTables([a.id], all))).toEqual({ connectors: [toB.id], tables: [] });
   });
 
-  it('unions a multi-selection, and two linked focused tables yield the connector but no neighbours', () => {
+  it('unions a three-table selection, listing only tables outside it as neighbours', () => {
     const { a, b, mid } = scene();
-    const byId = byIdOf([a, b, mid]);
+    const d = table({ x: 900, y: 0, width: 100, height: 100 }, [a, b, mid]);
+    const byId = byIdOf([a, b, mid, d]);
     const ab = createConnector(node(a), node(b), 'c1', byId);
     const bm = createConnector(node(b), node(mid), 'c2', byId);
-    const all = byIdOf([a, b, mid, ab, bm]);
-    expect(sets(relatedToTables([a.id, b.id], all))).toEqual({ connectors: [ab.id, bm.id].sort(), tables: [mid.id] });
-    expect(sets(relatedToTables([a.id, mid.id], byIdOf([a, b, mid, ab])))).toEqual({ connectors: [ab.id], tables: [b.id] });
-    expect(sets(relatedToTables([a.id, b.id], byIdOf([a, b, ab])))).toEqual({ connectors: [ab.id], tables: [] });
+    const md = createConnector(node(mid), node(d), 'c3', byId);
+    const all = byIdOf([a, b, mid, d, ab, bm, md]);
+    expect(sets(relatedToTables([a.id, b.id, mid.id], all))).toEqual({ connectors: [ab.id, bm.id, md.id].sort(), tables: [d.id] });
   });
 
   it('gives nothing for an empty selection, a connector or a group', () => {
@@ -673,5 +674,147 @@ describe('relatedToTables', () => {
     expect(sets(relatedToTables([], all))).toEqual(none);
     expect(sets(relatedToTables([c.id], all))).toEqual(none);
     expect(sets(relatedToTables([g.id], all))).toEqual(none);
+  });
+});
+
+describe('cheapestJoinPath', () => {
+  // Column 0 is the primary key (indexed); column 1 is a plain column, such as a foreign key.
+  const tbl = (x: number, others: DesignNode[], patch: Partial<TableNode> = {}): TableNode => {
+    const t = table({ x, y: 0, width: 100, height: 100 }, others) as TableNode;
+    return { ...t, columns: [createColumn('first', 'int'), createColumn('second', 'int')], indexes: [], ...patch };
+  };
+  const pk = (t: TableNode): TableNode => ({ ...t, columns: t.columns.map((c, i) => (i === 0 ? { ...c, primaryKey: true } : c)) });
+  const colOf = (t: TableNode, i = 0): Anchor => ({ kind: 'column', tableId: t.id, columnId: t.columns[i]!.id });
+  const whole = (t: DesignNode): Anchor => ({ kind: 'node', nodeId: t.id });
+  const join = (from: Anchor, to: Anchor, name: string, all: DesignNode[]) => createConnector(from, to, name, byIdOf(all));
+  const sets = (r: { connectors: Set<string>; tables: Set<string> } | null) => r && { connectors: [...r.connectors].sort(), tables: [...r.tables].sort() };
+  const none = { connectors: [], tables: [] };
+  const hide = (n: DesignNode): DesignNode => ({ ...n, visible: false });
+
+  // b.fk (a plain column) references a's key directly; c is an indexed stepping stone linked by key to both.
+  function scene() {
+    const a = pk(tbl(0, []));
+    const b = pk(tbl(600, [a]));
+    const c = pk(tbl(300, [a, b]));
+    const base = [a, b, c];
+    const direct = join(colOf(b, 1), colOf(a), 'direct', base);
+    const ac = join(colOf(a), colOf(c), 'ac', base);
+    const cb = join(colOf(c), colOf(b), 'cb', base);
+    return { a, b, c, base, direct, ac, cb };
+  }
+
+  it('prefers an indexed two-hop route over a direct join into an unindexed foreign key column', () => {
+    const { a, b, c, base, direct, ac, cb } = scene();
+    expect(sets(cheapestJoinPath([a.id, b.id], byIdOf([...base, direct, ac, cb])))).toEqual({ connectors: [ac.id, cb.id].sort(), tables: [c.id] });
+  });
+
+  it('costs a step by the column it enters, so the direction of the selection matters', () => {
+    const { a, b, base, direct, ac, cb } = scene();
+    expect(sets(cheapestJoinPath([b.id, a.id], byIdOf([...base, direct, ac, cb])))).toEqual({ connectors: [direct.id], tables: [] });
+  });
+
+  describe('which columns count as indexed', () => {
+    // A direct join from a into b's `columnIndex` column, against a two-hop route through indexed m that enters a
+    // third column of b that is both unique and indexed, so no single rule under test can unindex it: the two-hop route
+    // always costs 2, and the direct join wins only when b's column is indexed.
+    function directWins(patchB: (b: TableNode) => TableNode, columnIndex: number) {
+      const a = tbl(0, []);
+      const patched = patchB(tbl(600, [a]));
+      const key = { ...createColumn('key', 'int'), unique: true };
+      const b = { ...patched, columns: [...patched.columns, key], indexes: [...patched.indexes, { id: 'kx', name: 'kx', unique: true, columnIds: [key.id] }] };
+      const m = pk(tbl(300, [a, b]));
+      const base = [a, b, m];
+      const ab = join(colOf(a), colOf(b, columnIndex), 'ab', base);
+      const am = join(colOf(a), colOf(m), 'am', base);
+      const mb = join(colOf(m), colOf(b, 2), 'mb', base);
+      return cheapestJoinPath([a.id, b.id], byIdOf([...base, ab, am, mb]))!.connectors.has(ab.id);
+    }
+    const unique = (b: TableNode) => ({ ...b, columns: b.columns.map((c, i) => (i === 1 ? { ...c, unique: true } : c)) });
+    const indexOn = (...ixs: number[]) => (b: TableNode): TableNode => ({
+      ...b,
+      indexes: [{ id: 'ix', name: 'ix', unique: false, columnIds: ixs.map((i) => b.columns[i]!.id) }],
+    });
+    const compositeKey = (b: TableNode): TableNode => ({
+      ...b,
+      columns: b.columns.map((c) => ({ ...c, primaryKey: true })),
+    });
+
+    it('counts a unique column, and the leading column of an index or primary key', () => {
+      expect(directWins(unique, 1)).toBe(true);
+      expect(directWins(indexOn(1, 0), 1)).toBe(true);
+      expect(directWins(compositeKey, 0)).toBe(true);
+    });
+
+    it('does not count a later column of a composite index or primary key', () => {
+      expect(directWins(indexOn(0, 1), 1)).toBe(false);
+      expect(directWins(compositeKey, 1)).toBe(false);
+    });
+  });
+
+  it('costs entering a whole-table end as a scan, yet uses it when it is the only route', () => {
+    const { a, b, c, base } = scene();
+    const direct = join(whole(a), whole(b), 'direct', base);
+    const ac = join(whole(a), colOf(c), 'ac', base);
+    const cb = join(colOf(c), colOf(b), 'cb', base);
+    expect(sets(cheapestJoinPath([a.id, b.id], byIdOf([...base, direct, ac, cb])))).toEqual({ connectors: [ac.id, cb.id].sort(), tables: [c.id] });
+    expect(sets(cheapestJoinPath([a.id, b.id], byIdOf([...base, direct])))).toEqual({ connectors: [direct.id], tables: [] });
+  });
+
+  it('breaks a cost tie with fewer hops, even when the longer path reaches the goal first', () => {
+    // Long: 11 indexed hops, then a scan = (21, 12). Short: two scans, then an indexed hop = (21, 3). The long path's
+    // tail node settles first (cost 11 < 20), so only the hop comparison on a tie lets the short path replace it.
+    const all: TableNode[] = [];
+    const mk = (): TableNode => {
+      const t = pk(tbl(all.length * 150, all));
+      all.push(t);
+      return t;
+    };
+    const start = mk();
+    let tail = start;
+    const links: ConnectorNode[] = [];
+    for (let i = 0; i <= SCAN_JOIN_COST; i++) {
+      const next = mk();
+      links.push(join(colOf(tail), colOf(next), `long${i}`, all));
+      tail = next;
+    }
+    const x = mk();
+    const p2 = mk();
+    const goal = mk();
+    links.push(join(whole(tail), whole(goal), 'tailGoal', all));
+    const sx = join(whole(start), whole(x), 'sx', all);
+    const xp = join(whole(x), whole(p2), 'xp', all);
+    const pg = join(colOf(p2), colOf(goal), 'pg', all);
+    const r = cheapestJoinPath([start.id, goal.id], byIdOf([...all, ...links, sx, xp, pg]));
+    expect(sets(r)).toEqual({ connectors: [sx.id, xp.id, pg.id].sort(), tables: [x.id, p2.id].sort() });
+  });
+
+  it('uses the cheapest of several parallel connectors', () => {
+    const a = tbl(0, []);
+    const b = pk(tbl(600, [a]));
+    const slow = join(whole(a), whole(b), 'slow', [a, b]);
+    const fast = join(colOf(a), colOf(b), 'fast', [a, b]);
+    expect(sets(cheapestJoinPath([a.id, b.id], byIdOf([a, b, slow, fast])))?.connectors).toEqual([fast.id]);
+  });
+
+  it('skips hidden connectors, hidden tables and non-table layers', () => {
+    const { a, b, c, base, direct, ac, cb } = scene();
+    const rect = createNode('rect', { x: 300, y: 300, width: 50, height: 50 }, base);
+    const viaRect = [join(whole(a), whole(rect), 'ar', [a, rect]), join(whole(rect), whole(b), 'rb', [rect, b])];
+    const path = (nodes: DesignNode[]) => sets(cheapestJoinPath([a.id, b.id], byIdOf(nodes)));
+    expect(path([a, b, c, direct, ac, hide(cb)])?.tables).toEqual([]);
+    expect(path([a, b, hide(c), direct, ac, cb])?.connectors).toEqual([direct.id]);
+    expect(path([a, b, rect, ...viaRect])).toEqual(none);
+    expect(path([a, b, c, ac])).toEqual(none);
+  });
+
+  it('returns null unless exactly two visible tables are selected, ignoring other selected layers', () => {
+    const { a, b, c, base, direct, ac, cb } = scene();
+    const rect = createNode('rect', { x: 300, y: 300, width: 50, height: 50 }, base);
+    const byId = byIdOf([...base, direct, ac, cb, rect, hide(tbl(900, base))]);
+    expect(cheapestJoinPath([], byId)).toBeNull();
+    expect(cheapestJoinPath([a.id], byId)).toBeNull();
+    expect(cheapestJoinPath([a.id, b.id, c.id], byId)).toBeNull();
+    expect(cheapestJoinPath([a.id, rect.id], byId)).toBeNull();
+    expect(cheapestJoinPath([a.id, b.id, rect.id], byId)).not.toBeNull();
   });
 });

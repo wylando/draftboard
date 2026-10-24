@@ -1,7 +1,7 @@
 import { pointInRotatedBox, rotatedBounds, unionBoxes } from '../geometry';
 import { routeConnector, targetId, visibleTables } from './connector';
 import { tableHeight } from './table';
-import type { DesignNode, Point } from './types';
+import type { Anchor, DesignNode, Point, TableNode } from './types';
 
 /**
  * Pure helpers for the layer tree. The document stays a flat list in preorder
@@ -236,6 +236,86 @@ export function relatedToTables(selection: readonly string[], byId: ById): { con
     const other = ends[1 - i];
     const neighbour = other ? byId.get(other) : undefined;
     if (neighbour?.type === 'table' && !focused.has(neighbour.id) && isEffectivelyVisible(byId, neighbour)) tables.add(neighbour.id);
+  }
+  return { connectors, tables };
+}
+
+/**
+ * Heuristic join costs: the model has no row counts, so a lookup into an indexed column is assumed cheap and any
+ * other a scan. Only the ratio matters.
+ */
+export const INDEXED_JOIN_COST = 1;
+export const SCAN_JOIN_COST = 10;
+
+/** Whether `columnId` can use an index of `table`: a unique column, a leading primary-key column or an index's first column. */
+function isIndexed(table: TableNode, columnId: string): boolean {
+  const column = table.columns.find((c) => c.id === columnId);
+  if (!column) return false;
+  // Only the leading column of a composite key or index can serve a lookup on its own.
+  return column.unique
+    || table.columns.find((c) => c.primaryKey)?.id === columnId
+    || table.indexes.some((ix) => ix.columnIds[0] === columnId);
+}
+
+/**
+ * The cheapest join path from the first of exactly two selected visible tables to the second, as the connectors on
+ * it and the tables it passes through (not the two selected). Each step costs the lookup into the table it enters:
+ * `INDEXED_JOIN_COST` when the connector's end there is an indexed column, else `SCAN_JOIN_COST`; ties go to fewer
+ * hops. Selection order therefore matters. Both sets are empty when no path exists; `null` when the selection is
+ * not two visible tables, so callers can fall back to `relatedToTables`.
+ */
+export function cheapestJoinPath(selection: readonly string[], byId: ById): { connectors: Set<string>; tables: Set<string> } | null {
+  const isTable = (id: string | null): id is string => {
+    const node = id ? byId.get(id) : undefined;
+    return node?.type === 'table' && isEffectivelyVisible(byId, node);
+  };
+  const [start, goal, ...extra] = selection.filter(isTable);
+  if (!start || !goal || extra.length > 0) return null;
+
+  const edges = new Map<string, { to: string; cost: number; connector: string }[]>();
+  for (const node of byId.values()) {
+    if (node.type !== 'connector' || !isEffectivelyVisible(byId, node)) continue;
+    const a = targetId(node.from);
+    const b = targetId(node.to);
+    if (!isTable(a) || !isTable(b) || a === b) continue;
+    const enter = (end: Anchor, id: string) =>
+      end.kind === 'column' && isIndexed(byId.get(id) as TableNode, end.columnId) ? INDEXED_JOIN_COST : SCAN_JOIN_COST;
+    const out = edges.get(a) ?? [];
+    out.push({ to: b, cost: enter(node.to, b), connector: node.id });
+    edges.set(a, out);
+    const back = edges.get(b) ?? [];
+    back.push({ to: a, cost: enter(node.from, a), connector: node.id });
+    edges.set(b, back);
+  }
+
+  // Imported schemas reach hundreds of tables; an O(V^2) scan for the next node is well under a frame there, so no heap.
+  const best = new Map<string, { cost: number; hops: number; via?: { from: string; connector: string } }>([[start, { cost: 0, hops: 0 }]]);
+  const done = new Set<string>();
+  for (;;) {
+    let current: string | null = null;
+    for (const [id, d] of best) {
+      if (done.has(id)) continue;
+      const c = current ? best.get(current)! : null;
+      if (!c || d.cost < c.cost) current = id;
+    }
+    if (current === null || current === goal) break;
+    done.add(current);
+    const here = best.get(current)!;
+    for (const edge of edges.get(current) ?? []) {
+      const cost = here.cost + edge.cost;
+      const hops = here.hops + 1;
+      const known = best.get(edge.to);
+      if (!known || cost < known.cost || (cost === known.cost && hops < known.hops)) {
+        best.set(edge.to, { cost, hops, via: { from: current, connector: edge.connector } });
+      }
+    }
+  }
+
+  const connectors = new Set<string>();
+  const tables = new Set<string>();
+  for (let step = best.get(goal)?.via; step; step = best.get(step.from)?.via) {
+    connectors.add(step.connector);
+    if (step.from !== start) tables.add(step.from);
   }
   return { connectors, tables };
 }
