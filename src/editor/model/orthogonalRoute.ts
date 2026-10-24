@@ -18,6 +18,12 @@ const TIE_BREAK = 1e-6;
 // A search with no way through (an end boxed in by overlapping tables) would otherwise visit the whole grid, every frame of a drag. Real routes take a few thousand.
 const MAX_EXPANSIONS = 150000;
 
+/**
+ * Running total of A* expansions across all searches. Only tests read it: a deterministic stand-in for routing time,
+ * so performance tests assert on search work instead of a wall clock that varies by machine.
+ */
+export const routeWork = { expansions: 0 };
+
 // Reused across calls: a drag frame routes many connectors, and allocating dense tables for each dominated the search.
 const pool = { g: new Float64Array(0), parent: new Int32Array(0), seen: new Uint32Array(0), done: new Uint32Array(0), gen: 0 };
 function acquireScratch(size: number) {
@@ -165,6 +171,7 @@ export function routeAround(start: Point, startSide: Side, end: Point, endSide: 
     if (done[s] === gen) continue;
     done[s] = gen;
     if (++expansions > MAX_EXPANSIONS) return null;
+    routeWork.expansions++;
     const d = s % 4;
     const cell = (s - d) / 4;
     const i = Math.floor(cell / ny);

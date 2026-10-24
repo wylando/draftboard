@@ -151,10 +151,11 @@ describe('splitStatements', () => {
   });
 
   it.each(['postgres', 'mysql'] as const)('scans a long dash comment line in linear time (%s)', (dialect) => {
-    const t0 = performance.now();
-    const out = splitStatements(`-- ${'-'.repeat(200)}\nSELECT 1;`, dialect);
-    expect(performance.now() - t0).toBeLessThan(100);
-    expect(out).toEqual([{ sql: `-- ${'-'.repeat(200)}\nSELECT 1`, line: 2 }]);
+    expect(splitStatements(`-- ${'-'.repeat(200)}\nSELECT 1;`, dialect)).toEqual([{ sql: `-- ${'-'.repeat(200)}\nSELECT 1`, line: 2 }]);
+    // No timing: the scan is one native indexOf, too fast for a stable ratio on CI. A scan that went back
+    // over the line per character would never finish 8M characters, and the CI job's time limit fails that.
+    const sql = `-- ${'-'.repeat(8_000_000)}\nSELECT 1;`;
+    expect(splitStatements(sql, dialect)).toEqual([{ sql: sql.slice(0, -1), line: 2 }]);
   });
 
   it('skips COPY data when the column list is very long', () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { classifyStatement, couldntParse, parseSql } from './fromSql';
+import { growth, MAX_LINEAR_GROWTH } from './testGrowth';
 import type { ImportedColumn, ImportedTable } from './types';
 
 function col(t: ImportedTable, name: string): ImportedColumn {
@@ -852,12 +853,19 @@ DELIMITER ;
     });
   });
 
-  it.each(['postgres', 'mysql'] as const)('classifies a statement behind a 200-dash comment line quickly (%s)', async (dialect) => {
-    const comment = `-- ${'-'.repeat(200)}\n/* ${'-- '.repeat(200)}\n*/\n`;
-    const started = performance.now();
+  it.each(['postgres', 'mysql'] as const)('classifies a statement behind a long comment prefix in linear time (%s)', async (dialect) => {
+    const commentAt = (scale: number) => `-- ${'-'.repeat(500_000 * scale)}\n/* ${'-- '.repeat(500_000 * scale)}\n*/\n`;
+    const comment = commentAt(1);
     const grant = await parseSql(`${comment}GRANT ALL ON t TO u;`, dialect);
     const view = await parseSql(`${comment}CREATE VIEW v AS SELECT 1;`, dialect);
-    expect(performance.now() - started).toBeLessThan(1000);
+    const classifyAt = (scale: number) => {
+      const prefix = commentAt(scale);
+      return async () => {
+        await parseSql(`${prefix}GRANT ALL ON t TO u;`, dialect);
+        await parseSql(`${prefix}CREATE VIEW v AS SELECT 1;`, dialect);
+      };
+    };
+    expect(await growth(classifyAt)).toBeLessThan(MAX_LINEAR_GROWTH);
     expect(grant.warnings).toEqual([]);
     expect(view.warnings).toEqual([{ line: 4, message: 'Skipped CREATE VIEW' }]);
   });

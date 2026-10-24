@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createConnector, bendsMoveWith, dragSegment, repairConnectorData, shapePoints, ROUTE_MARGIN, routeBetween, shiftConnector } from './connector';
 import { editorReducer, initialEditorState } from './editorReducer';
 import { createGroup, createNode } from './nodes';
-import { segmentHitsBox } from './orthogonalRoute';
+import { routeWork, segmentHitsBox } from './orthogonalRoute';
 import { createColumn } from './table';
 import { byIdOf, cheapestJoinPath, SCAN_JOIN_COST, normalizeTree, relatedToTables } from './tree';
 import type { Anchor, Box, ConnectorNode, DesignNode, Point, TableNode } from './types';
@@ -85,47 +85,53 @@ describe('live rerouting', () => {
   });
 
   // Irregular positions matter: an aligned grid has few distinct coordinates and hides the cost of routing.
-  // The thresholds are wide on purpose: they exist to catch a search that blows up, not to rank machines.
+  // Budgets count A* expansions (deterministic: seeded scenes) rather than time, which varies by machine. They are
+  // set at about 2-3x the measured count: wide enough to ignore tuning, narrow enough to catch a search that blows up.
+  const expansionsOf = (run: () => void) => {
+    routeWork.expansions = 0;
+    run();
+    return routeWork.expansions;
+  };
   const drag = (start: DesignNode[], movingId: string, frames: number, step: number) => {
     let nodes = start;
-    const times: number[] = [];
+    const perFrame: number[] = [];
     for (let i = 0; i < frames; i++) {
       const moved = nodes.map((n) => (n.id === movingId ? { ...n, x: n.x + step } : n));
-      const t0 = performance.now();
-      nodes = normalizeTree(moved);
-      times.push(performance.now() - t0);
+      perFrame.push(expansionsOf(() => { nodes = normalizeTree(moved); }));
     }
-    return times;
+    return perFrame;
   };
 
-  it.each([64, 100])('drags a table among %i jittered tables and 100 far-apart connectors within a frame', (tableCount) => {
+  it.each([[64, 12000], [100, 4000]])('drags a table among %i jittered tables and 100 far-apart connectors without a search blowing up', (tableCount, budget) => {
     const nodes = normalizeTree(jitteredSchema(tableCount, 100));
-    const times = drag(nodes, nodes[Math.floor(tableCount / 2)]!.id, 5, 1);
-    expect(times.reduce((sum, t) => sum + t, 0) / times.length).toBeLessThan(16);
+    const frames = drag(nodes, nodes[Math.floor(tableCount / 2)]!.id, 5, 1);
+    // Measured average per frame: 4640 at 64 tables, 1410 at 100.
+    expect(frames.reduce((sum, n) => sum + n, 0) / frames.length).toBeLessThanOrEqual(budget);
   });
 
-  it('routes 100 jittered tables and 100 connectors from scratch in one call', () => {
+  it('routes 100 jittered tables and 100 connectors from scratch without a search blowing up', () => {
     const nodes = jitteredSchema(100, 100);
-    const t0 = performance.now();
-    normalizeTree(nodes);
-    expect(performance.now() - t0).toBeLessThan(100);
+    const n = expansionsOf(() => { normalizeTree(nodes); });
+    // Measured: 194740 expansions.
+    expect(n).toBeLessThanOrEqual(500000);
   });
 
-  it('drags a table with 20 connectors through 100 tables without a slow frame', () => {
+  it('drags a table with 20 connectors through 100 tables without a frame blowing up', () => {
     const nodes = normalizeTree(jitteredSchema(100, 80, 20));
-    const times = drag(nodes, nodes[50]!.id, 20, 12);
-    expect(Math.max(...times)).toBeLessThan(32);
+    const frames = drag(nodes, nodes[50]!.id, 20, 12);
+    // Worst frame, as the original slow-frame check was. Measured worst: 41725.
+    expect(Math.max(...frames)).toBeLessThanOrEqual(100000);
   });
 
-  it('gives up quickly on a connector whose end table overlaps another table, among 300 tables', () => {
+  it('gives up on a connector whose end table overlaps another table, among 300 tables, without a search blowing up', () => {
     const nodes = normalizeTree(jitteredSchema(300, 100));
     const link = nodes.find((n) => n.type === 'connector') as ConnectorNode;
     const target = link.to.kind === 'node' ? link.to.nodeId : '';
     const other = nodes.find((n) => n.type === 'table' && n.id !== target && n.id !== (link.from.kind === 'node' ? link.from.nodeId : ''))!;
     const overlapped = nodes.map((n) => (n.id === target ? { ...n, x: other.x + 30, y: other.y + 20 } : n));
-    const t0 = performance.now();
-    normalizeTree(overlapped);
-    expect(performance.now() - t0).toBeLessThan(50);
+        const n = expansionsOf(() => { normalizeTree(overlapped); });
+    // Measured: 210520, with no search reaching the cap. Lowering the cap to 100000 makes failed searches cascade into fallbacks (measured 430941), which this catches.
+    expect(n).toBeLessThanOrEqual(400000);
   });
 });
 
@@ -545,20 +551,21 @@ describe('shaped routes avoiding tables', () => {
     expect(route([a, b, ...ring])).toEqual(shapedRoute);
   });
 
-  it('drags 30 shaped connectors across 100 jittered tables within a frame', () => {
+  it('drags 30 shaped connectors across 100 jittered tables without a search blowing up', () => {
     const nodes = normalizeTree(jitteredSchema(100, 100));
     const routed = nodes.filter((n): n is ConnectorNode => n.type === 'connector').slice(0, 30);
     const shaped = new Map(routed.map((c) => [c.id, c.points.slice(1, -1)]));
     let state = normalizeTree(nodes.map((n) => (shaped.has(n.id) ? { ...n, bends: shaped.get(n.id)! } : n)));
     const hub = state[50]!.id;
-    const times: number[] = [];
+    const frames: number[] = [];
     for (let i = 0; i < 20; i++) {
       const moved = state.map((n) => (n.id === hub ? { ...n, x: n.x + 40, y: n.y + 15 } : n));
-      const t0 = performance.now();
+      routeWork.expansions = 0;
       state = normalizeTree(moved);
-      times.push(performance.now() - t0);
+      frames.push(routeWork.expansions);
     }
-    expect(times.reduce((sum, t) => sum + t, 0) / times.length).toBeLessThan(16);
+    // Measured average per frame: 3590 (worst 13447).
+    expect(frames.reduce((sum, n) => sum + n, 0) / frames.length).toBeLessThanOrEqual(10000);
   });
 
   it('hands the shape, not the detour, to a segment drag', () => {
@@ -590,7 +597,7 @@ describe('shaped routes avoiding tables', () => {
     expect(doublesBack(r)).toBe(false);
   });
 
-  it('gives up fast on shaped legs it cannot get round', () => {
+  it('gives up on shaped legs it cannot get round without searching every table', () => {
     // A closed ring of tables with two bends inside it, among a hundred other tables: the legs in from outside have no way round,
     // and a search over every table to find that out is what this must not do.
     const tables: DesignNode[] = jitteredSchema(100, 0);
@@ -607,9 +614,10 @@ describe('shaped routes avoiding tables', () => {
     }));
     const nodes = [...tables, ...links];
     normalizeTree(nodes);
-    const t0 = performance.now();
+    routeWork.expansions = 0;
     normalizeTree(nodes);
-    expect(performance.now() - t0).toBeLessThan(50);
+    // Measured: 1380 for all ten connectors.
+    expect(routeWork.expansions).toBeLessThanOrEqual(4000);
   });
 });
 

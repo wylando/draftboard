@@ -2,7 +2,7 @@ import { defineSlotRecipe } from '@pandacss/dev';
 
 /**
  * Labelled checkbox (Ark UI Checkbox). Slots match Ark's parts. Ark puts
- * `data-state="checked"` on root, control and indicator, and
+ * `data-state` (checked, unchecked or indeterminate) on root, control and indicator, and
  * `data-focus-visible` on the control.
  */
 export const checkboxRecipe = defineSlotRecipe({
@@ -13,6 +13,7 @@ export const checkboxRecipe = defineSlotRecipe({
   base: {
     root: {
       display: 'inline-flex',
+      minWidth: '0',
       gap: '2',
       alignItems: 'center',
       cursor: 'pointer',
@@ -31,7 +32,7 @@ export const checkboxRecipe = defineSlotRecipe({
       borderRadius: 'small',
       bg: 'bg',
       color: 'text.onBrand',
-      '&[data-state=checked]': { borderColor: 'bg.brand', bg: 'bg.brand' },
+      '&[data-state=checked], &[data-state=indeterminate]': { borderColor: 'bg.brand', bg: 'bg.brand' },
       '&[data-focus-visible]': { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.selected', outlineOffset: '1px' },
     },
     indicator: {
@@ -40,10 +41,13 @@ export const checkboxRecipe = defineSlotRecipe({
       height: 'full',
       // The 16px icon scales to the control's content box so the tick stays inside the border.
       '& svg': { width: 'full', height: 'full' },
-      // Ark renders the indicator in every state; the tick must not show when unchecked.
-      '&[data-state=unchecked]': { visibility: 'hidden' },
+      // Ark sets `hidden` on the indicator that doesn't match the state; display above would override it.
+      '&[hidden]': { display: 'none' },
     },
     label: {
+      minWidth: '0',
+      // Names like order_line_items.shipping_address_id have no space to break at.
+      overflowWrap: 'anywhere',
       textStyle: 'body.large',
     },
   },

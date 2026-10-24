@@ -55,7 +55,7 @@ const textareaClass = css({
   _focus: { outline: 'none', borderColor: 'border.selected', bg: 'bg' },
 });
 const summaryClass = css({ display: 'flex', gap: '3', textStyle: 'body.mediumStrong' });
-const listClass = css({ margin: '0', paddingInlineStart: '4', maxHeight: '[160px]', overflowY: 'auto' });
+const listClass = css({ margin: '0', paddingInlineStart: '4' });
 const countsClass = css({ display: 'flex', gap: '3' });
 const headingClass = css({ margin: '0', textStyle: 'body.mediumStrong' });
 const hintClass = css({ margin: '0', color: 'text.secondary' });
@@ -124,11 +124,8 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
     focusGuess.current = null;
   }, [guessesShown]);
 
-  const toggleGuess = async (index: number, on: boolean) => {
+  const applyTicks = async (next: ReadonlySet<number>) => {
     if (!baseSchema || busy) return;
-    const next = new Set(ticked);
-    if (on) next.add(index);
-    else next.delete(index);
     const mine = ++run.current;
     setBusy(true);
     try {
@@ -139,11 +136,20 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
         setTicked(next);
       }
     } catch {
-      if (mine === run.current) await alert({ title: "Can't read this schema", description: 'Something went wrong while adding the relationship.' });
+      if (mine === run.current) await alert({ title: "Can't read this schema", description: 'Something went wrong while updating the relationships.' });
     } finally {
       if (mine === run.current) setBusy(false);
     }
   };
+
+  const toggleGuess = (index: number, on: boolean) => {
+    const next = new Set(ticked);
+    if (on) next.add(index);
+    else next.delete(index);
+    return applyTicks(next);
+  };
+
+  const toggleAllGuesses = (on: boolean) => applyTicks(on ? new Set(guesses.keys()) : new Set());
 
   const parseWith = async (src: Source, forced?: SqlKind) => {
     const title = src.bytes ? "Can't read this file" : "Can't read this schema";
@@ -285,6 +291,7 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
       <Dialog
         open={open}
         onOpenChange={close}
+        bodyKey="source"
         title="Import schema"
         description="Paste SQL or DBML, or choose a .sql or .dbml file or SQLite database."
         actions={
@@ -368,6 +375,7 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
     <Dialog
       open={open}
       onOpenChange={close}
+      bodyKey="preview"
       title="Import schema"
       description="Add to canvas keeps your layers and renames clashing tables. Replace document loads only these tables, with their own names."
       actions={
@@ -450,6 +458,13 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
               Matched by column names, like user_id → users. Not foreign keys in the source.
             </p>
             {/* Not disabled while re-planning: that would drop keyboard focus from the checkbox. */}
+            <Checkbox
+              data-testid="guess-all"
+              checked={ticked.size === guesses.length ? true : ticked.size > 0 ? 'indeterminate' : false}
+              onCheckedChange={(on) => void toggleAllGuesses(on)}
+            >
+              Select all
+            </Checkbox>
             {guesses.slice(0, guessesShown).map((g, i) => (
               <Checkbox key={i} data-testid={`guess-${i}`} checked={ticked.has(i)} onCheckedChange={(on) => void toggleGuess(i, on)}>
                 {`${g.fromTable}.${g.fromColumn} → ${g.toTable}.${g.toColumn}`}

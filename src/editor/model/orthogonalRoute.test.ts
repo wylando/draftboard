@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Box, Point } from './types';
-import { STUB, routeAround, segmentHitsBox, type Side } from './orthogonalRoute';
+import { STUB, routeAround, routeWork, segmentHitsBox, type Side } from './orthogonalRoute';
 
 const inflate = (b: Box, m: number): Box => ({ x: b.x - m, y: b.y - m, width: b.width + 2 * m, height: b.height + 2 * m });
 
@@ -54,7 +54,7 @@ describe('routeAround', () => {
     expect(routeAround({ x: 0, y: 0 }, 'right', { x: 500, y: 0 }, 'left', [cage], 16)).toBeNull();
   });
 
-  it('routes 100 links through 60 boxes in under 300 ms', () => {
+  it('routes 100 links through 60 boxes without a search blowing up', () => {
     let seed = 7;
     const rand = () => {
       seed = (seed * 1664525 + 1013904223) >>> 0;
@@ -79,9 +79,9 @@ describe('routeAround', () => {
       const sb = sides[Math.floor(rand() * 4)]!;
       return { a: anchor(boxes[a]!, sa), sa, b: anchor(boxes[b]!, sb), sb };
     });
-    const t0 = performance.now();
+    routeWork.expansions = 0;
     jobs.forEach((j) => { routeAround(j.a, j.sa, j.b, j.sb, boxes, 16); });
-    const elapsed = performance.now() - t0;
-    expect(elapsed).toBeLessThan(300);
+    // Seeded, so the count is exact. Measured: 178327 expansions for the 100 jobs.
+    expect(routeWork.expansions).toBeLessThanOrEqual(450000);
   });
 });
