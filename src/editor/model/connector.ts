@@ -620,12 +620,51 @@ function elbow(startAt: Point, endAt: Point, s0: Side, s1: Side): Point[] {
   return simplify([startAt, a, ...middle, b, endAt]);
 }
 
-/** Where a connector's two ends sit and which side each leaves by (a loose end picks the side facing the other). */
-function routeEnds(from: Anchor, to: Anchor, byId: ReadonlyMap<string, DesignNode>): { start: Point; end: Point; s0: Side; s1: Side } {
-  const first = endpoint(from, aim(to, byId), byId);
+/**
+ * Design choice: an attached end whose stub would run into another table (one
+ * moved up against its side) leaves by another side of its own instead, the
+ * one facing the other end most, since no route can get out past that table. A
+ * column end has only its row's two edges. When every side is blocked, or the
+ * table in the way is one of the connector's own, the end keeps its side; so
+ * does an end inside a table stacked over its own, as a duplicate is.
+ */
+function clearSide(anchor: Anchor, end: { at: Point; side: Side | null }, toward: Point, own: ReadonlySet<Box>, tables: readonly Box[], byId: ReadonlyMap<string, DesignNode>) {
+  const t = target(anchor, byId);
+  if (!t || !end.side) return end;
+  // `buried`: an end under a table counts as blocked for a side to move to, though not for the side it has.
+  const blocked = (e: { at: Point; side: Side }, buried: boolean) => {
+    const tip = { x: e.at.x + NORMAL[e.side].x * STUB, y: e.at.y + NORMAL[e.side].y * STUB };
+    const covers = (o: Box) => e.at.x > o.x && e.at.x < o.x + o.width && e.at.y > o.y && e.at.y < o.y + o.height;
+    return tables.some((o) => !own.has(o) && (covers(o) ? buried : segmentHitsBox(e.at, tip, o)));
+  };
+  if (!blocked({ at: end.at, side: end.side }, false)) return end;
+  const { box } = t;
+  const c = boxCenter(box);
+  const y = t.rowY ?? c.y;
+  const sides: Array<{ at: Point; side: Side }> = [
+    { at: { x: box.x, y }, side: 'left' },
+    { at: { x: box.x + box.width, y }, side: 'right' },
+    ...(t.rowY === undefined ? ([{ at: { x: c.x, y: box.y }, side: 'top' }, { at: { x: c.x, y: box.y + box.height }, side: 'bottom' }] as const) : []),
+  ];
+  const facing = (e: { at: Point; side: Side }) => NORMAL[e.side].x * (toward.x - e.at.x) + NORMAL[e.side].y * (toward.y - e.at.y);
+  return sides.filter((e) => e.side !== end.side && !blocked(e, true)).sort((p, q) => facing(q) - facing(p))[0] ?? end;
+}
+
+/**
+ * Where a connector's two ends sit and which side each leaves by (a loose end
+ * picks the side facing the other). With `tables`, an end blocked by one of them
+ * moves to a clear side (`clearSide`).
+ */
+function routeEnds(from: Anchor, to: Anchor, byId: ReadonlyMap<string, DesignNode>, tables?: readonly Box[]): { start: Point; end: Point; s0: Side; s1: Side } {
+  let first = endpoint(from, aim(to, byId), byId);
   let second = endpoint(to, aim(from, byId), byId);
   const shared = sharedSide(from, to, first.side, second.side, byId);
   if (shared) second = endpoint(to, first.at, byId, shared);
+  if (tables) {
+    const own = new Set<Box>([targetId(from), targetId(to)].flatMap((id) => (id ? (byId.get(id) ?? []) : [])));
+    first = clearSide(from, first, second.at, own, tables, byId);
+    second = clearSide(to, second, first.at, own, tables, byId);
+  }
   return { start: first.at, end: second.at, s0: first.side ?? looseSide(first.at, second.at), s1: second.side ?? looseSide(second.at, first.at) };
 }
 
@@ -636,8 +675,9 @@ function routeEnds(from: Anchor, to: Anchor, byId: ReadonlyMap<string, DesignNod
  */
 export function shapePoints(connector: ConnectorNode, byId: ReadonlyMap<string, DesignNode>): Point[] {
   if (connector.routing !== 'orthogonal' || !connector.bends?.length) return connector.points;
-  const { start, end, s0, s1 } = routeEnds(connector.from, connector.to, byId);
-  return shapeChain(start, s0, end, s1, connector.bends, visibleTables(byId));
+  const tables = visibleTables(byId);
+  const { start, end, s0, s1 } = routeEnds(connector.from, connector.to, byId, tables);
+  return shapeChain(start, s0, end, s1, connector.bends, tables);
 }
 
 /** The route from `from` to `to`: straight, or design choice: out from each side by a stub, then right angles, around tables in the way. */
@@ -650,8 +690,11 @@ export function routeBetween(
   tables: readonly Box[] = visibleTables(byId),
   bends?: readonly Point[],
 ): Point[] {
-  const { start, end, s0, s1 } = routeEnds(from, to, byId);
-  if (routing === 'straight') return [start, end];
+  if (routing === 'straight') {
+    const { start, end } = routeEnds(from, to, byId);
+    return [start, end];
+  }
+  const { start, end, s0, s1 } = routeEnds(from, to, byId, tables);
   if (bends && bends.length > 0) return shapedRoute(start, s0, end, s1, bends, tables);
   const plain = elbow(start, end, s0, s1);
   if (routeClear(plain, tables, ROUTE_MARGIN)) return plain;

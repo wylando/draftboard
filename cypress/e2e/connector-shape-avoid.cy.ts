@@ -163,6 +163,19 @@ describe('A shaped connector still avoids tables', () => {
     });
   });
 
+  it('leaves from the far side of its table when another table is dragged up against the end', () => {
+    shapedConnector();
+    saved((_t, c) => expect(c.bends, 'manual shape').to.not.equal(undefined));
+    // B to 10 px right of A, across A's `id` row: no room for the stub on A's right.
+    dragTable([B[0] + 120, B[1] + 10], [280 - B[0], 120 - B[1]]);
+    saved((tables, c) => {
+      const b = table(tables, TABLE.B);
+      expect(b.x - (A[0] + 240), 'B up against A').to.be.within(0, 20);
+      expect(passesThrough(c.points as Pt[], b), 'route passes through B').to.equal(false);
+      expect((c.points as Pt[])[0], 'leaves A by its left edge').to.deep.equal({ x: A[0], y: 150 });
+    });
+  });
+
   it('does not run through a connected table dragged past the first bend', () => {
     shapedConnector();
     saved((_t, c) => expect(c.bends, 'manual shape').to.not.equal(undefined));

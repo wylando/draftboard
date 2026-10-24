@@ -4,7 +4,7 @@ import { editorReducer, initialEditorState } from './editorReducer';
 import { createGroup, createNode } from './nodes';
 import { segmentHitsBox } from './orthogonalRoute';
 import { byIdOf, normalizeTree } from './tree';
-import type { Box, ConnectorNode, DesignNode, Point } from './types';
+import type { Box, ConnectorNode, DesignNode, Point, TableNode } from './types';
 
 const table = (box: Box, others: DesignNode[]) => createNode('table', box, others);
 const inflate = (b: Box, m: number): Box => ({ x: b.x - m, y: b.y - m, width: b.width + 2 * m, height: b.height + 2 * m });
@@ -253,6 +253,49 @@ describe('tight gaps and odd trees', () => {
     expect(routeBetween(from, to, 'orthogonal', byIdOf([a, b, group, inside]))).toEqual(flat(a, b));
   });
 
+  describe('a table pushed up against an end', () => {
+    // A column link from A's right edge to C's left edge, with B moved to 10 px right of A, across the `id` row.
+    const columns = () => {
+      const a = table({ x: 30, y: 100, width: 240, height: 64 }, []);
+      const c = table({ x: 690, y: 300, width: 240, height: 64 }, [a]);
+      const b = table({ x: 280, y: 120, width: 240, height: 64 }, [a, c]);
+      const column = (t: DesignNode) => ({ kind: 'column', tableId: t.id, columnId: (t as TableNode).columns[0]!.id }) as const;
+      return { a, b, c, from: column(a), to: column(c) };
+    };
+
+    it('leaves from the other side of its table instead of running through it', () => {
+      const { a, b, c, from, to } = columns();
+      const route = routeBetween(from, to, 'orthogonal', byIdOf([a, c, b]));
+      expect(route[0]).toEqual({ x: 30, y: 150 });
+      expect(hits(route, b)).toBe(false);
+    });
+
+    it('does so for a shaped route too, keeping the shape beyond it', () => {
+      const { a, b, c, from, to } = columns();
+      const route = routeBetween(from, to, 'orthogonal', byIdOf([a, c, b]), undefined, undefined, [{ x: 540, y: 150 }, { x: 540, y: 350 }]);
+      expect(route[0]).toEqual({ x: 30, y: 150 });
+      expect(hits(route, b)).toBe(false);
+      expect(route.slice(-2)).toEqual([{ x: 540, y: 350 }, { x: 690, y: 350 }]);
+    });
+
+    it('keeps its side when the other side is blocked too, even by a table lying over that side', () => {
+      const { a, b, c, from, to } = columns();
+      const left = table({ x: -230, y: 120, width: 240, height: 64 }, [a, b, c]);
+      expect(routeBetween(from, to, 'orthogonal', byIdOf([a, c, b, left]))[0]).toEqual({ x: 270, y: 150 });
+      const overLeft = { ...left, x: -100 };
+      expect(routeBetween(from, to, 'orthogonal', byIdOf([a, c, b, overLeft]))[0]).toEqual({ x: 270, y: 150 });
+    });
+
+    it('keeps its side when the table in the way is the other end, or lies over this end', () => {
+      const { a, b, c, from, to } = columns();
+      const near = { ...c, x: 280, y: 120 };
+      expect(routeBetween(from, to, 'orthogonal', byIdOf([a, near]))[0]).toEqual({ x: 270, y: 150 });
+      // Stacked over A's edge, as a duplicate 10 px on would be: the end is under it, not merely up against it.
+      const over = { ...b, x: 260 };
+      expect(routeBetween(from, to, 'orthogonal', byIdOf([a, c, over]))[0]).toEqual({ x: 270, y: 150 });
+    });
+  });
+
   it('terminates on a parent cycle', () => {
     const { a, b, mid } = scene();
     const x = { ...mid, id: 'x', parentId: 'y' };
@@ -496,8 +539,9 @@ describe('shaped routes avoiding tables', () => {
 
   it('keeps the shaped leg when no way round is found', () => {
     const { a, b } = ends();
-    const around = table({ x: 110, y: 10, width: 40, height: 50 }, [a, b]);
-    expect(route([a, b, around])).toEqual(shapedRoute);
+    // A closed ring round A, beyond its stubs: the first leg must cross it, and nothing gets out.
+    const ring = [wall(-60, -60, 220, 10, [a, b]), wall(-60, 114, 220, 10, [a, b]), wall(-60, -60, 10, 184, [a, b]), wall(150, -60, 10, 184, [a, b])];
+    expect(route([a, b, ...ring])).toEqual(shapedRoute);
   });
 
   it('drags 30 shaped connectors across 100 jittered tables within a frame', () => {
