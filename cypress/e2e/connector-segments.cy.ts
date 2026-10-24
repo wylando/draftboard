@@ -110,23 +110,25 @@ describe('Reshaping an elbow connector by dragging its segments', () => {
     });
   });
 
-  it('remembers the shape when a connected table moves, while the end and the dragged segment follow it', () => {
+  it('drops the shape when a connected table moves, routing afresh from where the table is now, and undo brings it back', () => {
     linked();
     elbow().then((before) => {
-      const v = verticalSegment(before.points);
-      const moved = (before.points[v] as Pt).x + 60;
-      const lastY = (before.points[before.points.length - 1] as Pt).y;
-      dragHandle(v, [60, 0]);
+      dragHandle(verticalSegment(before.points), [60, 0]);
       saved((c) => expect(c.bends, 'manual shape').to.not.equal(undefined));
 
-      // Up 150 by the header: the dragged segment should get shorter to meet the end, not keep its old length as a hook.
+      // Up 150 by the header: the old shape is for where C was, so it goes.
       cy.canvasDrag([C[0] + 120, C[1] + 10], [C[0] + 120, C[1] - 140]);
       saved((c) => {
-        expect((c.points[c.points.length - 1] as Pt).y).to.be.closeTo(lastY - 150, 6);
-        expect(c.points, 'out, along the dragged segment, in').to.have.length(4);
-        expect((c.points[1] as Pt).x).to.be.closeTo(moved, 1);
-        expect((c.points[2] as Pt).x).to.be.closeTo(moved, 1);
+        expect(c.bends, 'manual shape').to.equal(undefined);
+        const start = c.points[0] as Pt;
+        const end = c.points[c.points.length - 1] as Pt;
+        expect(end.y).to.be.closeTo((before.points[before.points.length - 1] as Pt).y - 150, 6);
+        // The automatic elbow turns halfway between the stubs, not where the drag had put it.
+        expect(c.points, 'out, across, in').to.have.length(4);
+        expect((c.points[1] as Pt).x).to.equal((start.x + 24 + end.x - 24) / 2);
       });
+      undo();
+      saved((c) => expect(c.bends, 'manual shape').to.not.equal(undefined));
     });
   });
 

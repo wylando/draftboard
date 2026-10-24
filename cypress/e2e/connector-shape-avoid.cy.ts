@@ -175,16 +175,4 @@ describe('A shaped connector still avoids tables', () => {
       expect((c.points as Pt[])[0], 'leaves A by its left edge').to.deep.equal({ x: A[0], y: 150 });
     });
   });
-
-  it('does not run through a connected table dragged past the first bend', () => {
-    shapedConnector();
-    saved((_t, c) => expect(c.bends, 'manual shape').to.not.equal(undefined));
-    // C moves left, to x 300: past the dragged segment, so the old shape would run straight through it.
-    dragTable([C[0] + 120, C[1] + 10], [-390, 0]);
-    saved((tables, c) => {
-      const moved = table(tables, TABLE.C);
-      expect(moved.x, 'C moved left').to.be.lessThan(C[0] - 300);
-      expect(passesThrough(c.points as Pt[], moved), 'route passes through the moved table').to.equal(false);
-    });
-  });
 });

@@ -2,7 +2,7 @@ import { boxCenter, mapBoxBetween, rotatePoint } from '../geometry';
 import type { Anchor, Box, ConnectorNode, DesignNode, NodePatch, Point, ToolId, Viewport } from './types';
 import { createId, nameKey, nameTaken, uniqueName } from './names';
 import { createGroup } from './nodes';
-import { allowsManyToMany, bendsMoveWith, isMany, linkKind, linksToItself, nextCardinality, relationDefaults, sameAnchor, shiftConnector } from './connector';
+import { allowsManyToMany, bendsMoveWith, isMany, linkKind, linksToItself, nextCardinality, relationDefaults, routeConnector, sameAnchor, shiftConnector, visibleTables } from './connector';
 import { applyTableEdit, type TableEdit } from './table';
 import { byIdOf, descendantIds, type ById, frameAt, isContainer, mapSiblings, normalizeTree, topLevelIds } from './tree';
 
@@ -242,6 +242,12 @@ function transformPatches(
     if (!inner.has(d.id)) continue;
     patches[d.id] = resized ? mapBoxBetween(d, node, next) : { x: d.x + dx, y: d.y + dy };
   }
+  if (resized || (dx === 0 && dy === 0)) return patches;
+  // Connectors sit at the top level, outside the container, yet a shape between two of its layers travels with them.
+  inner.add(id);
+  for (const d of nodes) {
+    if (d.type === 'connector' && d.bends && bendsMoveWith(d, inner)) patches[d.id] = { bends: shiftConnector(d, dx, dy, true).bends };
+  }
   return patches;
 }
 
@@ -258,8 +264,40 @@ function livePick(state: EditorState): { tableId: string; columnId: string } | n
  * exists, whichever action changed the selection or the document.
  */
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
-  const next = reduce(state, action);
+  const next = forgetMovedShapes(state, reduce(state, action), action);
   return next.selectedColumn && !livePick(next) ? { ...next, selectedColumn: null } : next;
+}
+
+const samePoint = (p: Point | undefined, q: Point | undefined) => p?.x === q?.x && p?.y === q?.y;
+
+/**
+ * Design choice: a shape is drawn for where its ends were. Once an end moves
+ * (its table moved, or a table pushed it to another side) and the edit didn't
+ * carry the bends along, the shape is dropped and the connector routes
+ * afresh, as Reset route would. Undo, redo and loading restore documents as
+ * they were, so they keep whatever bends those hold.
+ */
+function forgetMovedShapes(state: EditorState, next: EditorState, action: EditorAction): EditorState {
+  if (next.nodes === state.nodes || action.type === 'undo' || action.type === 'redo' || action.type === 'loadDocument') return next;
+  const before = new Map<string, ConnectorNode>();
+  for (const n of state.nodes) if (n.type === 'connector' && n.bends) before.set(n.id, n);
+  if (before.size === 0) return next;
+  const stale = new Set<string>();
+  for (const n of next.nodes) {
+    const was = n.type === 'connector' && n.bends ? before.get(n.id) : undefined;
+    if (!was || n.type !== 'connector' || n.bends !== was.bends || n.routing !== was.routing) continue;
+    if (!samePoint(n.points[0], was.points[0]) || !samePoint(n.points[n.points.length - 1], was.points[was.points.length - 1])) stale.add(n.id);
+  }
+  if (stale.size === 0) return next;
+  const byId = byIdOf(next.nodes);
+  const tables = visibleTables(byId);
+  const nodes = next.nodes.map((n) => {
+    if (n.type !== 'connector' || !stale.has(n.id)) return n;
+    const fresh: ConnectorNode = { ...n, points: [] };
+    delete fresh.bends;
+    return routeConnector(fresh, byId, tables);
+  });
+  return { ...next, nodes };
 }
 
 function reduce(state: EditorState, action: EditorAction): EditorState {

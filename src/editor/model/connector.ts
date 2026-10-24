@@ -763,12 +763,13 @@ export function bendsMoveWith(connector: ConnectorNode, movedIds: ReadonlySet<st
 /**
  * A connector's ends and bends after a move by (dx, dy): loose ends shift, as
  * `shiftLooseEnds` does, and the bends only when `moveBends` (see `bendsMoveWith`).
- * `bends` is left out when there are none.
+ * `bends` is left out unless they move: a patch that re-sent the old ones would
+ * bring back a shape the reducer dropped because an end moved.
  */
 export function shiftConnector(connector: ConnectorNode, dx: number, dy: number, moveBends: boolean): Pick<ConnectorNode, 'from' | 'to'> & { bends?: Point[] } {
   const ends = shiftLooseEnds(connector, dx, dy);
-  if (!connector.bends) return ends;
-  return { ...ends, bends: moveBends ? connector.bends.map((p) => ({ x: p.x + dx, y: p.y + dy })) : connector.bends };
+  if (!connector.bends || !moveBends) return ends;
+  return { ...ends, bends: connector.bends.map((p) => ({ x: p.x + dx, y: p.y + dy })) };
 }
 
 /** Whether two anchors attach to the same place. */

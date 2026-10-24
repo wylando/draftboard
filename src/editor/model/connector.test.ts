@@ -480,7 +480,7 @@ describe('shaped routes', () => {
     const c: ConnectorNode = { ...link(a, b, byIdOf([a, b])), to: { kind: 'point', x: 5, y: 6 }, bends };
     const moved = bends.map((p) => ({ x: p.x + 1, y: p.y + 2 }));
     expect(shiftConnector(c, 1, 2, true)).toEqual({ from: c.from, to: { kind: 'point', x: 6, y: 8 }, bends: moved });
-    expect(shiftConnector(c, 1, 2, false).bends).toBe(bends);
+    expect(shiftConnector(c, 1, 2, false)).not.toHaveProperty('bends');
     expect(shiftConnector({ ...c, bends: undefined }, 1, 2, true)).not.toHaveProperty('bends');
   });
 
