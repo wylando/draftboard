@@ -110,7 +110,7 @@ describe('Reshaping an elbow connector by dragging its segments', () => {
     });
   });
 
-  it('remembers the shape when a connected table moves, while the end follows it', () => {
+  it('remembers the shape when a connected table moves, while the end and the dragged segment follow it', () => {
     linked();
     elbow().then((before) => {
       const v = verticalSegment(before.points);
@@ -119,12 +119,42 @@ describe('Reshaping an elbow connector by dragging its segments', () => {
       dragHandle(v, [60, 0]);
       saved((c) => expect(c.bends, 'manual shape').to.not.equal(undefined));
 
-      // Down 40 by the header; the connector's end leg should follow, the dragged segment should not.
-      cy.canvasDrag([C[0] + 120, C[1] + 10], [C[0] + 120, C[1] + 50]);
+      // Up 150 by the header: the dragged segment should get shorter to meet the end, not keep its old length as a hook.
+      cy.canvasDrag([C[0] + 120, C[1] + 10], [C[0] + 120, C[1] - 140]);
       saved((c) => {
-        expect((c.points[c.points.length - 1] as Pt).y).to.be.closeTo(lastY + 40, 1);
-        const seg = c.points.findIndex((p, i) => i < c.points.length - 1 && p.x === (c.points[i + 1] as Pt).x && p.y !== (c.points[i + 1] as Pt).y);
-        expect((c.points[seg] as Pt).x).to.be.closeTo(moved, 1);
+        expect((c.points[c.points.length - 1] as Pt).y).to.be.closeTo(lastY - 150, 6);
+        expect(c.points, 'out, along the dragged segment, in').to.have.length(4);
+        expect((c.points[1] as Pt).x).to.be.closeTo(moved, 1);
+        expect((c.points[2] as Pt).x).to.be.closeTo(moved, 1);
+      });
+    });
+  });
+
+  it('merges a jog dragged back onto the line beside it, which turns the shape back into the automatic route', () => {
+    // A and C share a row; B, in the middle, makes the route go round it, and that detour becomes the shape.
+    const row = 150;
+    placeTable([30, 100]);
+    placeTable([690, 100]);
+    placeTable([360, 110]);
+    cy.pressKey('c', { code: 'KeyC' });
+    cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'connector');
+    cy.canvasDrag([80, row], [740, row]);
+    const jog = (points: Pt[]) => points.findIndex((p, i) => i > 0 && i < points.length - 2 && p.y === (points[i + 1] as Pt).y && p.y !== row);
+    saved((c) => expect(jog(c.points), 'a detour round B').to.be.greaterThan(0));
+    cy.window().then((win) => {
+      const points = (read(win) as SavedConnector).points;
+      const j = jog(points);
+      const away = Math.sign((points[j] as Pt).y - row) * 20;
+      dragHandle(j, [0, away]);
+      saved((c) => expect(c.bends, 'manual shape').to.not.equal(undefined));
+      // B out of the way: the shape stays, so the route still has its jog.
+      cy.canvasDrag([480, 120], [480, 520]);
+      saved((c) => expect(jog(c.points), 'the jog is kept').to.equal(j));
+      // Back onto the row, short by less than the snap distance.
+      dragHandle(j, [0, row - ((points[j] as Pt).y + away) + Math.sign(away) * 3]);
+      saved((c) => {
+        expect(c.bends, 'manual shape').to.equal(undefined);
+        expect(c.points, 'one straight run').to.have.length(2);
       });
     });
   });

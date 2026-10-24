@@ -8,6 +8,7 @@ import type { Box, ConnectorNode, DesignNode, Point } from './types';
 
 const table = (box: Box, others: DesignNode[]) => createNode('table', box, others);
 const inflate = (b: Box, m: number): Box => ({ x: b.x - m, y: b.y - m, width: b.width + 2 * m, height: b.height + 2 * m });
+const rightAngledRoute = (route: Point[]) => route.slice(1).every((p, i) => (p.x === route[i]!.x) !== (p.y === route[i]!.y));
 const hits = (route: Point[], box: Box) => route.slice(1).some((p, i) => segmentHitsBox(route[i]!, p, box));
 
 function scene() {
@@ -300,34 +301,113 @@ describe('shaped routes', () => {
   describe('dragSegment', () => {
     it('moves exactly the dragged segment sideways', () => {
       const { a, b, from, to } = ends();
-      const next = dragSegment(shaped, 2, -40);
+      const next = dragSegment(shaped, 2, -40, 0);
       const route = routeBetween(from, to, 'orthogonal', byIdOf([a, b]), undefined, undefined, next);
       expect(route).toEqual([{ x: 100, y: 32 }, { x: 300, y: 32 }, { x: 300, y: -140 }, { x: 500, y: -140 }, { x: 500, y: 32 }, { x: 700, y: 32 }]);
     });
 
     it('moves a vertical segment along x', () => {
-      expect(dragSegment(shaped, 1, 60)).toEqual([{ x: 360, y: 32 }, { x: 360, y: -100 }, { x: 500, y: -100 }, { x: 500, y: 32 }]);
+      expect(dragSegment(shaped, 1, 60, 0)).toEqual([{ x: 360, y: 32 }, { x: 360, y: -100 }, { x: 500, y: -100 }, { x: 500, y: 32 }]);
     });
 
     it('leaves the bends as they are for the first and last segments, which are attached to the tables', () => {
-      expect(dragSegment(shaped, 0, 20)).toEqual(bends);
-      expect(dragSegment(shaped, shaped.length - 2, 20)).toEqual(bends);
+      expect(dragSegment(shaped, 0, 20, 0)).toEqual(bends);
+      expect(dragSegment(shaped, shaped.length - 2, 20, 0)).toEqual(bends);
     });
 
     it('will not drag a segment back past its end stub', () => {
-      expect(dragSegment(shaped, 1, -250)[0]).toEqual({ x: 124, y: 32 });
+      expect(dragSegment(shaped, 1, -250, 0)[0]).toEqual({ x: 124, y: 32 });
     });
 
-    it('stops short of a neighbouring parallel segment instead of folding onto it', () => {
-      // Segment 2 runs along y -100 between two runs at y 32 (the attached first and last legs).
-      for (const delta of [132, 500]) expect(dragSegment(shaped, 2, delta)[1]!.y).toBe(24);
-    });
-
-    it('stops short of the runs on both sides of an inner segment', () => {
+    it('moves past the parallel runs beside it', () => {
       const stairs = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 50 }, { x: 200, y: 50 }, { x: 200, y: 100 }, { x: 300, y: 100 }, { x: 300, y: 150 }, { x: 400, y: 150 }];
-      expect(dragSegment(stairs, 3, 500).find((p) => p.y === 50 && p.x !== 100)!.x).toBe(292);
-      expect(dragSegment(stairs, 3, -500).find((p) => p.y === 50 && p.x !== 100)!.x).toBe(108);
-      expect(dragSegment(stairs, 3, 50).find((p) => p.y === 50 && p.x !== 100)!.x).toBe(250);
+      expect(dragSegment(stairs, 3, 150, 0)).toEqual([{ x: 100, y: 0 }, { x: 100, y: 50 }, { x: 350, y: 50 }, { x: 350, y: 100 }, { x: 300, y: 100 }, { x: 300, y: 150 }]);
+      expect(dragSegment(stairs, 3, -150, 0)).toEqual([{ x: 100, y: 0 }, { x: 100, y: 50 }, { x: 50, y: 50 }, { x: 50, y: 100 }, { x: 300, y: 100 }, { x: 300, y: 150 }]);
+    });
+
+    it('merges a jog into one segment when dragged onto the run beside it, snapping within the distance given', () => {
+      const stairs = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 50 }, { x: 200, y: 50 }, { x: 200, y: 100 }, { x: 300, y: 100 }, { x: 300, y: 150 }, { x: 400, y: 150 }];
+      const merged = [{ x: 100, y: 0 }, { x: 100, y: 50 }, { x: 300, y: 50 }, { x: 300, y: 150 }];
+      expect(dragSegment(stairs, 2, 50, 0)).toEqual([{ x: 100, y: 0 }, { x: 100, y: 100 }, { x: 300, y: 100 }, { x: 300, y: 150 }]);
+      expect(dragSegment(stairs, 3, 100, 0)).toEqual(merged);
+      expect(dragSegment(stairs, 3, 95, 6)).toEqual(merged);
+      expect(dragSegment(stairs, 3, 90, 6)).not.toEqual(merged);
+    });
+
+    it('drops the spike left when a jog merges into a run going back the other way', () => {
+      const hook = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 200, y: 100 }, { x: 200, y: 50 }, { x: 150, y: 50 }, { x: 150, y: 200 }, { x: 300, y: 200 }];
+      expect(dragSegment(hook, 4, 50, 0)).toEqual([{ x: 100, y: 0 }, { x: 100, y: 100 }, { x: 150, y: 100 }, { x: 150, y: 200 }]);
+    });
+
+    it('folds a loop flat into one run when its far side is dragged onto the near one', () => {
+      // Segment 2 runs along y -100 between two runs at y 32: dragged down onto them, the loop is gone.
+      expect(dragSegment(shaped, 2, 130, 6)).toEqual([]);
+      const { a, b, from, to } = ends();
+      expect(routeBetween(from, to, 'orthogonal', byIdOf([a, b]), undefined, undefined, dragSegment(shaped, 2, 132, 0))).toEqual(flat(a, b));
+    });
+  });
+
+  describe('after a segment drag, an end table moves', () => {
+    // A right of B's left side: the drag moved the middle segment from x 250 to x 350.
+    const setup = () => {
+      const a = table({ x: 0, y: 0, width: 100, height: 64 }, []);
+      const b = table({ x: 400, y: 200, width: 100, height: 64 }, [a]);
+      const from = { kind: 'node', nodeId: a.id } as const;
+      const to = { kind: 'node', nodeId: b.id } as const;
+      const bends = dragSegment(routeBetween(from, to, 'orthogonal', byIdOf([a, b])), 1, 100, 0);
+      return { a, b, from, to, bends, route: (moved: DesignNode, shape = bends) => routeBetween(from, to, 'orthogonal', byIdOf([a, moved]), undefined, undefined, shape) };
+    };
+    const reversesInside = (route: Point[]) =>
+      route.slice(2, -2).some((q, k) => {
+        const p = route[k + 1]!;
+        const r = route[k + 3]!;
+        const inLine = (p.x === q.x && q.x === r.x) || (p.y === q.y && q.y === r.y);
+        return inLine && (Math.sign(q.x - p.x) === -Math.sign(r.x - q.x) && Math.sign(q.y - p.y) === -Math.sign(r.y - q.y));
+      });
+
+    it('shortens the dragged segment to meet the table where it is now', () => {
+      const { b, bends, route } = setup();
+      expect(bends).toEqual([{ x: 350, y: 32 }, { x: 350, y: 232 }]);
+      expect(route({ ...b, y: 100 })).toEqual([{ x: 100, y: 32 }, { x: 350, y: 32 }, { x: 350, y: 132 }, { x: 400, y: 132 }]);
+      expect(route({ ...b, y: -100 })).toEqual([{ x: 100, y: 32 }, { x: 350, y: 32 }, { x: 350, y: -68 }, { x: 400, y: -68 }]);
+    });
+
+    it('never runs back over itself, wherever either table goes', () => {
+      const { a, b, from, to, bends, route } = setup();
+      const startMoved = (moved: DesignNode) => routeBetween(from, to, 'orthogonal', byIdOf([moved, b]), undefined, undefined, bends);
+      for (let x = 150; x <= 700; x += 25)
+        for (let y = -200; y <= 400; y += 25)
+          for (const r of [route({ ...b, x, y }), startMoved({ ...a, x: x - 400, y: y - 200 })]) {
+            expect(rightAngledRoute(r), `${x},${y}`).toBe(true);
+            expect(reversesInside(r), `${x},${y} ${JSON.stringify(r)}`).toBe(false);
+          }
+    });
+
+    it('arrives along its stub when a sliding bend lands on the stub tip', () => {
+      const a = table({ x: 0, y: 0, width: 100, height: 64 }, []);
+      const b = table({ x: 131, y: 44, width: 100, height: 64 }, [a]);
+      // The last bend slides to B's stub tip (107, 76) and repeats it; the route must still turn out rather than run back over the stub.
+      const route = routeBetween({ kind: 'node', nodeId: a.id }, { kind: 'node', nodeId: b.id }, 'orthogonal', byIdOf([a, b]), undefined, undefined, [{ x: 50, y: 76 }, { x: 92, y: 76 }]);
+      expect(route).toEqual([{ x: 100, y: 32 }, { x: 124, y: 32 }, { x: 124, y: 100 }, { x: 107, y: 100 }, { x: 107, y: 76 }, { x: 131, y: 76 }]);
+    });
+
+    it('moves a segment left on an end stub out to the stub tip instead of stepping round it', () => {
+      const a = table({ x: 60, y: 40, width: 100, height: 64 }, []);
+      const b = table({ x: 20, y: 250, width: 100, height: 64 }, [a]);
+      const from = { kind: 'node', nodeId: a.id } as const;
+      const to = { kind: 'node', nodeId: b.id } as const;
+      // As far toward B as the stub allows: 24 px above B's top.
+      const bends = dragSegment(routeBetween(from, to, 'orthogonal', byIdOf([a, b])), 1, 60, 0);
+      expect(bends).toEqual([{ x: 110, y: 226 }, { x: 70, y: 226 }]);
+      const route = routeBetween(from, to, 'orthogonal', byIdOf([a, { ...b, y: 245 }]), undefined, undefined, bends);
+      expect(route).toEqual([{ x: 110, y: 104 }, { x: 110, y: 221 }, { x: 70, y: 221 }, { x: 70, y: 245 }]);
+    });
+
+    it('returns to the same route when the table moves back after a second drag', () => {
+      const { b, route } = setup();
+      const away = { ...b, y: 100 };
+      const again = dragSegment(route(away), 1, 20, 0);
+      expect(route(b, again)).toEqual([{ x: 100, y: 32 }, { x: 370, y: 32 }, { x: 370, y: 232 }, { x: 400, y: 232 }]);
     });
   });
 
@@ -444,8 +524,8 @@ describe('shaped routes avoiding tables', () => {
     const detour = route([a, b, blocker]);
     expect(detour).not.toEqual(shapedRoute);
     expect(shapePoints(shaped, byId)).toEqual(shapedRoute);
-    expect(dragSegment(shapePoints(shaped, byId), 2, -40)).toEqual(dragSegment(shapedRoute, 2, -40));
-    expect(dragSegment(detour, 2, -40)).not.toEqual(dragSegment(shapedRoute, 2, -40));
+    expect(dragSegment(shapePoints(shaped, byId), 2, -40, 0)).toEqual(dragSegment(shapedRoute, 2, -40, 0));
+    expect(dragSegment(detour, 2, -40, 0)).not.toEqual(dragSegment(shapedRoute, 2, -40, 0));
     const plain = link(a, b, byIdOf([a, b]));
     expect(shapePoints({ ...plain, points: shapedRoute }, byId)).toEqual(shapedRoute);
   });

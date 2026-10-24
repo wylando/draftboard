@@ -433,7 +433,7 @@ export function useCanvasGestures({
             g.moved = true;
             dispatch({ type: 'checkpoint' });
           }
-          const bends = dragSegment(g.points, g.index, delta);
+          const bends = dragSegment(g.points, g.index, delta, SNAP_DISTANCE / viewport.zoom);
           const connector = current.find((n) => n.id === g.connectorId);
           const held = connector?.type === 'connector' ? (connector.bends ?? []) : [];
           const same = bends.length === held.length && bends.every((p, i) => p.x === held[i]?.x && p.y === held[i]?.y);

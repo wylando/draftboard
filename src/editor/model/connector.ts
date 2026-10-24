@@ -201,6 +201,31 @@ function simplify(points: Point[]): Point[] {
 }
 
 /**
+ * `simplify`, and then drops each point where the route runs out and back
+ * along one line, except beside the ends, where the turn-back is a stub's.
+ * The route keeps to lines it already ran along, so it hits nothing new.
+ */
+function unfold(points: Point[]): Point[] {
+  const out = simplify(points);
+  for (let k = 2; k < out.length - 2; ) {
+    const p = out[k - 1]!;
+    const q = out[k]!;
+    const r = out[k + 1]!;
+    const back = (p.x === q.x && q.x === r.x) || (p.y === q.y && q.y === r.y);
+    if (!back) {
+      k++;
+      continue;
+    }
+    out.splice(k, 1);
+    // `p` may now be in line with what came before it, or turn back there itself.
+    const merged = simplify(out);
+    out.splice(0, out.length, ...merged);
+    k = Math.max(2, k - 2);
+  }
+  return out;
+}
+
+/**
  * Two attached ends whose targets overlap sideways (stacked tables) would
  * otherwise face opposite sides and route back through both; they share the
  * side the first end picked instead.
@@ -372,11 +397,30 @@ function searchLadder(start: Point, s0: Side, end: Point, s1: Side, tables: read
  * otherwise the one that keeps going the way the route was heading (and, for
  * the last leg, arrives the way the end's stub leaves). Legs a table now
  * blocks are detoured by `avoidTables`; the detour is never stored in `bends`.
+ * The outermost bends only fix where their segment runs: how far along it they
+ * sit was the end's position when the user dragged, so they slide to the end's
+ * stub tip as it moves, or a moved table would leave the old length hanging.
+ * A segment across the stub that the end has moved up to (within a stub of it)
+ * is pushed out to the tip, as a drag there would be held.
  */
 function shapeChain(start: Point, s0: Side, end: Point, s1: Side, bends: readonly Point[], tables: readonly Box[]): Point[] {
   const tipA = { x: start.x + NORMAL[s0].x * STUB, y: start.y + NORMAL[s0].y * STUB };
   const tipB = { x: end.x + NORMAL[s1].x * STUB, y: end.y + NORMAL[s1].y * STUB };
-  const waypoints = [tipA, ...bends, tipB];
+  const inner = bends.map((p) => ({ ...p }));
+  const slide = (outer: Point | undefined, next: Point | undefined, at: Point, side: Side, tip: Point) => {
+    if (!outer || !next) return;
+    const key = outer.x === next.x && outer.y !== next.y ? 'x' : outer.y === next.y && outer.x !== next.x ? 'y' : null;
+    if (!key) return;
+    const along = key === 'x' ? 'y' : 'x';
+    outer[along] = tip[along];
+    const depth = (outer[key] - at[key]) * NORMAL[side][key];
+    if (NORMAL[side][key] !== 0 && depth >= 0 && depth < STUB) outer[key] = next[key] = tip[key];
+  };
+  if (inner.length >= 2) {
+    slide(inner[0], inner[1], start, s0, tipA);
+    slide(inner[inner.length - 1], inner[inner.length - 2], end, s1, tipB);
+  }
+  const waypoints = [tipA, ...inner, tipB];
   const route: Point[] = [start, tipA];
   let heading = NORMAL[s0];
   waypoints.slice(1).forEach((q, i) => {
@@ -401,10 +445,12 @@ function shapeChain(start: Point, s0: Side, end: Point, s1: Side, bends: readonl
     heading = { x: Math.sign(q.x - prev.x), y: Math.sign(q.y - prev.y) };
   });
   route.push(end);
+  // A bend sitting on a stub tip repeats it, which would hide a turn-back from `turnOut`.
+  const distinct = route.filter((p, i) => i === 0 || p.x !== route[i - 1]!.x || p.y !== route[i - 1]!.y);
   // The end's turn-out is the start's on the reversed chain.
-  const startTurned = turnOut(route, s0, tables);
+  const startTurned = turnOut(distinct, s0, tables);
   const turned = [...turnOut([...startTurned].reverse(), s1, tables)].reverse();
-  return simplify(turned);
+  return unfold(turned);
 }
 
 /**
@@ -413,7 +459,7 @@ function shapeChain(start: Point, s0: Side, end: Point, s1: Side, bends: readonl
  * unblocked legs.
  */
 function shapedRoute(start: Point, s0: Side, end: Point, s1: Side, bends: readonly Point[], tables: readonly Box[]): Point[] {
-  return avoidTables(shapeChain(start, s0, end, s1, bends, tables), s0, s1, tables);
+  return unfold(avoidTables(shapeChain(start, s0, end, s1, bends, tables), s0, s1, tables));
 }
 
 /** The side that points along (dx, dy), which must be axis-aligned; (0, 0) gives 'top'. */
@@ -500,9 +546,6 @@ function avoidTables(route: Point[], s0: Side, s1: Side, tables: readonly Box[])
   return simplify(out);
 }
 
-/** Design choice: the closest a dragged segment may come to the run beside it, so both stay visible and grabbable. */
-const SEGMENT_GAP = 8;
-
 /** Design choice: a shape needs a handful of corners; the cap only stops a damaged file making an enormous route. */
 const MAX_BENDS = 64;
 
@@ -513,8 +556,10 @@ const MAX_BENDS = 64;
  * dragged: the first and the last are attached to their tables and stay put
  * (the current bends come back unchanged). A segment next to an end can't be
  * dragged back closer than one stub to that end, so the stub keeps its length.
+ * It may cross the parallel runs beside it; landing within `snap` of one, it
+ * joins that run, so the jog between them is gone.
  */
-export function dragSegment(points: Point[], segment: number, delta: number): Point[] {
+export function dragSegment(points: Point[], segment: number, delta: number, snap: number): Point[] {
   const last = points.length - 1;
   const current = points.slice(1, last);
   if (segment < 1 || segment > last - 2) return current;
@@ -530,20 +575,15 @@ export function dragSegment(points: Point[], segment: number, delta: number): Po
     const room = Math.min(STUB, Math.abs(corner[key] - end[key]));
     if (side !== 0 && (to - end[key]) * side < room) to = end[key] + side * room;
   };
+  // A parallel run's coordinate is that of the corner next to the dragged segment.
+  const runs = [segment >= 2 ? points[segment - 1]![key] : null, segment + 2 <= last - 1 ? points[segment + 2]![key] : null];
+  const near = runs.filter((c): c is number => c !== null && Math.abs(c - to) <= snap).sort((m, n) => Math.abs(m - to) - Math.abs(n - to))[0];
+  if (near !== undefined) to = near;
   if (segment === 1) hold(points[0]!, a);
   if (segment === last - 2) hold(points[last]!, a);
-  // Nor onto the parallel run on either side (its coordinate is that of the corner next to it), which would fold the route into a spike.
-  const origin = a[key];
-  const keepApart = (other: number) => {
-    const side = Math.sign(origin - other);
-    const room = Math.min(SEGMENT_GAP, Math.abs(origin - other));
-    if (side !== 0 && (to - other) * side < room) to = other + side * room;
-  };
-  if (segment >= 2) keepApart(points[segment - 1]![key]);
-  if (segment + 2 <= last - 1) keepApart(points[segment + 2]![key]);
   a[key] = to;
   b[key] = to;
-  return simplify(moved).slice(1, -1);
+  return unfold(moved).slice(1, -1);
 }
 
 /** Design choice: out from each side by a stub, then right angles, ignoring everything else on the canvas. */
