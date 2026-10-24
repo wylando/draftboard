@@ -1,47 +1,11 @@
-import type { ReactNode } from 'react';
 import { css } from 'styled-system/css';
 import { Kbd } from '../design-system';
 import { COMMAND_IDS, COMMANDS } from './keybindings/commands';
 import { formatBinding } from './keybindings/keys';
 import { useKeybindings } from './keybindings/KeybindingsContext';
+import { Block, mutedClass, Terms } from './sectionParts';
 
-const blockClass = css({ marginTop: '6' });
-const headingClass = css({ margin: '0', marginBottom: '2', textStyle: 'body.largeStrong' });
-const mutedClass = css({ margin: '0', color: 'text.secondary' });
 const listClass = css({ margin: '0', paddingInlineStart: '4', display: 'grid', gap: '1' });
-const termGridClass = css({
-  display: 'grid',
-  gridTemplateColumns: 'auto 1fr',
-  columnGap: '4',
-  rowGap: '2',
-  alignItems: 'baseline',
-  margin: '0',
-});
-const termClass = css({ textStyle: 'body.largeStrong' });
-const descClass = css({ margin: '0' });
-const pairClass = css({ display: 'contents' });
-
-function Block({ title, children, testId }: { title: string; children: ReactNode; testId?: string }) {
-  return (
-    <div className={blockClass} data-testid={testId}>
-      <h2 className={headingClass}>{title}</h2>
-      {children}
-    </div>
-  );
-}
-
-function Terms({ items }: { items: Array<[ReactNode, ReactNode]> }) {
-  return (
-    <dl className={termGridClass}>
-      {items.map(([term, desc], i) => (
-        <div key={i} className={pairClass}>
-          <dt className={termClass}>{term}</dt>
-          <dd className={descClass}>{desc}</dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
 
 /** Current shortcut for a command, reflecting the user's own bindings. */
 function Shortcut({ binding }: { binding: string | undefined }) {

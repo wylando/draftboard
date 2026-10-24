@@ -41,6 +41,8 @@ const rotateZoneClass = css({
     'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\'%3E%3Cg fill=\'none\' stroke-linejoin=\'round\'%3E%3Cpath d=\'M12 6a6 6 0 1 1-6 6\' stroke=\'white\' stroke-width=\'4\'/%3E%3Cpath d=\'M3 12h6l-3-4z\' fill=\'white\' stroke=\'white\' stroke-width=\'2\'/%3E%3Cpath d=\'M12 6a6 6 0 1 1-6 6\' stroke=\'black\' stroke-width=\'1.5\'/%3E%3Cpath d=\'M3 12h6l-3-4z\' fill=\'black\'/%3E%3C/g%3E%3C/svg%3E") 12 12, crosshair',
 });
 
+const screenPoints = (points: Point[], vp: Viewport) => points.map((p) => worldToScreen(p, vp)).map((p) => `${p.x},${p.y}`).join(' ');
+
 function outline(node: DesignNode, vp: Viewport): string {
   const c = boxCenter(node);
   return [
@@ -125,6 +127,21 @@ interface Props {
   relatedColor: string;
 }
 
+/** Connectors on the focused tables and the tables at their other ends, in the user's highlight colour. */
+export function RelatedOutlines({ related, viewport, color }: { related: DesignNode[]; viewport: Viewport; color: string }) {
+  return (
+    <>
+      {related.map((n) =>
+        n.type === 'connector' ? (
+          <polyline key={n.id} data-testid="related-connector" data-related-id={n.id} points={screenPoints(n.points, viewport)} fill="none" stroke={color} strokeWidth={2} pointerEvents="none" />
+        ) : (
+          <polygon key={n.id} data-testid="related-table" data-related-id={n.id} points={outline(n, viewport)} fill="none" stroke={color} strokeWidth={2} pointerEvents="none" />
+        ),
+      )}
+    </>
+  );
+}
+
 /** Drawn in screen space so outlines and handles stay a constant size at any zoom. */
 export function SelectionOverlay({
   selected,
@@ -143,7 +160,7 @@ export function SelectionOverlay({
 }: Props) {
   // A connector's shape comes from its ends: it gets a highlight along its route, never box handles.
   const single = selected.length === 1 && selected[0]?.type !== 'connector' ? selected[0] : undefined;
-  const toScreen = (points: Point[]) => points.map((p) => worldToScreen(p, viewport)).map((p) => `${p.x},${p.y}`).join(' ');
+  const toScreen = (points: Point[]) => screenPoints(points, viewport);
   const connector = selected.length === 1 && selected[0]?.type === 'connector' ? selected[0] : undefined;
   const { state } = useEditor();
   // Handles sit on the user's shape, not on a detour round a table, so dragging one can't bake the detour into the bends.
@@ -159,13 +176,7 @@ export function SelectionOverlay({
   return (
     <g data-testid="selection-overlay">
       {/* Kept while handles hide: editing a table's cells still shows what it links to. */}
-      {related.map((n) =>
-        n.type === 'connector' ? (
-          <polyline key={n.id} data-testid="related-connector" data-related-id={n.id} points={toScreen(n.points)} fill="none" stroke={relatedColor} strokeWidth={2} pointerEvents="none" />
-        ) : (
-          <polygon key={n.id} data-testid="related-table" data-related-id={n.id} points={outline(n, viewport)} fill="none" stroke={relatedColor} strokeWidth={2} pointerEvents="none" />
-        ),
-      )}
+      <RelatedOutlines related={related} viewport={viewport} color={relatedColor} />
       {selected.map((n) =>
         n.type === 'connector' ? (
           <polyline key={n.id} points={toScreen(n.points)} fill="none" stroke={SELECTION} strokeWidth={3} strokeOpacity={0.5} pointerEvents="none" />
