@@ -185,15 +185,36 @@ describe('Table focus highlight for two selected tables', () => {
     steps.forEach((text, i) => cy.get('[data-testid=join-route-step]').eq(i).should('have.text', text));
   };
 
+  const expectGuaranteed = (steps: string[]) => {
+    cy.get('[data-testid=section-guaranteed-route]').should('contain', 'Guaranteed route');
+    cy.get('[data-testid=guaranteed-route-step]').should('have.length', steps.length);
+    steps.forEach((text, i) => cy.get('[data-testid=guaranteed-route-step]').eq(i).should('have.text', text));
+  };
+
   it('highlights the cheaper path through an indexed column, not the direct link', () => {
     pick('accounts', 'orders');
     expectRoute(['accounts', '→ owners · index lookup', '→ orders · index lookup']);
+    // Imported foreign keys are many to one, so entering orders or owners from accounts may find no row.
+    cy.get('[data-testid=section-guaranteed-route]').should('not.exist');
     expectRelated([link('accounts', 'owners'), link('owners', 'orders')], [ids.owners]);
   });
 
   it('follows the selection order: the other way round the direct link enters a primary key', () => {
     pick('orders', 'accounts');
     expectRoute(['orders', '→ accounts · index lookup']);
+    // Guaranteed because the marker at accounts' end is `one`; the guarantee follows markers, not column nullability.
+    cy.get('[data-testid=section-guaranteed-route]').should('not.exist');
     expectRelated([link('accounts', 'orders')], []);
+  });
+
+  it('lists a guaranteed route beneath the fastest one when a mandatory end makes it differ', () => {
+    // The direct link's end at orders (the foreign key side, `from`) goes many -> one or many.
+    cy.get(`[data-node-id="${link('accounts', 'orders')}"] [data-cardinality-end=from]`)
+      .should('have.attr', 'data-cardinality', 'many')
+      .click();
+    cy.get(`[data-node-id="${link('accounts', 'orders')}"] [data-cardinality-end=from]`).should('have.attr', 'data-cardinality', 'oneOrMany');
+    pick('accounts', 'orders');
+    expectRoute(['accounts', '→ owners · index lookup', '→ orders · index lookup']);
+    expectGuaranteed(['accounts', '→ orders · scan']);
   });
 });

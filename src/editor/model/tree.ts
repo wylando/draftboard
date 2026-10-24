@@ -1,7 +1,7 @@
 import { pointInRotatedBox, rotatedBounds, unionBoxes } from '../geometry';
 import { routeConnector, targetId, visibleTables } from './connector';
 import { tableHeight } from './table';
-import type { Anchor, DesignNode, Point, TableNode } from './types';
+import type { Anchor, Cardinality, DesignNode, Point, TableNode } from './types';
 
 /**
  * Pure helpers for the layer tree. The document stays a flat list in preorder
@@ -257,19 +257,23 @@ function isIndexed(table: TableNode, columnId: string): boolean {
     || table.indexes.some((ix) => ix.columnIds[0] === columnId);
 }
 
+const mandatory = (c: Cardinality) => c === 'one' || c === 'oneOrMany';
+
 /**
  * The cheapest join path from the first of exactly two selected visible tables to the second, as the connectors on
  * it and the tables it passes through (not the two selected). Each step costs the lookup into the table it enters:
  * `INDEXED_JOIN_COST` when the connector's end there is an indexed column, else `SCAN_JOIN_COST`; ties go to fewer
  * hops. Selection order therefore matters. `route` lists the tables from the first selected to the second; each
- * after the first carries the connector it is entered by and whether that step cost `INDEXED_JOIN_COST`. The sets
+ * after the first carries the connector it is entered by and whether that step cost `INDEXED_JOIN_COST` and whether it always finds a row (the connector's end at the table
+ * entered is mandatory). The sets
  * and `route` are empty when no path exists; `null` when the selection is not two visible tables, so callers can
- * fall back to `relatedToTables`.
+ * fall back to `relatedToTables`. With `guaranteedOnly`, only guaranteed steps are taken (mandatory is `one` or
+ * `oneOrMany`).
  */
-export function cheapestJoinPath(selection: readonly string[], byId: ById): {
+export function cheapestJoinPath(selection: readonly string[], byId: ById, guaranteedOnly = false): {
   connectors: Set<string>;
   tables: Set<string>;
-  route: { table: string; via?: { connector: string; indexed: boolean } }[];
+  route: { table: string; via?: { connector: string; indexed: boolean; guaranteed: boolean } }[];
 } | null {
   const isTable = (id: string | null): id is string => {
     const node = id ? byId.get(id) : undefined;
@@ -278,23 +282,29 @@ export function cheapestJoinPath(selection: readonly string[], byId: ById): {
   const [start, goal, ...extra] = selection.filter(isTable);
   if (!start || !goal || extra.length > 0) return null;
 
-  const edges = new Map<string, { to: string; indexed: boolean; connector: string }[]>();
+  const edges = new Map<string, { to: string; indexed: boolean; guaranteed: boolean; connector: string }[]>();
   for (const node of byId.values()) {
     if (node.type !== 'connector' || !isEffectivelyVisible(byId, node)) continue;
     const a = targetId(node.from);
     const b = targetId(node.to);
     if (!isTable(a) || !isTable(b) || a === b) continue;
     const enters = (end: Anchor, id: string) => end.kind === 'column' && isIndexed(byId.get(id) as TableNode, end.columnId);
-    const out = edges.get(a) ?? [];
-    out.push({ to: b, indexed: enters(node.to, b), connector: node.id });
-    edges.set(a, out);
-    const back = edges.get(b) ?? [];
-    back.push({ to: a, indexed: enters(node.from, a), connector: node.id });
-    edges.set(b, back);
+    const intoB = mandatory(node.toCardinality);
+    const intoA = mandatory(node.fromCardinality);
+    if (!guaranteedOnly || intoB) {
+      const out = edges.get(a) ?? [];
+      out.push({ to: b, indexed: enters(node.to, b), guaranteed: intoB, connector: node.id });
+      edges.set(a, out);
+    }
+    if (!guaranteedOnly || intoA) {
+      const back = edges.get(b) ?? [];
+      back.push({ to: a, indexed: enters(node.from, a), guaranteed: intoA, connector: node.id });
+      edges.set(b, back);
+    }
   }
 
   // Imported schemas reach hundreds of tables; an O(V^2) scan for the next node is well under a frame there, so no heap.
-  const best = new Map<string, { cost: number; hops: number; via?: { from: string; connector: string; indexed: boolean } }>([[start, { cost: 0, hops: 0 }]]);
+  const best = new Map<string, { cost: number; hops: number; via?: { from: string; connector: string; indexed: boolean; guaranteed: boolean } }>([[start, { cost: 0, hops: 0 }]]);
   const done = new Set<string>();
   for (;;) {
     let current: string | null = null;
@@ -311,19 +321,19 @@ export function cheapestJoinPath(selection: readonly string[], byId: ById): {
       const hops = here.hops + 1;
       const known = best.get(edge.to);
       if (!known || cost < known.cost || (cost === known.cost && hops < known.hops)) {
-        best.set(edge.to, { cost, hops, via: { from: current, connector: edge.connector, indexed: edge.indexed } });
+        best.set(edge.to, { cost, hops, via: { from: current, connector: edge.connector, indexed: edge.indexed, guaranteed: edge.guaranteed } });
       }
     }
   }
 
   const connectors = new Set<string>();
   const tables = new Set<string>();
-  const route: { table: string; via?: { connector: string; indexed: boolean } }[] = [];
+  const route: { table: string; via?: { connector: string; indexed: boolean; guaranteed: boolean } }[] = [];
   let entered = goal;
   for (let step = best.get(goal)?.via; step; step = best.get(step.from)?.via) {
     connectors.add(step.connector);
     if (step.from !== start) tables.add(step.from);
-    route.unshift({ table: entered, via: { connector: step.connector, indexed: step.indexed } });
+    route.unshift({ table: entered, via: { connector: step.connector, indexed: step.indexed, guaranteed: step.guaranteed } });
     entered = step.from;
   }
   if (route.length > 0) route.unshift({ table: start });

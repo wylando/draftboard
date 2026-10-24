@@ -816,6 +816,40 @@ describe('cheapestJoinPath', () => {
     expect(cheapestJoinPath([a.id, b.id], byIdOf([a, b, c, ac]))?.route).toEqual([]);
   });
 
+  describe('guaranteedOnly', () => {
+    const card = (c: ConnectorNode, fromCardinality: ConnectorNode['fromCardinality'], toCardinality: ConnectorNode['toCardinality']): ConnectorNode => ({ ...c, fromCardinality, toCardinality });
+    const guaranteed = (nodes: DesignNode[], from: string, to: string) => sets(cheapestJoinPath([from, to], byIdOf(nodes), true));
+
+    it('skips a cheaper step that may find no row and takes the costlier route that always does', () => {
+      const { a, b, base, direct, ac, cb } = scene();
+      // Entering c through ac may find nothing, so the two-hop indexed route is out; direct enters b through its `from` end.
+      const nodes = [...base, card(direct, 'one', 'one'), card(ac, 'one', 'zeroOrOne'), card(cb, 'one', 'one')];
+      expect(sets(cheapestJoinPath([a.id, b.id], byIdOf(nodes)))?.connectors).toEqual([ac.id, cb.id].sort());
+      expect(guaranteed(nodes, a.id, b.id)).toEqual({ connectors: [direct.id], tables: [] });
+    });
+
+    it('checks the end of the table being entered, so one connector can be guaranteed in one direction only', () => {
+      const { a, b, base, direct } = scene();
+      const nodes = [...base, card(direct, 'many', 'one')];
+      expect(guaranteed(nodes, b.id, a.id)?.connectors).toEqual([direct.id]);
+      expect(cheapestJoinPath([a.id, b.id], byIdOf(nodes), true)).toEqual({ connectors: new Set(), tables: new Set(), route: [] });
+    });
+
+    it('marks each step of the fastest route as guaranteed or not, so callers need not compare two searches', () => {
+      const { a, b, base, ac, cb } = scene();
+      const flags = (nodes: DesignNode[]) => cheapestJoinPath([a.id, b.id], byIdOf(nodes))?.route.map((s) => s.via?.guaranteed);
+      expect(flags([...base, card(ac, 'one', 'one'), card(cb, 'one', 'oneOrMany')])).toEqual([undefined, true, true]);
+      expect(flags([...base, card(ac, 'one', 'one'), card(cb, 'one', 'many')])).toEqual([undefined, true, false]);
+    });
+
+    it('guarantees only one and oneOrMany', () => {
+      const { a, b, base, direct } = scene();
+      const entersB = (end: ConnectorNode['toCardinality']) => guaranteed([...base, card(direct, end, 'many')], a.id, b.id)?.connectors.length;
+      expect((['one', 'oneOrMany'] as const).map(entersB)).toEqual([1, 1]);
+      expect((['zeroOrOne', 'many', 'none'] as const).map(entersB)).toEqual([0, 0, 0]);
+    });
+  });
+
   it('returns null unless exactly two visible tables are selected, ignoring other selected layers', () => {
     const { a, b, c, base, direct, ac, cb } = scene();
     const rect = createNode('rect', { x: 300, y: 300, width: 50, height: 50 }, base);

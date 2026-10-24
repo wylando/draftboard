@@ -5,7 +5,7 @@ import { useEditor, useSelectedNodes } from '../EditorContext';
 import { useViewportControls } from '../hooks/useViewportControls';
 import { nameTaken } from '../model/names';
 import { minSizeFor } from '../model/nodes';
-import { byIdOf, cheapestJoinPath } from '../model/tree';
+import { byIdOf, cheapestJoinPath, type ById } from '../model/tree';
 import type { Box, DesignNode, NodePatch } from '../model/types';
 import { emptyHint, sidebarRight, twoColumnGrid } from '../styles';
 import { CANVAS_FONT_FAMILY, measureText } from '../textMetrics';
@@ -133,6 +133,28 @@ const routeList = css({ margin: '0', paddingLeft: '0', listStyle: 'none' });
 const routeStep = css({ overflowWrap: 'anywhere' });
 const routeKind = css({ color: 'text.secondary' });
 
+type JoinStep = NonNullable<ReturnType<typeof cheapestJoinPath>>['route'][number];
+
+function RouteSteps({ route, byId, testId }: { route: JoinStep[]; byId: ById; testId: string }) {
+  return (
+    // Safari drops list semantics from an unstyled list unless the role is explicit.
+    <ol className={routeList} role="list">
+      {route.map(({ table, via }) => (
+        <li key={table} className={routeStep} data-testid={testId}>
+          {via && <span aria-hidden="true">→ </span>}
+          {byId.get(table)?.name}
+          {via && (
+            <span className={routeKind}>
+              <span aria-hidden="true"> · </span>
+              {via.indexed ? 'index lookup' : 'scan'}
+            </span>
+          )}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 function JoinRoute() {
   const { state } = useEditor();
   const found = useMemo(() => {
@@ -140,32 +162,28 @@ function JoinRoute() {
     if (state.selection.length < 2) return null;
     const byId = byIdOf(state.nodes);
     const path = cheapestJoinPath(state.selection, byId);
-    return path && { path, byId };
+    const guaranteed = path && cheapestJoinPath(state.selection, byId, true);
+    return path && guaranteed && { path, guaranteed, byId };
   }, [state.selection, state.nodes]);
   if (!found) return null;
-  const { path, byId } = found;
+  const { path, guaranteed, byId } = found;
+  // Equal-cost ties can make the guaranteed search pick another route, so judge the fastest route itself.
+  const showGuaranteed = guaranteed.route.length > 0 && path.route.some((s) => s.via && !s.via.guaranteed);
   return (
-    <Section title="Estimated fastest route" testId="section-join-route">
-      {path.route.length === 0 ? (
-        <p className={emptyHint} data-testid="join-route-none">No route between these tables.</p>
-      ) : (
-        // Safari drops list semantics from an unstyled list unless the role is explicit.
-        <ol className={routeList} role="list">
-          {path.route.map(({ table, via }) => (
-            <li key={table} className={routeStep} data-testid="join-route-step">
-              {via && <span aria-hidden="true">→ </span>}
-              {byId.get(table)?.name}
-              {via && (
-                <span className={routeKind}>
-                  <span aria-hidden="true"> · </span>
-                  {via.indexed ? 'index lookup' : 'scan'}
-                </span>
-              )}
-            </li>
-          ))}
-        </ol>
+    <>
+      <Section title="Estimated fastest route" testId="section-join-route">
+        {path.route.length === 0 ? (
+          <p className={emptyHint} data-testid="join-route-none">No route between these tables.</p>
+        ) : (
+          <RouteSteps route={path.route} byId={byId} testId="join-route-step" />
+        )}
+      </Section>
+      {showGuaranteed && (
+        <Section title="Guaranteed route" testId="section-guaranteed-route">
+          <RouteSteps route={guaranteed.route} byId={byId} testId="guaranteed-route-step" />
+        </Section>
       )}
-    </Section>
+    </>
   );
 }
 
