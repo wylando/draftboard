@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createConnector, bendsMoveWith, dragSegment, repairConnectorData, ROUTE_MARGIN, routeBetween, shiftConnector } from './connector';
+import { createConnector, bendsMoveWith, dragSegment, repairConnectorData, shapePoints, ROUTE_MARGIN, routeBetween, shiftConnector } from './connector';
 import { editorReducer, initialEditorState } from './editorReducer';
 import { createGroup, createNode } from './nodes';
 import { segmentHitsBox } from './orthogonalRoute';
@@ -369,3 +369,122 @@ describe('shaped routes', () => {
     }
   });
 });
+
+describe('shaped routes avoiding tables', () => {
+  const ends = () => {
+    const a = table({ x: 0, y: 0, width: 100, height: 64 }, []);
+    const b = table({ x: 700, y: 0, width: 100, height: 64 }, [a]);
+    return { a, b, from: { kind: 'node', nodeId: a.id } as const, to: { kind: 'node', nodeId: b.id } as const };
+  };
+  const bends: Point[] = [{ x: 300, y: 32 }, { x: 300, y: -100 }, { x: 500, y: -100 }, { x: 500, y: 32 }];
+  const shapedRoute = [{ x: 100, y: 32 }, ...bends, { x: 700, y: 32 }];
+  const route = (tables: DesignNode[]) => {
+    const [a, b] = [tables[0]!, tables[1]!];
+    return routeBetween({ kind: 'node', nodeId: a.id }, { kind: 'node', nodeId: b.id }, 'orthogonal', byIdOf(tables), undefined, undefined, bends);
+  };
+  const doublesBack = (r: Point[]) =>
+    r.slice(2).some((p, i) => {
+      const a = r[i]!;
+      const b = r[i + 1]!;
+      return (a.y === b.y && b.y === p.y && (b.x - a.x) * (p.x - b.x) < 0) || (a.x === b.x && b.x === p.x && (b.y - a.y) * (p.y - b.y) < 0);
+    });
+
+  it('goes round a table that now sits on one of its segments, keeping its other bends', () => {
+    const { a, b } = ends();
+    const blocker = wall(350, -130, 100, 60, [a, b]);
+    const r = route([a, b, blocker]);
+    expect(hits(r, blocker)).toBe(false);
+    expect(r).toContainEqual({ x: 300, y: 32 });
+    expect(r).toContainEqual({ x: 500, y: 32 });
+    expect(r).not.toEqual(shapedRoute);
+  });
+
+  it('returns to exactly the shape once the table has moved away', () => {
+    const { a, b } = ends();
+    const blocker = wall(350, -130, 100, 60, [a, b]);
+    expect(route([a, b, { ...blocker, y: 400 }])).toEqual(shapedRoute);
+  });
+
+  it('turns out along its stub when the end table has moved past the first bend', () => {
+    const { a, b } = ends();
+    const moved = { ...a, x: 400 };
+    const r = route([moved, b]);
+    expect(hits(r, moved)).toBe(false);
+    expect(doublesBack(r)).toBe(false);
+    expect(r[0]).toEqual({ x: 500, y: 32 });
+  });
+
+  it('keeps the shaped leg when no way round is found', () => {
+    const { a, b } = ends();
+    const around = table({ x: 110, y: 10, width: 40, height: 50 }, [a, b]);
+    expect(route([a, b, around])).toEqual(shapedRoute);
+  });
+
+  it('drags 30 shaped connectors across 100 jittered tables within a frame', () => {
+    const nodes = normalizeTree(jitteredSchema(100, 100));
+    const routed = nodes.filter((n): n is ConnectorNode => n.type === 'connector').slice(0, 30);
+    const shaped = new Map(routed.map((c) => [c.id, c.points.slice(1, -1)]));
+    let state = normalizeTree(nodes.map((n) => (shaped.has(n.id) ? { ...n, bends: shaped.get(n.id)! } : n)));
+    const hub = state[50]!.id;
+    const times: number[] = [];
+    for (let i = 0; i < 20; i++) {
+      const moved = state.map((n) => (n.id === hub ? { ...n, x: n.x + 40, y: n.y + 15 } : n));
+      const t0 = performance.now();
+      state = normalizeTree(moved);
+      times.push(performance.now() - t0);
+    }
+    expect(times.reduce((sum, t) => sum + t, 0) / times.length).toBeLessThan(16);
+  });
+
+  it('hands the shape, not the detour, to a segment drag', () => {
+    const { a, b } = ends();
+    const blocker = wall(350, -130, 100, 60, [a, b]);
+    const byId = byIdOf([a, b, blocker]);
+    const shaped: ConnectorNode = { ...link(a, b, byId), routing: 'orthogonal', bends };
+    const detour = route([a, b, blocker]);
+    expect(detour).not.toEqual(shapedRoute);
+    expect(shapePoints(shaped, byId)).toEqual(shapedRoute);
+    expect(dragSegment(shapePoints(shaped, byId), 2, -40)).toEqual(dragSegment(shapedRoute, 2, -40));
+    expect(dragSegment(detour, 2, -40)).not.toEqual(dragSegment(shapedRoute, 2, -40));
+    const plain = link(a, b, byIdOf([a, b]));
+    expect(shapePoints({ ...plain, points: shapedRoute }, byId)).toEqual(shapedRoute);
+  });
+
+  it('searches again from the neighbouring points when a bend is hemmed in by its own table', () => {
+    const { a, b } = ends();
+    const moved = { ...a, x: 225, y: 50 };
+    const r = routeBetween({ kind: 'node', nodeId: a.id }, { kind: 'node', nodeId: b.id }, 'orthogonal', byIdOf([moved, b]), undefined, undefined, [{ x: 300, y: 32 }, { x: 300, y: 232 }]);
+    expect(hits(r, moved)).toBe(false);
+  });
+
+  it('sidesteps its stub on the side that crosses the tables least', () => {
+    const { a, b } = ends();
+    const across = wall(-90, 46, 300, 20, [a, b]);
+    const r = routeBetween({ kind: 'node', nodeId: a.id }, { kind: 'node', nodeId: b.id }, 'orthogonal', byIdOf([a, b, across]), undefined, undefined, [{ x: -81, y: 32 }]);
+    expect(r).toContainEqual({ x: 124, y: 8 });
+    expect(doublesBack(r)).toBe(false);
+  });
+
+  it('gives up fast on shaped legs it cannot get round', () => {
+    // A closed ring of tables with two bends inside it, among a hundred other tables: the legs in from outside have no way round,
+    // and a search over every table to find that out is what this must not do.
+    const tables: DesignNode[] = jitteredSchema(100, 0);
+    const place = (x: number, y: number) => tables.push(table({ x: x + 4000, y, width: 240, height: 64 }, tables));
+    place(-600, 968);
+    place(2000, 968);
+    const [p, q] = tables.slice(-2);
+    for (const x of [760, 1000, 1240]) for (const y of [850, 1086]) place(x, y);
+    for (const x of [760, 1240]) for (const y of [914, 970, 1022]) place(x, y);
+    const byId = byIdOf(tables);
+    const links = Array.from({ length: 10 }, (_, i) => ({
+      ...createConnector({ kind: 'node', nodeId: p!.id }, { kind: 'node', nodeId: q!.id }, `l${i}`, byId),
+      bends: [{ x: 5120, y: 1000 }, { x: 5120, y: 1040 }],
+    }));
+    const nodes = [...tables, ...links];
+    normalizeTree(nodes);
+    const t0 = performance.now();
+    normalizeTree(nodes);
+    expect(performance.now() - t0).toBeLessThan(50);
+  });
+});
+

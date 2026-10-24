@@ -28,7 +28,7 @@ import {
 } from '../geometry';
 import { useLatest } from '../../shared/useLatest';
 import type { EditorAction, EditorState } from '../model/editorReducer';
-import { anchorAt, bendsMoveWith, createConnector, dragSegment, linksToItself, shiftConnector } from '../model/connector';
+import { anchorAt, bendsMoveWith, createConnector, dragSegment, linksToItself, shapePoints, shiftConnector } from '../model/connector';
 import { createNode, DEFAULT_SIZE, minSizeFor, nextName } from '../model/nodes';
 import { TABLE_HEADER_HEIGHT, TABLE_ROW_HEIGHT, type RowDrop, type TableCell } from '../model/table';
 import { byIdOf, descendantIds, enteredScopes, isEffectivelyVisible, selectTarget, topLevelIds } from '../model/tree';
@@ -599,7 +599,7 @@ export function useCanvasGestures({
         const connector = nodes.find((n) => n.id === selection[0]);
         const index = Number(segmentEl.getAttribute('data-connector-segment'));
         if (connector?.type === 'connector' && connector.routing === 'orthogonal' && Number.isInteger(index)) {
-          gesture = { kind: 'segment', start: screen, startWorld: world, connectorId: connector.id, index, points: connector.points, moved: false };
+          gesture = { kind: 'segment', start: screen, startWorld: world, connectorId: connector.id, index, points: shapePoints(connector, byIdOf(nodes)), moved: false };
         }
       } else if (rowHandleEl && selection.length === 1) {
         const columnId = rowHandleEl.getAttribute('data-row-handle');
