@@ -34,8 +34,8 @@ const linked = () => {
 };
 
 const read = (win: Cypress.AUTWindow): SavedConnector | undefined => {
-  const raw = win.localStorage.getItem('draftboard:document:v1');
-  const nodes = raw ? (JSON.parse(raw) as { nodes: SavedConnector[] }).nodes : [];
+  const raw = win.localStorage.getItem('draftboard:workspace:v1');
+  const nodes = raw ? (JSON.parse(raw) as { boards: Array<{ nodes: SavedConnector[] }> }).boards[0]!.nodes : [];
   return nodes.find((n) => n.type === 'connector');
 };
 
@@ -49,8 +49,8 @@ const saved = (check: (connector: SavedConnector) => void) =>
 
 const savedTables = (check: (tables: Array<{ x: number; y: number }>) => void) =>
   cy.window().should((win) => {
-    const raw = win.localStorage.getItem('draftboard:document:v1');
-    const nodes = raw ? (JSON.parse(raw) as { nodes: Array<{ type: string; x: number; y: number }> }).nodes : [];
+    const raw = win.localStorage.getItem('draftboard:workspace:v1');
+    const nodes = raw ? (JSON.parse(raw) as { boards: Array<{ nodes: Array<{ type: string; x: number; y: number }> }> }).boards[0]!.nodes : [];
     check(nodes.filter((n) => n.type === 'table').sort((p, q) => p.x - q.x));
   });
 

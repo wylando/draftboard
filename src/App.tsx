@@ -1,10 +1,11 @@
 import { css } from 'styled-system/css';
 import { DialogProvider } from './design-system';
 import { useHashRoute } from './app/useHashRoute';
-import { EditorProvider, useEditor } from './editor/EditorContext';
+import { EditorProvider, useBoards, useEditor } from './editor/EditorContext';
 import { Canvas } from './editor/components/Canvas';
 import { LayersPanel } from './editor/components/LayersPanel';
 import { PropertiesPanel } from './editor/components/PropertiesPanel';
+import { ToolDock } from './editor/components/ToolDock';
 import { Toolbar } from './editor/components/Toolbar';
 import { useKeyboardShortcuts } from './editor/hooks/useKeyboardShortcuts';
 import { useViewportControls } from './editor/hooks/useViewportControls';
@@ -13,10 +14,13 @@ import { PreferencesProvider } from './settings/preferences/PreferencesContext';
 import { SettingsPage } from './settings/SettingsPage';
 
 const editorClass = css({ display: 'flex', flexDirection: 'column', height: 'full' });
+// The dock overlays this wrapper rather than the canvas element, which handles pointer-down itself.
+const canvasAreaClass = css({ position: 'relative', flex: '1', minWidth: '0', display: 'flex' });
 const bodyClass = css({ flex: '1', display: 'flex', minHeight: '0' });
 
 function Editor({ onOpenSettings }: { onOpenSettings: () => void }) {
   const { state, dispatch } = useEditor();
+  const { activeId } = useBoards();
   const controls = useViewportControls();
   useKeyboardShortcuts({ state, dispatch, ...controls, openSettings: onOpenSettings });
 
@@ -24,9 +28,13 @@ function Editor({ onOpenSettings }: { onOpenSettings: () => void }) {
     <div className={editorClass}>
       <Toolbar onOpenSettings={onOpenSettings} />
       <div className={bodyClass}>
-        <LayersPanel />
-        <Canvas />
-        <PropertiesPanel />
+        <LayersPanel key={`layers-${activeId}`} />
+        <div className={canvasAreaClass}>
+          {/* Keyed so marquee, guides, hover and in-place editors start fresh on each board. */}
+          <Canvas key={activeId} />
+          <ToolDock />
+        </div>
+        <PropertiesPanel key={`properties-${activeId}`} />
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import type { Binding } from './keys';
 
-export type CommandCategory = 'tools' | 'edit' | 'arrange' | 'view' | 'nudge' | 'app';
+export type CommandCategory = 'tools' | 'edit' | 'arrange' | 'view' | 'nudge' | 'boards' | 'app';
 
 export const CATEGORY_LABELS: Record<CommandCategory, string> = {
   tools: 'Tools',
@@ -8,6 +8,7 @@ export const CATEGORY_LABELS: Record<CommandCategory, string> = {
   arrange: 'Arrange',
   view: 'View',
   nudge: 'Nudge selection',
+  boards: 'Boards',
   app: 'App',
 };
 
@@ -64,6 +65,12 @@ export const COMMANDS = {
   'nudge.rightLarge': { label: 'Nudge right ×10', category: 'nudge', defaults: ['Shift+ArrowRight'], description: 'Move the selection 10px right.' },
   'nudge.upLarge': { label: 'Nudge up ×10', category: 'nudge', defaults: ['Shift+ArrowUp'], description: 'Move the selection 10px up.' },
   'nudge.downLarge': { label: 'Nudge down ×10', category: 'nudge', defaults: ['Shift+ArrowDown'], description: 'Move the selection 10px down.' },
+
+  // Alt, not Mod: Ctrl/⌘ + N, W and the bracket keys belong to the browser's own windows and tabs.
+  'board.new': { label: 'New board', category: 'boards', defaults: ['Alt+N'], description: 'Add an empty board after the last one and open it.' },
+  'board.close': { label: 'Close board', category: 'boards', defaults: ['Alt+W'], description: 'Close the open board, asking first if it has layers. The last board stays.' },
+  'board.next': { label: 'Next board', category: 'boards', defaults: ['Alt+]'], description: 'Open the board to the right; from the last board, wrap to the first.' },
+  'board.previous': { label: 'Previous board', category: 'boards', defaults: ['Alt+['], description: 'Open the board to the left; from the first board, wrap to the last.' },
 
   // No default: ⌘, is usually taken by the browser's own settings. Use the gear button or bind one.
   'app.openSettings': { label: 'Open settings', category: 'app', defaults: [], description: 'Open this Settings page.' },

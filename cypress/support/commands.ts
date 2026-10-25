@@ -33,11 +33,11 @@ declare global {
       /** Select a tool via its toolbar button, then drag on the canvas. */
       drawShape(tool: string, from: Pt, to: Pt): Chainable<void>;
       /** Dispatch a keydown (and keyup) on the window. */
-      pressKey(key: string, opts?: { code?: string; shiftKey?: boolean; metaKey?: boolean; altKey?: boolean }): Chainable<void>;
+      pressKey(key: string, opts?: { code?: string; shiftKey?: boolean; metaKey?: boolean; altKey?: boolean; repeat?: boolean }): Chainable<void>;
       /** Read a node's committed property value from the properties panel. */
       prop(name: string): Chainable<JQuery<HTMLInputElement>>;
       /** Dispatch a pointer event at the subject's center, offset by `by` pixels. */
-      pointer(type: 'pointerdown' | 'pointermove' | 'pointerup', by?: Pt, opts?: PointerOpts): Chainable<JQuery<HTMLElement>>;
+      pointer(type: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercancel', by?: Pt, opts?: PointerOpts): Chainable<JQuery<HTMLElement>>;
     }
   }
 }

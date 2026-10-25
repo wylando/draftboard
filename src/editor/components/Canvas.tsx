@@ -39,7 +39,7 @@ const svgClass = css({ display: 'block' });
 const noticeClass = css({
   position: 'absolute',
   left: '[50%]',
-  bottom: '4',
+  bottom: 'toolDockClearance',
   transform: 'translateX(-50%)',
   margin: '0',
   paddingBlock: '1',
@@ -100,8 +100,9 @@ export function Canvas() {
   useEffect(() => {
     const isTyping = (t: EventTarget | null) => t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement;
     const down = (e: KeyboardEvent) => {
-      // Inside an open dialog, Space must press the focused button, so don't cancel it.
-      if (e.code === 'Space' && !isTyping(e.target) && !dialogOpen.current) {
+      // Inside an open dialog, and on a button in the top bar (a board tab), Space must press the focused button.
+      const onTopBar = e.target instanceof Element && e.target.closest('header') !== null;
+      if (e.code === 'Space' && !isTyping(e.target) && !dialogOpen.current && !onTopBar) {
         e.preventDefault();
         setSpacePressed(true);
       }

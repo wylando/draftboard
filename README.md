@@ -43,7 +43,8 @@ Draw, arrange and fine-tune shapes on an infinite canvas: no account, no cloud, 
 - ↩️ **Full undo / redo** for every edit and gesture.
 - 🔍 **Smooth viewport**: wheel to pan, ⌘/Ctrl + wheel to zoom around the pointer, Space-drag to pan, plus zoom to 100% and zoom to fit.
 - ⌨️ **Fully remappable shortcuts**: rebind any command, give one command several keys, and resolve conflicts from a built-in Settings page.
-- 💾 **Autosave**: your document saves to the browser as you work. Export or import it as JSON at any time. Importing over a non-empty design asks first, because it replaces the canvas and clears undo history. If a loaded document repeats a layer name, later layers get the next free name.
+- 🗂️ **Boards**: browser-style tabs in the top bar, each one its own design with its own undo history, selection and view. `+` adds a board ("Board 2", the next free number); the `×` on a tab closes it, after asking when it has layers (it can't be undone); the last board can't be closed. Double-click a tab to rename it (Enter or clicking away saves, Esc cancels; an empty name or one another board has, ignoring case, keeps the old name). Drag a tab sideways to reorder; the open board stays open. Right-click a tab for a menu to rename, duplicate or close it; a duplicate sits right after the original with its layers, the next free name ("Board 1" → "Board 2"), a fresh undo history and the same view. `Alt+N`, `Alt+W` and `Alt+]` / `Alt+[` add, close and cycle boards (the last wraps around). Copy on one board and paste on another. Arrow keys move focus between tabs, Enter or Space opens one.
+- 💾 **Autosave**: your boards save to the browser as you work. Export or import it as JSON at any time. Importing over a non-empty design asks first, because it replaces the canvas and clears undo history. If a loaded document repeats a layer name, later layers get the next free name.
 - 💬 **Accessible dialogs**: confirmations and errors open in a modal dialog (focus trapped, Escape to cancel) instead of browser pop-ups. Editor shortcuts pause while one is open.
 - 📴 **100% offline**: no CDNs, web fonts, analytics or remote assets. Once dependencies are installed, nothing leaves your machine.
 
@@ -92,13 +93,15 @@ Then open **http://localhost:5173**. That's it.
 | Zoom in / out              | `⌘=` / `⌘-`      | `Ctrl+=` / `Ctrl+-`  |
 | Zoom to 100% / to fit      | `⇧0` / `⇧1`      | `Shift+0` / `Shift+1` |
 | Deselect / exit tool       | `Esc`            | `Esc`                |
+| New / Close board          | `⌥N` / `⌥W`      | `Alt+N` / `Alt+W`    |
+| Next / Previous board      | `⌥]` / `⌥[`      | `Alt+]` / `Alt+[`    |
 
 > [!TIP]
 > Every shortcut above is just a default. Open **Settings** (the gear icon, top right) to rebind, add or remove keys. Your changes are saved in the browser.
 
 ### Saving your work
 
-Documents autosave to `localStorage`. Use the toolbar to **export** a document as JSON or **import** one back. If the canvas isn't empty, Draftboard asks before an import replaces it. Storage is scoped to the browser and the address, which is why the dev server always runs on port `5173`.
+Boards autosave to `localStorage` (their names, order, the open board and their layers; undo history and the view are not saved). A design saved before boards existed opens as "Board 1". Use the toolbar to **export** the open board as JSON or **import** one back into it. If the canvas isn't empty, Draftboard asks before an import replaces it. Storage is scoped to the browser and the address, which is why the dev server always runs on port `5173`.
 
 ## 🛠 Development
 
@@ -122,7 +125,7 @@ Documents autosave to `localStorage`. Use the toolbar to **export** a document a
 - **[React 19](https://react.dev)** + **[TypeScript](https://www.typescriptlang.org)** (strict mode)
 - **[Vite](https://vite.dev)** for dev and build
 - **[Panda CSS](https://panda-css.com)** for type-safe design tokens and recipes
-- **[Ark UI](https://ark-ui.com)** headless components (dialog, tabs, radio group, checkbox, toggle group, field), styled with Panda recipes
+- **[Ark UI](https://ark-ui.com)** headless components (dialog, tabs, menu, radio group, checkbox, toggle group, field), styled with Panda recipes
 - **SVG** rendering for every shape on the canvas
 - **[Vitest](https://vitest.dev)** unit tests for pure, React-free modules
 - **[Cypress](https://www.cypress.io)** end-to-end tests that drive the canvas with real pointer events
@@ -134,12 +137,12 @@ src/
 ├── app/              # Hash-based routing (editor ↔ settings), no router dependency
 ├── design-system/    # Panda theme (tokens, semantic tokens, recipes), UI primitives (some on Ark UI), dialogs, icons
 ├── editor/
-│   ├── model/        # Document types, node factories, reducer with undo history
+│   ├── model/        # Document types, node factories, reducer with undo history, boards (workspace)
 │   ├── schemaImport/ # SQL schema import: parsers, layout, conversion to table nodes
 │   ├── hooks/        # Pointer gestures, keyboard shortcuts, viewport
-│   ├── components/   # Canvas, selection overlay, layers and properties panels, toolbar
+│   ├── components/   # Canvas, selection overlay, layers and properties panels, top bar, floating tool dock
 │   ├── geometry.ts   # Pure math: transforms, resize, bounds
-│   └── persistence.ts# localStorage + JSON import/export
+│   └── persistence.ts# localStorage (boards) + JSON import/export
 ├── settings/         # Command registry, keybinding storage, Settings page
 └── shared/           # Small shared hooks
 cypress/

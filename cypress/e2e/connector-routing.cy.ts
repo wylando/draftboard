@@ -41,9 +41,9 @@ const connect = (from: [number, number], to: [number, number]) => {
  */
 const document = (check: (tables: Box[], route: Pt[]) => void) =>
   cy.window().should((win) => {
-    const raw = win.localStorage.getItem('draftboard:document:v1');
+    const raw = win.localStorage.getItem('draftboard:workspace:v1');
     expect(raw, 'saved document').to.be.a('string');
-    const nodes = (JSON.parse(raw as string) as { nodes: StoredNode[] }).nodes;
+    const nodes = (JSON.parse(raw as string) as { boards: Array<{ nodes: StoredNode[] }> }).boards[0]!.nodes;
     const tables = nodes.filter((n) => n.type === 'table').sort((a, b) => a.x - b.x);
     const connector = nodes.find((n) => n.type === 'connector');
     expect(connector, 'saved connector').to.not.equal(undefined);

@@ -66,6 +66,8 @@ export const tokens = defineTokens({
     3: { value: '0.75rem' }, // 12px
     4: { value: '1rem' }, // 16px
     6: { value: '1.5rem' }, // 24px
+    /** Ours: bottom offset that lifts canvas notices above the floating tool dock (16px gap + 44px dock + 12px air). */
+    toolDockClearance: { value: '4.5rem' },
   },
   radii: {
     none: { value: '0' },
@@ -93,6 +95,11 @@ export const tokens = defineTokens({
     treeRow: { value: '24px' },
     treeIndent: { value: '16px' },
     zoomLabel: { value: '48px' },
+    /** Board tabs: height, the width they shrink to before the strip scrolls, and their widest. */
+    boardTab: { value: '36px' },
+    boardTabMin: { value: '96px' },
+    boardTabMax: { value: '180px' },
+    boardTabClose: { value: '20px' },
     kbd: { value: '20px' },
     content: { value: '760px' },
     dialog: { value: '400px' },

@@ -181,7 +181,7 @@ describe('Smart guides', () => {
     cy.get('[data-testid=snap-to-layers]').should('have.attr', 'data-state', 'unchecked');
     cy.window().its('localStorage').invoke('getItem', 'draftboard:preferences:v1').should('contain', '"snapToLayers":false');
     // Document saves are debounced; the drag below needs the rects to survive the reload.
-    cy.window().its('localStorage').invoke('getItem', 'draftboard:document:v1').should('contain', 'Rectangle 2');
+    cy.window().its('localStorage').invoke('getItem', 'draftboard:workspace:v1').should('contain', 'Rectangle 2');
 
     cy.reload();
     cy.get('[data-testid=nav-canvas]').click();

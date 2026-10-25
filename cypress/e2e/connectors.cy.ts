@@ -245,7 +245,7 @@ describe('Connectors', () => {
   it('survives a reload, and a saved connector whose table is gone loads as a loose end', () => {
     twoTables();
     connectIdRows();
-    cy.window().its('localStorage').invoke('getItem', 'draftboard:document:v1').should('contain', 'connector');
+    cy.window().its('localStorage').invoke('getItem', 'draftboard:workspace:v1').should('contain', 'connector');
     cy.reload();
     line().should('have.attr', 'data-broken', 'false');
 
