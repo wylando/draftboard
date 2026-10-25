@@ -18,6 +18,7 @@ import {
   resizeBox,
   rotatedBounds,
   screenToWorld,
+  viewWorldBox,
   snapOffset,
   snapSpacing,
   spacingGuides,
@@ -141,7 +142,7 @@ function snapCandidates(nodes: DesignNode[], changing: Set<string>, viewport: Vi
       p = parent.parentId;
     }
   }
-  const view = boxFromPoints(screenToWorld({ x: 0, y: 0 }, viewport), screenToWorld({ x: canvasSize.width, y: canvasSize.height }, viewport));
+  const view = viewWorldBox(viewport, canvasSize);
   // Frames clip their children, so a child wholly outside an ancestor frame can't be seen.
   const clippedAway = (n: DesignNode, b: Box) => {
     for (let p = n.parentId ? byId.get(n.parentId) : undefined; p; p = p.parentId ? byId.get(p.parentId) : undefined) {
