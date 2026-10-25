@@ -136,7 +136,9 @@ describe('Side panels', () => {
   });
 
   it('keeps the tool dock in place while panels hide and show', () => {
+    let dockWidth = 0;
     rectOf('tool-dock').then((dock) => {
+      dockWidth = dock.width;
       const stays = () => rectOf('tool-dock').its('left').should('be.closeTo', dock.left, 0.5);
       cy.get('[data-testid=hide-layers-panel]').click();
       cy.get('[data-testid=show-layers-panel]').should('have.focus');
@@ -148,6 +150,20 @@ describe('Side panels', () => {
       cy.get('[data-testid=hide-layers-panel]').should('have.focus');
       stays();
     });
+    // Where the collapsed panels' room doesn't fit (480 + 240 px of an 800 px canvas), the dock still stays whole on the canvas.
+    dragHandle('resize-layers', 600);
+    shouldBeWidth('layers-panel', 480);
+    cy.get('[data-testid=hide-layers-panel]').click();
+    cy.get('[data-testid=show-layers-panel]').should('have.focus');
+    cy.viewport(800, 800);
+    cy.get('[data-testid=canvas]').invoke('outerWidth').should('be.closeTo', 800, TOLERANCE);
+    rectOf('canvas').then((canvas) =>
+      rectOf('tool-dock').should((dock) => {
+        expect(dock.left).to.be.at.least(canvas.left);
+        expect(dock.right).to.be.at.most(canvas.right);
+        expect(dock.width).to.be.closeTo(dockWidth, 0.5);
+      }),
+    );
   });
 
   it('keeps the header bar in place while a long Layers list scrolls', () => {

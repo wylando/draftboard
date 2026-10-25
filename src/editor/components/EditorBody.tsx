@@ -80,9 +80,12 @@ const morphName: Record<PanelId, string> = {
 
 /** Panel widths and collapse state, saved across sessions, with the Ark splitter that applies them. */
 function useSidePanels() {
+  const { dispatch } = useEditor();
   const [layout, setLayout] = useState<PanelLayout>(loadPanelLayout);
   const rootRef = useRef<HTMLDivElement>(null);
   const rootWidth = () => rootRef.current?.getBoundingClientRect().width ?? 0;
+  // Set when Ark reports a size change, for the commit that renders it.
+  const resized = useRef(false);
 
   useEffect(() => savePanelLayout(layout), [layout]);
 
@@ -113,7 +116,8 @@ function useSidePanels() {
     },
     // Read from the sizes, not onCollapse/onExpand: Ark doesn't report expanding a panel that
     // started collapsed.
-    onResize: ({ size }) =>
+    onResize: ({ size }) => {
+      resized.current = true;
       setLayout((prev) => {
         let next = prev;
         for (const id of ['layers', 'properties'] as const) {
@@ -121,7 +125,8 @@ function useSidePanels() {
           if (collapsed !== prev[id].collapsed) next = { ...next, [id]: { ...prev[id], collapsed } };
         }
         return next;
-      }),
+      });
+    },
   });
 
   const toggle = (id: PanelId) => {
@@ -133,7 +138,33 @@ function useSidePanels() {
     if (width > 0) splitter.resizePanel(id, (layout[id].width / width) * 100);
   };
 
-  return { splitter, layout, toggle, rootRef };
+  const canvasPanel = useRef<HTMLDivElement>(null);
+  const lastEdge = useRef<{ left: number; bodyWidth: number } | null>(null);
+
+  // Design choice: canvas content stays put on screen when the Layers panel changes width, as it
+  // does for the Design panel, which only moves the canvas's far edge. Measured from the rendered
+  // edge after each commit (the splitter re-renders this on every size change), not from Ark's
+  // rounded percentages, so repeated resizes don't drift. Runs before EditorBody's morph settle
+  // effect, so the pan is in the snapshot. Only the open board's view moves.
+  useLayoutEffect(() => {
+    const panel = canvasPanel.current;
+    const body = rootRef.current;
+    if (!panel || !body) return;
+    const left = panel.getBoundingClientRect().left;
+    const bodyWidth = body.getBoundingClientRect().width;
+    const last = lastEdge.current;
+    lastEdge.current = { left, bodyWidth };
+    // Only a resize Ark reports moves the view. Its first layout isn't reported: that swaps the panels'
+    // px basis for rounded percentages, shifting the edge by under a pixel. A window resize keeps the
+    // Layers panel's px width, so any shift then is the same rounding.
+    const reported = resized.current;
+    resized.current = false;
+    if (!last || !reported || last.bodyWidth !== bodyWidth) return;
+    const moved = left - last.left;
+    if (moved !== 0) dispatch({ type: 'panViewport', dx: -moved, dy: 0 });
+  });
+
+  return { splitter, layout, toggle, rootRef, canvasPanel };
 }
 
 interface EditorBodyProps {
@@ -145,35 +176,7 @@ interface EditorBodyProps {
 /** Layers | canvas | Design. Each sidebar collapses into a button in its corner of the canvas. */
 export function EditorBody({ layers, canvas, properties }: EditorBodyProps) {
   const classes = splitterRecipe();
-  const { dispatch } = useEditor();
-  const { splitter, layout, toggle, rootRef } = useSidePanels();
-  const canvasPanel = useRef<HTMLDivElement>(null);
-  const lastEdge = useRef<{ left: number; bodyWidth: number } | null>(null);
-  const placeholderSizes = useRef<string | null>(null);
-
-  // Design choice: canvas content stays put on screen when the Layers panel changes width, as it
-  // does for the Design panel, which only moves the canvas's far edge. Measured from the rendered
-  // edge after each commit (the splitter re-renders this on every size change), not from Ark's
-  // rounded percentages, so repeated resizes don't drift. Declared before the morph's settle effect,
-  // so the pan is in the snapshot. Only the open board's view moves.
-  useLayoutEffect(() => {
-    const panel = canvasPanel.current;
-    const body = rootRef.current;
-    if (!panel || !body) return;
-    // Until Ark resolves its sizes it reports an equal split and panels sit at their px basis; the
-    // switch to its rounded percentages shifts the edge by under a pixel, which is no move of the user's.
-    const sizes = splitter.getSizes().join();
-    placeholderSizes.current ??= sizes;
-    if (sizes === placeholderSizes.current) return;
-    const left = panel.getBoundingClientRect().left;
-    const bodyWidth = body.getBoundingClientRect().width;
-    const last = lastEdge.current;
-    lastEdge.current = { left, bodyWidth };
-    // A window resize keeps the Layers panel's px width; any shift then is the same rounding.
-    if (!last || last.bodyWidth !== bodyWidth) return;
-    const moved = left - last.left;
-    if (moved !== 0) dispatch({ type: 'panViewport', dx: -moved, dy: 0 });
-  });
+  const { splitter, layout, toggle, rootRef, canvasPanel } = useSidePanels();
   const buttons = useRef(new Map<string, HTMLButtonElement | null>());
   // The button to focus once a toggle commits: the one that was clicked is inert or gone by then.
   const focusAfter = useRef<string | null>(null);

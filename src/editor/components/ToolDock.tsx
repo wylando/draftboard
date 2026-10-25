@@ -9,15 +9,21 @@ import { css } from 'styled-system/css';
 import { iconButton } from 'styled-system/recipes';
 
 // A sibling of the canvas element, not a child: the canvas blurs editors and starts gestures on pointer-down.
-// Centered as if collapsed side panels were open (EditorBody sets the insets), so hiding or showing
-// a panel doesn't move it.
-const dockClass = css({
+// Centered as if collapsed side panels were open, so hiding or showing one doesn't move it: spacers
+// start at their widths (EditorBody sets them) and share the rest equally. Where that room doesn't
+// fit, they shrink in proportion, so the dock stays whole on the canvas. The row lets presses through.
+const dockRowClass = css({
   position: 'absolute',
-  insetInlineStart: '[var(--dock-inset-start, 0px)]',
-  insetInlineEnd: '[var(--dock-inset-end, 0px)]',
+  insetInline: '0',
   bottom: '4',
-  marginInline: 'auto',
-  width: 'fit-content',
+  display: 'flex',
+  pointerEvents: 'none',
+  _before: { content: '""', flex: '[1 1 var(--dock-inset-start, 0px)]', minWidth: '0' },
+  _after: { content: '""', flex: '[1 1 var(--dock-inset-end, 0px)]', minWidth: '0' },
+});
+const dockClass = css({
+  flex: 'none',
+  pointerEvents: 'auto',
   display: 'flex',
   alignItems: 'center',
   gap: '1',
@@ -48,49 +54,51 @@ export function ToolDock() {
   const title = useCommandTitle();
 
   return (
-    <div className={dockClass} role="group" aria-label="Tools" data-testid="tool-dock">
-      {/* Exactly one tool is always active, so the group can't be emptied. */}
-      <ToggleGroup.Root
-        className={groupClass}
-        aria-label="Drawing tools"
-        value={[state.tool]}
-        deselectable={false}
-        onValueChange={({ value }) => {
-          const tool = value[0] as ToolId | undefined;
-          if (tool) dispatch({ type: 'setTool', tool });
-        }}
-      >
-        {TOOLS.map((t) => (
-          <ToggleGroup.Item
-            key={t.id}
-            value={t.id}
-            className={toolItemClass}
-            aria-label={title(t.command)}
-            title={title(t.command)}
-            data-testid={`tool-${t.id}`}
-          >
-            <t.icon />
-          </ToggleGroup.Item>
-        ))}
-      </ToggleGroup.Root>
-      <span className={dividerClass} aria-hidden="true" />
-      <div className={groupClass}>
-        <IconButton
-          tone="dark"
-          label={title('edit.undo')}
-          data-testid="undo"
-          icon={<icons.undo />}
-          disabled={state.past.length === 0}
-          onClick={() => dispatch({ type: 'undo' })}
-        />
-        <IconButton
-          tone="dark"
-          label={title('edit.redo')}
-          data-testid="redo"
-          icon={<icons.redo />}
-          disabled={state.future.length === 0}
-          onClick={() => dispatch({ type: 'redo' })}
-        />
+    <div className={dockRowClass}>
+      <div className={dockClass} role="group" aria-label="Tools" data-testid="tool-dock">
+        {/* Exactly one tool is always active, so the group can't be emptied. */}
+        <ToggleGroup.Root
+          className={groupClass}
+          aria-label="Drawing tools"
+          value={[state.tool]}
+          deselectable={false}
+          onValueChange={({ value }) => {
+            const tool = value[0] as ToolId | undefined;
+            if (tool) dispatch({ type: 'setTool', tool });
+          }}
+        >
+          {TOOLS.map((t) => (
+            <ToggleGroup.Item
+              key={t.id}
+              value={t.id}
+              className={toolItemClass}
+              aria-label={title(t.command)}
+              title={title(t.command)}
+              data-testid={`tool-${t.id}`}
+            >
+              <t.icon />
+            </ToggleGroup.Item>
+          ))}
+        </ToggleGroup.Root>
+        <span className={dividerClass} aria-hidden="true" />
+        <div className={groupClass}>
+          <IconButton
+            tone="dark"
+            label={title('edit.undo')}
+            data-testid="undo"
+            icon={<icons.undo />}
+            disabled={state.past.length === 0}
+            onClick={() => dispatch({ type: 'undo' })}
+          />
+          <IconButton
+            tone="dark"
+            label={title('edit.redo')}
+            data-testid="redo"
+            icon={<icons.redo />}
+            disabled={state.future.length === 0}
+            onClick={() => dispatch({ type: 'redo' })}
+          />
+        </div>
       </div>
     </div>
   );
