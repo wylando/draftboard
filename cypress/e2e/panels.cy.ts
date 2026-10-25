@@ -122,12 +122,27 @@ describe('Side panels', () => {
     cy.drawShape('rect', [100, 100], [200, 200]);
     cy.get('[data-node-type=rect]').then(($r) => {
       const left = $r[0]!.getBoundingClientRect().left;
-      const stays = () => cy.get('[data-node-type=rect]').should(($n) => expect($n[0]!.getBoundingClientRect().left).to.be.closeTo(left, TOLERANCE));
+      const stays = () => cy.get('[data-node-type=rect]').should(($n) => expect($n[0]!.getBoundingClientRect().left).to.be.closeTo(left, 0.5));
       dragHandle('resize-layers', 60);
       shouldBeWidth('layers-panel', 300);
       stays();
       cy.get('[data-testid=hide-layers-panel]').click();
       cy.get('[data-testid=show-layers-panel]').should('exist');
+      stays();
+      cy.get('[data-testid=show-layers-panel]').click();
+      cy.get('[data-testid=hide-layers-panel]').should('have.focus');
+      stays();
+    });
+  });
+
+  it('keeps the tool dock in place while panels hide and show', () => {
+    rectOf('tool-dock').then((dock) => {
+      const stays = () => rectOf('tool-dock').its('left').should('be.closeTo', dock.left, 0.5);
+      cy.get('[data-testid=hide-layers-panel]').click();
+      cy.get('[data-testid=show-layers-panel]').should('have.focus');
+      stays();
+      cy.get('[data-testid=hide-properties-panel]').click();
+      cy.get('[data-testid=show-properties-panel]').should('have.focus');
       stays();
       cy.get('[data-testid=show-layers-panel]').click();
       cy.get('[data-testid=hide-layers-panel]').should('have.focus');

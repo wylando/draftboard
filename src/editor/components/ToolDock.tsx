@@ -9,9 +9,12 @@ import { css } from 'styled-system/css';
 import { iconButton } from 'styled-system/recipes';
 
 // A sibling of the canvas element, not a child: the canvas blurs editors and starts gestures on pointer-down.
+// Centered as if collapsed side panels were open (EditorBody sets the insets), so hiding or showing
+// a panel doesn't move it.
 const dockClass = css({
   position: 'absolute',
-  insetInline: '0',
+  insetInlineStart: '[var(--dock-inset-start, 0px)]',
+  insetInlineEnd: '[var(--dock-inset-end, 0px)]',
   bottom: '4',
   marginInline: 'auto',
   width: 'fit-content',
