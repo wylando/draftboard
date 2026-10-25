@@ -112,6 +112,18 @@ describe('Layers tree', () => {
     nameError('layers-panel').should('not.exist');
   });
 
+  it('cuts a long name short with an ellipsis instead of scrolling the panel sideways', () => {
+    const long = 'A layer name far too long to fit in the panel at its default width';
+    layerRow('Ellipse 1').dblclick();
+    cy.get('[data-testid=layers-panel] input').clear().type(`${long}{enter}`);
+    layerRow(long)
+      .find('span')
+      .contains(long)
+      .should(($name) => expect($name[0]!.scrollWidth).to.be.greaterThan($name[0]!.clientWidth))
+      .and('have.css', 'text-overflow', 'ellipsis');
+    cy.get('[data-testid=layers-panel]').should(($panel) => expect($panel[0]!.scrollWidth).to.equal($panel[0]!.clientWidth));
+  });
+
   it('lists no row for a connector, only for the layers it links', () => {
     cy.pressKey('c', { code: 'KeyC' });
     cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'connector');

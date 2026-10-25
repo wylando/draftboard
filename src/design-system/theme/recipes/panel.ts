@@ -8,6 +8,8 @@ export const panelRecipe = defineRecipe({
     flexDirection: 'column',
     bg: 'bg',
     overflowY: 'auto',
+    // Design choice: a sidebar never scrolls sideways; whatever is too wide (a very deep layer) is cut off.
+    overflowX: 'hidden',
   },
 });
 
@@ -30,6 +32,9 @@ export const sectionRecipe = defineSlotRecipe({
     },
     body: {
       display: 'grid',
+      // An auto column grows to fit a long unbreakable line (a layer name), and the panel
+      // scrolls sideways instead of the line ellipsizing.
+      gridTemplateColumns: 'minmax(0, 1fr)',
       gap: '2',
     },
   },
