@@ -189,9 +189,13 @@ export function Canvas() {
   const nextWindow = nextCullWindow(cullWindow, viewWorldBox(viewport, state.canvasSize));
   if (nextWindow !== cullWindow) setCullWindow(nextWindow);
   const editingTableId = tableCell?.tableId;
+  const inWindow = useMemo(() => renderedIds(nodes, nextWindow, []), [nodes, nextWindow]);
+  // A marquee changes the selection every frame. Keeping `mounted` the same set while every pinned layer is
+  // already in the window spares each mounted NodeView a re-render.
+  const unmountedPins = [...selection, editingId, editingTableId].filter((id): id is string => !!id && !inWindow.has(id)).join('\n');
   const mounted = useMemo(
-    () => renderedIds(nodes, nextWindow, [...selection, ...(editingId ? [editingId] : []), ...(editingTableId ? [editingTableId] : [])]),
-    [nodes, nextWindow, selection, editingId, editingTableId],
+    () => (unmountedPins ? renderedIds(nodes, nextWindow, unmountedPins.split('\n')) : inWindow),
+    [inWindow, unmountedPins, nodes, nextWindow],
   );
   const childrenOf = useMemo(() => childrenByParent(nodes), [nodes]);
   const byId = useMemo(() => byIdOf(nodes), [nodes]);
