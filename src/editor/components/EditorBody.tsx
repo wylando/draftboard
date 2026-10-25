@@ -139,26 +139,27 @@ function useSidePanels() {
   };
 
   const canvasPanel = useRef<HTMLDivElement>(null);
-  const lastEdge = useRef<{ left: number; bodyWidth: number } | null>(null);
+  const lastEdge = useRef<{ sizes: string; left: number; bodyWidth: number } | null>(null);
 
   // Design choice: canvas content stays put on screen when the Layers panel changes width, as it
   // does for the Design panel, which only moves the canvas's far edge. Measured from the rendered
-  // edge after each commit (the splitter re-renders this on every size change), not from Ark's
-  // rounded percentages, so repeated resizes don't drift. Runs before EditorBody's morph settle
-  // effect, so the pan is in the snapshot. Only the open board's view moves.
+  // edge, not from Ark's rounded percentages, so repeated resizes don't drift; only when Ark's sizes
+  // changed, since this runs on every editor change. Runs before EditorBody's morph settle effect, so
+  // the pan is in the snapshot. Only the open board's view moves.
   useLayoutEffect(() => {
+    const sizes = splitter.getSizes().join();
+    const reported = resized.current;
+    resized.current = false;
+    const last = lastEdge.current;
     const panel = canvasPanel.current;
     const body = rootRef.current;
-    if (!panel || !body) return;
+    if ((last && last.sizes === sizes) || !panel || !body) return;
     const left = panel.getBoundingClientRect().left;
     const bodyWidth = body.getBoundingClientRect().width;
-    const last = lastEdge.current;
-    lastEdge.current = { left, bodyWidth };
+    lastEdge.current = { sizes, left, bodyWidth };
     // Only a resize Ark reports moves the view. Its first layout isn't reported: that swaps the panels'
     // px basis for rounded percentages, shifting the edge by under a pixel. A window resize keeps the
     // Layers panel's px width, so any shift then is the same rounding.
-    const reported = resized.current;
-    resized.current = false;
     if (!last || !reported || last.bodyWidth !== bodyWidth) return;
     const moved = left - last.left;
     if (moved !== 0) dispatch({ type: 'panViewport', dx: -moved, dy: 0 });
