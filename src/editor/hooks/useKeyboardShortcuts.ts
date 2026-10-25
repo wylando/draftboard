@@ -27,8 +27,10 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return target.isContentEditable || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
 }
 
-// Both own the arrow keys and Enter while focus is inside them: tabs rove, a menu moves its highlight.
-const inOwnKeys = (target: EventTarget | null) => target instanceof Element && target.closest('[role=tablist], [role=menu]') !== null;
+// These own the arrow keys and Enter while focus is inside them: tabs rove, a menu moves its
+// highlight, a panel's resize handle resizes or collapses it.
+const inOwnKeys = (target: EventTarget | null) =>
+  target instanceof Element && target.closest('[role=tablist], [role=menu], [role=separator]') !== null;
 
 interface BoardControls {
   boards: Array<{ id: string }>;

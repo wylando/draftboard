@@ -140,6 +140,18 @@ export const icons = {
       <path d="M10 3L5 8l5 5" />
     </Icon>
   ),
+  panelLeft: () => (
+    <Icon>
+      <rect x="2" y="2" width="12" height="12" rx="1.5" />
+      <path d="M6 2v12" />
+    </Icon>
+  ),
+  panelRight: () => (
+    <Icon>
+      <rect x="2" y="2" width="12" height="12" rx="1.5" />
+      <path d="M10 2v12" />
+    </Icon>
+  ),
 } as const;
 
 export type IconName = keyof typeof icons;

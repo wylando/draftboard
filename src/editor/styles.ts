@@ -1,17 +1,18 @@
 import { css } from 'styled-system/css';
 
 /** Styles shared by several editor components. One-off styles live next to their component. */
+// The splitter panel around a sidebar sets its width.
 export const sidebarLeft = css({
-  flex: 'none',
-  width: 'sidebarWidth',
+  flex: '1',
+  minWidth: '0',
   borderRightWidth: '1px',
   borderRightStyle: 'solid',
   borderRightColor: 'border',
 });
 
 export const sidebarRight = css({
-  flex: 'none',
-  width: 'sidebarWidth',
+  flex: '1',
+  minWidth: '0',
   borderLeftWidth: '1px',
   borderLeftStyle: 'solid',
   borderLeftColor: 'border',

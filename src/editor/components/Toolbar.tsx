@@ -2,6 +2,7 @@ import { lazy, Suspense, useRef, useState } from 'react';
 import { Button, IconButton, icons, useDialogs } from '../../design-system';
 import { useEditor } from '../EditorContext';
 import { BoardTabs } from './BoardTabs';
+import type { SidePanels } from './EditorBody';
 import { useViewportControls } from '../hooks/useViewportControls';
 import { isBroken } from '../model/connector';
 import { downloadDocument, parseDocument } from '../persistence';
@@ -28,7 +29,7 @@ const brandClass = css({ alignSelf: 'center', paddingInlineStart: '2', paddingIn
 const zoomClass = css({ minWidth: 'zoomLabel' });
 const problemsClass = css({ color: 'text.danger' });
 
-export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
+export function Toolbar({ onOpenSettings, panels }: { onOpenSettings: () => void; panels: Pick<SidePanels, 'layout' | 'toggle'> }) {
   const { state, dispatch } = useEditor();
   const { zoom, zoomIn, zoomOut, zoomToFit } = useViewportControls();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -106,6 +107,22 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
             void onImport(e.target.files?.[0]);
             e.target.value = '';
           }}
+        />
+        <IconButton
+          tone="dark"
+          label="Layers panel"
+          aria-pressed={!panels.layout.layers.collapsed}
+          data-testid="toggle-layers-panel"
+          icon={<icons.panelLeft />}
+          onClick={() => panels.toggle('layers')}
+        />
+        <IconButton
+          tone="dark"
+          label="Design panel"
+          aria-pressed={!panels.layout.properties.collapsed}
+          data-testid="toggle-properties-panel"
+          icon={<icons.panelRight />}
+          onClick={() => panels.toggle('properties')}
         />
         <IconButton tone="dark" label={title('view.zoomOut')} data-testid="zoom-out" icon={<icons.minus />} onClick={zoomOut} />
         <Button variant="toolbar" className={zoomClass} data-testid="zoom-level" title={title('view.zoomFit')} onClick={zoomToFit}>

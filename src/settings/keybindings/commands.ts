@@ -93,6 +93,7 @@ export const FIXED_INTERACTIONS: Array<{ label: string; input: string; descripti
   { label: 'Deep select', input: '⌘/Ctrl + click', description: 'Select the innermost layer under the pointer, even inside groups.' },
   { label: 'Move into a frame', input: 'Drag a layer onto a frame', description: 'Dropping a layer over a frame puts it inside; dropping it outside takes it out.' },
   { label: 'Nest or reorder layers', input: 'Drag in Layers panel', description: 'Drop above or below a layer to reorder, or onto a frame or group to put it inside.' },
+  { label: 'Resize a panel', input: 'Drag a panel edge', description: 'Widen or narrow the Layers or Design panel; drag past its narrowest to collapse it. Arrow keys resize a focused edge, Enter collapses or reopens.' },
   { label: 'Constrain', input: 'Shift while drawing / dragging', description: 'Squares, circles, 45° lines, or lock a move to one axis.' },
   {
     label: 'Skip snapping',

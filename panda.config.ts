@@ -12,6 +12,7 @@ import {
   panelRecipe,
   radioGroupRecipe,
   sectionRecipe,
+  splitterRecipe,
   semanticTokens,
   tabsRecipe,
   textStyles,
@@ -53,6 +54,7 @@ export default defineConfig({
       toggleSwitch: toggleSwitchRecipe,
       checkbox: checkboxRecipe,
       chipGroup: chipGroupRecipe,
+      splitter: splitterRecipe,
     },
   },
   globalCss: {

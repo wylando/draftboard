@@ -88,6 +88,8 @@ export const tokens = defineTokens({
     0: { value: '0' },
     toolbarHeight: { value: '48px' },
     sidebarWidth: { value: '240px' },
+    /** How far into a sidebar its resize handle can be grabbed. */
+    resizeGrab: { value: '4px' },
     control: { value: '28px' },
     swatch: { value: '16px' },
     layerRow: { value: '32px' },
