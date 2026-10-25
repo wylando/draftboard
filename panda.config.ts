@@ -67,9 +67,10 @@ export default defineConfig({
       WebkitFontSmoothing: 'antialiased',
     },
     // A sidebar morphing into its collapsed button and back (EditorBody). Only the panel animates;
-    // the rest of the page swaps at once instead of cross-fading. The images keep their size and are
-    // clipped to the moving box from the corner the button sits in, so the panel isn't squashed.
-    '::view-transition-old(root), ::view-transition-new(root)': { animation: 'none' },
+    // the rest of the page swaps at once instead of cross-fading: with no fade, the default
+    // plus-lighter blend would show both page snapshots added together. The panel images keep their
+    // size and are clipped to the moving box from the button's corner, so the panel isn't squashed.
+    '::view-transition-old(root), ::view-transition-new(root)': { animation: 'none', mixBlendMode: 'normal' },
     '::view-transition-group(layers-panel), ::view-transition-group(properties-panel)': {
       animationDuration: '220ms',
       animationTimingFunction: 'cubic-bezier(0.2, 0, 0, 1)',

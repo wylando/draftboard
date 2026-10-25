@@ -118,6 +118,23 @@ describe('Side panels', () => {
     shouldBeWidth('layers-panel', 280);
   });
 
+  it('leaves the canvas content where it is on screen while the Layers panel resizes, hides or shows', () => {
+    cy.drawShape('rect', [100, 100], [200, 200]);
+    cy.get('[data-node-type=rect]').then(($r) => {
+      const left = $r[0]!.getBoundingClientRect().left;
+      const stays = () => cy.get('[data-node-type=rect]').should(($n) => expect($n[0]!.getBoundingClientRect().left).to.be.closeTo(left, TOLERANCE));
+      dragHandle('resize-layers', 60);
+      shouldBeWidth('layers-panel', 300);
+      stays();
+      cy.get('[data-testid=hide-layers-panel]').click();
+      cy.get('[data-testid=show-layers-panel]').should('exist');
+      stays();
+      cy.get('[data-testid=show-layers-panel]').click();
+      cy.get('[data-testid=hide-layers-panel]').should('have.focus');
+      stays();
+    });
+  });
+
   it('keeps the header bar in place while a long Layers list scrolls', () => {
     const rects = Array.from({ length: 60 }, (_, i) => ({
       id: `r${i}`, type: 'rect', name: `Rect ${i}`, parentId: null, x: i * 20, y: 100, width: 10, height: 10,

@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import { css, cx } from 'styled-system/css';
 import { splitter as splitterRecipe } from 'styled-system/recipes';
 import { IconButton, icons } from '../../design-system';
+import { useEditor } from '../EditorContext';
 import {
   clampPanelWidth,
   loadPanelLayout,
@@ -29,7 +30,7 @@ const PANELS: PanelData[] = [sidebar('layers'), { id: 'canvas', minSize: px(CANV
 const SIDEBAR_INDEX: Record<PanelId, number> = { layers: 0, properties: 2 };
 // Ark sizes are percentages with float noise; a collapsed panel is 0.
 const COLLAPSED_PERCENT = 0.01;
-// Only reached when a toggle changes nothing; until the morph's callback settles, the page doesn't paint.
+// Settles a morph whose toggle changed nothing; until it settles, the page doesn't paint.
 const MORPH_SETTLE_MS = 300;
 
 const SIDEBARS: Record<PanelId, { title: string; testId: string; side: 'left' | 'right' }> = {
@@ -79,9 +80,12 @@ const morphName: Record<PanelId, string> = {
 
 /** Panel widths and collapse state, saved across sessions, with the Ark splitter that applies them. */
 function useSidePanels() {
+  const { dispatch } = useEditor();
   const [layout, setLayout] = useState<PanelLayout>(loadPanelLayout);
   const rootRef = useRef<HTMLDivElement>(null);
   const rootWidth = () => rootRef.current?.getBoundingClientRect().width ?? 0;
+  // Where the canvas's left edge sits, in px from the body's left: the Layers panel's width.
+  const canvasLeft = useRef(layout.layers.collapsed ? 0 : layout.layers.width);
 
   useEffect(() => savePanelLayout(layout), [layout]);
 
@@ -112,7 +116,7 @@ function useSidePanels() {
     },
     // Read from the sizes, not onCollapse/onExpand: Ark doesn't report expanding a panel that
     // started collapsed.
-    onResize: ({ size }) =>
+    onResize: ({ size }) => {
       setLayout((prev) => {
         let next = prev;
         for (const id of ['layers', 'properties'] as const) {
@@ -120,7 +124,14 @@ function useSidePanels() {
           if (collapsed !== prev[id].collapsed) next = { ...next, [id]: { ...prev[id], collapsed } };
         }
         return next;
-      }),
+      });
+      // Design choice: the canvas content stays put on screen when the Layers panel changes width,
+      // as it does for the Design panel, which only moves the canvas's far edge.
+      const left = ((size[SIDEBAR_INDEX.layers] ?? 0) / 100) * rootWidth();
+      const moved = left - canvasLeft.current;
+      canvasLeft.current = left;
+      if (Math.abs(moved) > 0.01) dispatch({ type: 'panViewport', dx: -moved, dy: 0 });
+    },
   });
 
   const toggle = (id: PanelId) => {
@@ -149,6 +160,8 @@ export function EditorBody({ layers, canvas, properties }: EditorBodyProps) {
   // The button to focus once a toggle commits: the one that was clicked is inert or gone by then.
   const focusAfter = useRef<string | null>(null);
   const settleMorph = useRef<(() => void) | null>(null);
+  // Clicks during a morph are ignored: a second transition would skip the first mid-capture.
+  const morphing = useRef(false);
 
   useLayoutEffect(() => {
     settleMorph.current?.();
@@ -158,18 +171,29 @@ export function EditorBody({ layers, canvas, properties }: EditorBodyProps) {
   }, [layout]);
 
   const toggleWithMorph = (id: PanelId) => {
+    if (morphing.current) return;
     focusAfter.current = `${layout[id].collapsed ? 'hide' : 'show'}-${id}`;
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduceMotion || !('startViewTransition' in document)) return toggle(id);
+    morphing.current = true;
     // The after-snapshot is taken when this settles, so it waits for the toggle to commit.
-    document.startViewTransition(
+    const transition = document.startViewTransition(
       () =>
         new Promise<void>((resolve) => {
-          settleMorph.current = resolve;
+          const timer = setTimeout(() => {
+            focusAfter.current = null;
+            settle();
+          }, MORPH_SETTLE_MS);
+          const settle = () => {
+            clearTimeout(timer);
+            settleMorph.current = null;
+            resolve();
+          };
+          settleMorph.current = settle;
           toggle(id);
-          setTimeout(resolve, MORPH_SETTLE_MS);
         }),
     );
+    void transition.finished.then(() => (morphing.current = false));
   };
 
   const toggleButton = (id: PanelId, action: 'hide' | 'show') => (
