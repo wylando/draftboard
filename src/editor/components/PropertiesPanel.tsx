@@ -7,7 +7,7 @@ import { nameTaken } from '../model/names';
 import { minSizeFor } from '../model/nodes';
 import { byIdOf, cheapestJoinPath, type ById } from '../model/tree';
 import type { Box, DesignNode, NodePatch } from '../model/types';
-import { emptyHint, sidebarRight, twoColumnGrid } from '../styles';
+import { emptyHint, sidebar, twoColumnGrid } from '../styles';
 import { CANVAS_FONT_FAMILY, measureText } from '../textMetrics';
 import { ConnectorProperties } from './ConnectorProperties';
 import { TableProperties } from './TableProperties';
@@ -195,9 +195,9 @@ export function PropertiesPanel() {
   const hasGroup = selected.some((n) => n.type === 'group');
 
   return (
-    <Panel className={sidebarRight} data-testid="properties-panel">
+    <Panel className={sidebar} data-testid="properties-panel">
       {selected.length === 0 && (
-        <Section title="Design">
+        <Section>
           <p className={emptyHint}>Select a layer to edit its properties.</p>
         </Section>
       )}

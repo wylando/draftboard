@@ -31,6 +31,8 @@ export type EditorAction =
   | { type: 'redo' }
   | { type: 'setTool'; tool: ToolId }
   | { type: 'setViewport'; viewport: Viewport }
+  /** Moves the view by screen px; computed here so a pan from a non-React callback never reads stale state. */
+  | { type: 'panViewport'; dx: number; dy: number }
   | { type: 'setCanvasSize'; size: { width: number; height: number } }
   | { type: 'select'; ids: string[] }
   /** Selects the table and picks one of its columns. */
@@ -334,6 +336,11 @@ function reduce(state: EditorState, action: EditorAction): EditorState {
 
     case 'setViewport':
       return { ...state, viewport: action.viewport };
+
+    case 'panViewport': {
+      const { x, y, zoom } = state.viewport;
+      return { ...state, viewport: { x: x + action.dx, y: y + action.dy, zoom } };
+    }
 
     case 'setCanvasSize':
       return { ...state, canvasSize: action.size };

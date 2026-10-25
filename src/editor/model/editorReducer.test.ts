@@ -238,3 +238,12 @@ describe('connector bends', () => {
   });
 });
 
+
+describe('panViewport', () => {
+  it('shifts the view from its current offset, keeping the zoom and leaving history alone', () => {
+    const start = editorReducer(initialEditorState([]), { type: 'setViewport', viewport: { x: 10, y: 20, zoom: 2 } });
+    const s = editorReducer(editorReducer(start, { type: 'panViewport', dx: -240, dy: 0 }), { type: 'panViewport', dx: 5, dy: 3 });
+    expect(s.viewport).toEqual({ x: -225, y: 23, zoom: 2 });
+    expect(s.past).toBe(start.past);
+  });
+});

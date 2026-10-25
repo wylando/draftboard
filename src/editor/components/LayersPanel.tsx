@@ -4,7 +4,7 @@ import { useEditor } from '../EditorContext';
 import { nameTaken } from '../model/names';
 import { ancestorIds, byIdOf, childrenByParent, isContainer, topLevelIds } from '../model/tree';
 import type { DesignNode, NodeType } from '../model/types';
-import { emptyHint, fieldError, sidebarLeft } from '../styles';
+import { emptyHint, fieldError, sidebar } from '../styles';
 import { css, cx } from 'styled-system/css';
 
 type DropPosition = 'above' | 'below' | 'inside';
@@ -337,8 +337,8 @@ export function LayersPanel() {
   });
 
   return (
-    <Panel className={sidebarLeft} data-testid="layers-panel">
-      <Section title="Layers">
+    <Panel className={sidebar} data-testid="layers-panel">
+      <Section>
         {rows.length === 0 ? (
           <p className={emptyHint}>Pick a tool and drag on the canvas to add a layer.</p>
         ) : (

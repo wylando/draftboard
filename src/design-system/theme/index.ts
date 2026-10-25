@@ -14,3 +14,4 @@ export { chipGroupRecipe } from './recipes/chipGroup';
 export { checkboxRecipe } from './recipes/checkbox';
 export { boardTabsRecipe } from './recipes/boardTabs';
 export { menuRecipe } from './recipes/menu';
+export { splitterRecipe } from './recipes/splitter';

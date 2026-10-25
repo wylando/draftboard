@@ -38,6 +38,7 @@ export function GettingStartedSection() {
             ['Layers (left)', 'Every layer as a tree, top layer first; connectors are links between layers, always shown, so they get no row. Layers inside a frame or group are indented under it; click the arrow to fold them away. Click to select, Shift-click to add, double-click to rename, eye icon to hide, drag to reorder or move into a frame or group.'],
             ['Canvas (center)', 'Where you draw. Scroll to pan, ⌘/Ctrl + scroll to zoom. Change the background grid (dots, lines or none) and turn snapping on or off under Settings → Canvas.'],
             ['Design panel (right)', 'Properties of the selected layer. Shows a hint when nothing is selected.'],
+            ['Panel size', 'Drag the inner edge of the Layers or Design panel to resize it. The button in a panel’s title bar (or a drag past its narrowest) folds it into a button in the canvas corner; click that to bring it back. Sizes are remembered.'],
           ]}
         />
       </Block>
