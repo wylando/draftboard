@@ -17,9 +17,10 @@ const addClass = css({ flex: 'none', marginBlockEnd: '1' });
 // Pointer travel before a press on a tab becomes a drag; below it the press is still a click.
 const DRAG_THRESHOLD = 4;
 // A tab held within this many px of the strip's visible edge (or past it) scrolls the strip that way,
-// up to EDGE_SCROLL_SPEED px per frame at the edge itself, so tabs scrolled out of view can be reached.
+// up to EDGE_SCROLL_SPEED px per ms at the edge itself, so tabs scrolled out of view can be reached.
+// Per ms, not per frame: the speed holds on fast displays and when frames come slowly.
 const EDGE_SCROLL_ZONE = 32;
-const EDGE_SCROLL_SPEED = 12;
+const EDGE_SCROLL_SPEED = 0.75;
 
 // A mouse click leaves focus on the button; give it back so the arrow keys nudge the selection again.
 // Keyboard activation (detail 0) keeps focus, and with it the arrow-key roving between tabs.
@@ -43,6 +44,8 @@ interface Drag {
   end: number;
   moved: boolean;
   frame: number | null;
+  /** While edge scrolling: the last frame's time and the strip's unrounded scroll, so slow speeds still add up. */
+  edge: { time: number; scroll: number } | null;
 }
 
 interface DragView {
@@ -130,6 +133,7 @@ export function BoardTabs() {
       end: Math.max(...slots.map((s) => s.left + s.width)),
       moved: false,
       frame: null,
+      edge: null,
     };
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -153,19 +157,27 @@ export function BoardTabs() {
     setDragView({ id: d.id, dx, from: d.from, to: d.to, width: mine.width });
   };
 
-  const scrollAtEdge = () => {
+  const scrollAtEdge = (now: number) => {
     const d = drag.current;
     const list = listRef.current;
     if (!d || !list) return;
     d.frame = null;
-    if (!d.moved) return;
     const strip = list.getBoundingClientRect();
     const depth = (into: number) => Math.min(Math.max(into / EDGE_SCROLL_ZONE, 0), 1);
-    const step = (depth(d.x - (strip.right - EDGE_SCROLL_ZONE)) - depth(strip.left + EDGE_SCROLL_ZONE - d.x)) * EDGE_SCROLL_SPEED;
-    const before = list.scrollLeft;
-    list.scrollLeft += step;
-    if (list.scrollLeft === before) return;
-    placeHeldTab(d);
+    const pull = depth(d.x - (strip.right - EDGE_SCROLL_ZONE)) - depth(strip.left + EDGE_SCROLL_ZONE - d.x);
+    const max = list.scrollWidth - list.clientWidth;
+    if (!d.moved || pull === 0 || (pull > 0 && list.scrollLeft >= max) || (pull < 0 && list.scrollLeft <= 0)) {
+      d.edge = null;
+      return;
+    }
+    if (d.edge) {
+      d.edge.scroll = Math.min(Math.max(d.edge.scroll + pull * EDGE_SCROLL_SPEED * (now - d.edge.time), 0), max);
+      d.edge.time = now;
+      list.scrollLeft = d.edge.scroll;
+      placeHeldTab(d);
+    } else {
+      d.edge = { time: now, scroll: list.scrollLeft };
+    }
     d.frame = requestAnimationFrame(scrollAtEdge);
   };
 

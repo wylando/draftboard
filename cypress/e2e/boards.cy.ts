@@ -203,8 +203,9 @@ describe('Boards', () => {
     cy.get('[data-testid=board-tabs]').should(($list) => {
       const list = $list[0]!.getBoundingClientRect();
       const open = $list[0]!.querySelector('[data-board-name="Board 7"]')!.getBoundingClientRect();
-      expect(open.left).to.be.at.least(list.left);
-      expect(open.right).to.be.at.most(list.right);
+      // Within a pixel: layout lands on sub-pixel positions that differ between platforms.
+      expect(open.left).to.be.at.least(list.left - 1);
+      expect(open.right).to.be.at.most(list.right + 1);
     });
     cy.get('[data-testid=board-tabs]').then(($l) => {
       const before = $l[0]!.scrollLeft;
@@ -336,9 +337,11 @@ describe('Boards', () => {
     cy.get('[data-node-type=rect]').click();
     cy.prop('y').should('have.value', '100');
     tab('Copy').rightclick();
-    cy.get('[role=menu]').type('{downarrow}');
+    // Keys go straight to the menu: `type` would click it first, and that click can land on an item.
+    cy.get('[role=menu]').trigger('keydown', { key: 'ArrowDown', code: 'ArrowDown' });
     cy.prop('y').should('have.value', '100');
-    cy.get('[role=menu]').type('{esc}');
+    cy.get('[role=menu]').trigger('keydown', { key: 'Escape', code: 'Escape' });
+    cy.get('[role=menu]').should('not.exist');
 
     tab('Copy').rightclick();
     cy.get('[data-testid=board-menu-close]').click();
