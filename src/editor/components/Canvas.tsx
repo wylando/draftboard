@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { useDialogs } from '../../design-system';
 import { useLatest } from '../../shared/useLatest';
 import { useEditor } from '../EditorContext';
-import { measureBetween, rotatedBounds, screenToWorld, unionBoxes, type Guides } from '../geometry';
+import { measureBetween, nextCullWindow, rotatedBounds, screenToWorld, unionBoxes, viewWorldBox, type Guides } from '../geometry';
 import { useCanvasGestures, type ConnectPreview, type Marquee } from '../hooks/useCanvasGestures';
 import {
   anchorAt,
@@ -15,8 +15,8 @@ import {
   typeMismatch,
 } from '../model/connector';
 import { SQL_DIALECTS, type RowDrop, type TableCell } from '../model/table';
-import { byIdOf, cheapestJoinPath, childrenByParent, enteredScopes, isEffectivelyVisible, relatedToTables, selectTarget } from '../model/tree';
-import type { Anchor, DesignNode, TableNode, TextNode, Viewport } from '../model/types';
+import { byIdOf, cheapestJoinPath, childrenByParent, enteredScopes, isEffectivelyVisible, relatedToTables, renderedIds, selectTarget } from '../model/tree';
+import type { Anchor, Box, DesignNode, TableNode, TextNode, Viewport } from '../model/types';
 import { CANVAS_FONT_FAMILY, measureText } from '../textMetrics';
 import { usePreferences } from '../../settings/preferences/PreferencesContext';
 import { CanvasGrid } from './CanvasGrid';
@@ -184,6 +184,15 @@ export function Canvas() {
   };
 
   const { viewport, nodes, selection, tool } = state;
+  // Stored state, advanced while rendering: `nextCullWindow` returns the same box while it still serves the view.
+  const [cullWindow, setCullWindow] = useState<Box | null>(null);
+  const nextWindow = nextCullWindow(cullWindow, viewWorldBox(viewport, state.canvasSize));
+  if (nextWindow !== cullWindow) setCullWindow(nextWindow);
+  const editingTableId = tableCell?.tableId;
+  const mounted = useMemo(
+    () => renderedIds(nodes, nextWindow, [...selection, ...(editingId ? [editingId] : []), ...(editingTableId ? [editingTableId] : [])]),
+    [nodes, nextWindow, selection, editingId, editingTableId],
+  );
   const childrenOf = useMemo(() => childrenByParent(nodes), [nodes]);
   const byId = useMemo(() => byIdOf(nodes), [nodes]);
   const relations = useMemo<Relations>(() => {
@@ -267,11 +276,11 @@ export function Canvas() {
           transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.zoom})`}
         >
           <RelationsContext.Provider value={relations}>
-            {(childrenOf.get(null) ?? []).map((n) => (
-              <NodeView key={n.id} node={n} childrenOf={childrenOf} editingId={editingId} />
+            {(childrenOf.get(null) ?? []).filter((n) => mounted.has(n.id)).map((n) => (
+              <NodeView key={n.id} node={n} childrenOf={childrenOf} mounted={mounted} editingId={editingId} />
             ))}
           </RelationsContext.Provider>
-          {nodes.map((n) => (
+          {nodes.filter((n) => mounted.has(n.id)).map((n) => (
             <FrameLabel key={`label-${n.id}`} node={n} zoom={viewport.zoom} />
           ))}
         </g>

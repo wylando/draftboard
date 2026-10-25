@@ -12,6 +12,7 @@ import { Block, descClass, mutedClass, Terms, termClass } from './sectionParts';
 // Every symbol is drawn by the canvas's own renderer (NodeView, SelectionOverlay) from small literal nodes,
 // so this legend cannot drift from what the canvas shows.
 
+const NO_MOUNTED: ReadonlySet<string> = new Set();
 const NO_CHILDREN: ReadonlyMap<string | null, DesignNode[]> = new Map();
 const NO_RELATIONS: Relations = { foreignKeys: new Map(), mismatched: new Set(), relationalEnds: new Set() };
 const IDENTITY_VIEWPORT = { x: 0, y: 0, zoom: 1 };
@@ -83,7 +84,7 @@ function Sample({ nodes, viewBox, relations = NO_RELATIONS, overlay, scale = 1 }
     <svg className={canvasClass} aria-hidden="true" width={width! * scale} height={height! * scale} viewBox={viewBox}>
       <RelationsContext.Provider value={relations}>
         {nodes.map((n) => (
-          <NodeView key={n.id} node={n} childrenOf={NO_CHILDREN} editingId={null} />
+          <NodeView key={n.id} node={n} childrenOf={NO_CHILDREN} mounted={NO_MOUNTED} editingId={null} />
         ))}
       </RelationsContext.Provider>
       {overlay}

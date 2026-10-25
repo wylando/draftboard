@@ -66,7 +66,8 @@ describe('Schema import from SQL', () => {
     cy.contains('h3', 'Problems (3)').should('be.visible');
     cy.get('[data-testid=import-problems]').should('contain', '"users" already exists; imported as "users 2"');
     cy.get('[data-testid=import-add]').click();
-    cy.get('[data-node-type=table]').should('have.length', 6);
+    // Counted in the Layers panel: the first import now sits outside the culled canvas window.
+    cy.get('[data-testid=layers-panel] [role=treeitem]').should('have.length', 6);
   });
 
   it('replaces the document with the plain imported tables after confirming, and clears history', () => {
