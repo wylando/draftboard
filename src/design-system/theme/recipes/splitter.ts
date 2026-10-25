@@ -9,7 +9,6 @@ import { defineSlotRecipe } from '@pandacss/dev';
 export const splitterRecipe = defineSlotRecipe({
   className: 'splitter',
   description: 'Editor body with resizable, collapsible sidebars',
-  jsx: ['EditorBody'],
   slots: ['root', 'panel', 'resizeTrigger'],
   base: {
     root: { flex: '1', display: 'flex', minHeight: '0' },

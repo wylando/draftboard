@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { css } from 'styled-system/css';
 import { DialogProvider } from './design-system';
 import { useHashRoute } from './app/useHashRoute';
@@ -24,21 +25,29 @@ function Editor({ onOpenSettings }: { onOpenSettings: () => void }) {
   const controls = useViewportControls();
   const panels = useSidePanels();
   useKeyboardShortcuts({ state, dispatch, ...controls, openSettings: onOpenSettings });
+  // The splitter re-renders Editor on every handle hover and drag tick; the same elements let
+  // React skip the panels and the canvas.
+  const layers = useMemo(() => <LayersPanel key={`layers-${activeId}`} />, [activeId]);
+  const canvas = useMemo(
+    () => (
+      <div className={canvasAreaClass}>
+        {/* Keyed so marquee, guides, hover and in-place editors start fresh on each board. */}
+        <Canvas key={activeId} />
+        <ToolDock />
+      </div>
+    ),
+    [activeId],
+  );
+  const properties = useMemo(() => <PropertiesPanel key={`properties-${activeId}`} />, [activeId]);
 
   return (
     <div className={editorClass}>
       <Toolbar onOpenSettings={onOpenSettings} panels={panels} />
       <EditorBody
         panels={panels}
-        layers={<LayersPanel key={`layers-${activeId}`} />}
-        canvas={
-          <div className={canvasAreaClass}>
-            {/* Keyed so marquee, guides, hover and in-place editors start fresh on each board. */}
-            <Canvas key={activeId} />
-            <ToolDock />
-          </div>
-        }
-        properties={<PropertiesPanel key={`properties-${activeId}`} />}
+        layers={layers}
+        canvas={canvas}
+        properties={properties}
       />
     </div>
   );

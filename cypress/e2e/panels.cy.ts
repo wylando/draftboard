@@ -76,10 +76,14 @@ describe('Side panels', () => {
     shouldBeWidth('layers-panel', 280);
     cy.get('[data-testid=layers-panel]').closest('[inert]').should('not.exist');
 
+    // Collapsed in a narrow window, reopened in a wider one: still its own width, not its old share of the window.
+    cy.viewport(1000, 800);
     cy.get('[data-testid=toggle-properties-panel]').click();
     cy.get('[data-testid=properties-panel]').should('not.be.visible');
+    cy.viewport(1400, 800);
     cy.get('[data-testid=toggle-properties-panel]').click();
     shouldBeWidth('properties-panel', 240);
+    shouldBeWidth('layers-panel', 280);
   });
 
   it('resizes with the arrow keys on a focused handle without nudging the selection', () => {

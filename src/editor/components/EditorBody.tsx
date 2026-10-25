@@ -12,6 +12,7 @@ import {
 } from '../panelLayout';
 
 const px = (n: number) => `${n}px`;
+const CANVAS_MIN_WIDTH = 320;
 // Pixel sizes, so a sidebar keeps its width when the window resizes and only the canvas changes.
 const sidebar = (id: PanelId): PanelData => ({
   id,
@@ -21,7 +22,8 @@ const sidebar = (id: PanelId): PanelData => ({
   collapsedSize: px(0),
   resizeBehavior: 'preserve-pixel-size',
 });
-const PANELS: PanelData[] = [sidebar('layers'), { id: 'canvas' }, sidebar('properties')];
+// Keeps room to draw when both sidebars are at their widest.
+const PANELS: PanelData[] = [sidebar('layers'), { id: 'canvas', minSize: px(CANVAS_MIN_WIDTH) }, sidebar('properties')];
 const SIDEBAR_INDEX: Record<PanelId, number> = { layers: 0, properties: 2 };
 // Ark sizes are percentages with float noise; a collapsed panel is 0.
 const COLLAPSED_PERCENT = 0.01;
@@ -43,6 +45,7 @@ export function useSidePanels() {
       'auto',
       px(layout.properties.collapsed ? 0 : layout.properties.width),
     ],
+    // Percent of the body, not px, despite Ark's docs (zag 1.45 adds it to percentage sizes).
     keyboardResizeBy: 1,
     // Saved once a drag ends, not on every tick. Ark sizes are percentages of the body.
     onResizeEnd: ({ size }) => {
@@ -73,9 +76,11 @@ export function useSidePanels() {
 
   const toggle = (id: PanelId) => {
     if (!layout[id].collapsed) return splitter.collapsePanel(id);
+    splitter.expandPanel(id);
+    // Ark reopens at the share of the body the panel had when it collapsed (or its minimum, if it
+    // started collapsed); the window may have resized since, so set the saved width.
     const width = rootWidth();
-    // Reopens at the saved width, which Ark doesn't know when the panel started collapsed.
-    splitter.expandPanel(id, width > 0 ? (layout[id].width / width) * 100 : undefined);
+    if (width > 0) splitter.resizePanel(id, (layout[id].width / width) * 100);
   };
 
   return { splitter, layout, toggle, rootRef };
