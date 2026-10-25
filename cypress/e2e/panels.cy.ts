@@ -81,6 +81,8 @@ describe('Side panels', () => {
     cy.get('[data-testid=toggle-properties-panel]').click();
     cy.get('[data-testid=properties-panel]').should('not.be.visible');
     cy.viewport(1400, 800);
+    // Wait for the splitter to take in the new window width before reopening.
+    cy.get('[data-testid=canvas]').invoke('outerWidth').should('be.closeTo', 1400 - 280, 1);
     cy.get('[data-testid=toggle-properties-panel]').click();
     shouldBeWidth('properties-panel', 240);
     shouldBeWidth('layers-panel', 280);

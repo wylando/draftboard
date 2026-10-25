@@ -26,7 +26,7 @@ function Editor({ onOpenSettings }: { onOpenSettings: () => void }) {
   const panels = useSidePanels();
   useKeyboardShortcuts({ state, dispatch, ...controls, openSettings: onOpenSettings });
   // The splitter re-renders Editor on every handle hover and drag tick; the same elements let
-  // React skip the panels and the canvas.
+  // React skip the panels and the canvas. They read everything from context, so they must stay prop-less.
   const layers = useMemo(() => <LayersPanel key={`layers-${activeId}`} />, [activeId]);
   const canvas = useMemo(
     () => (
