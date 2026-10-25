@@ -380,6 +380,8 @@ const nodeTransform = (node: DesignNode) =>
 interface NodeViewProps {
   node: DesignNode;
   childrenOf: ReadonlyMap<string | null, DesignNode[]>;
+  /** Layers the canvas mounts; the rest are off screen. Changes identity only when the render window, nodes or pinned layers do. */
+  mounted: ReadonlySet<string>;
   /** Text node being edited in place; drawn by the editor instead. */
   editingId: string | null;
 }
@@ -389,8 +391,9 @@ interface NodeViewProps {
  * The shape's `<g>` carries the node's data attributes; the wrapper has none,
  * so hit-testing always finds the innermost layer under the pointer.
  */
-export const NodeView = memo(function NodeView({ node, childrenOf, editingId }: NodeViewProps) {
+export const NodeView = memo(function NodeView({ node, childrenOf, mounted, editingId }: NodeViewProps) {
   if (!node.visible) return null;
+  // Structure comes from the full child list, so culling every child doesn't change the container's DOM or opacity.
   const children = childrenOf.get(node.id) ?? [];
   const own = (
     <g
@@ -419,8 +422,8 @@ export const NodeView = memo(function NodeView({ node, childrenOf, editingId }: 
         </clipPath>
       )}
       <g clipPath={clipId ? `url(#${clipId})` : undefined}>
-        {children.map((c) => (
-          <NodeView key={c.id} node={c} childrenOf={childrenOf} editingId={editingId} />
+        {children.filter((c) => mounted.has(c.id)).map((c) => (
+          <NodeView key={c.id} node={c} childrenOf={childrenOf} mounted={mounted} editingId={editingId} />
         ))}
       </g>
     </g>

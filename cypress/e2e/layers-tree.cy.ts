@@ -111,4 +111,17 @@ describe('Layers tree', () => {
     cy.prop('name').should('have.value', 'ELLIPSE 1');
     nameError('layers-panel').should('not.exist');
   });
+
+  it('lists no row for a connector, only for the layers it links', () => {
+    cy.pressKey('c', { code: 'KeyC' });
+    cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'connector');
+    cy.canvasDrag([530, 130], [150, 150]);
+    cy.get('[data-node-type=connector]').should('have.length', 1);
+    layerRow('Rectangle 1').should('exist');
+    layerRow('Ellipse 1').should('exist');
+    treeRows().should('have.length', 3);
+    cy.get('[data-node-type=connector]')
+      .invoke('attr', 'data-node-id')
+      .then((id) => cy.get(`[data-testid=layer-${id}]`).should('not.exist'));
+  });
 });

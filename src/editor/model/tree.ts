@@ -1,7 +1,7 @@
-import { pointInRotatedBox, rotatedBounds, unionBoxes } from '../geometry';
+import { boxesIntersect, pointInRotatedBox, rotatedBounds, unionBoxes } from '../geometry';
 import { routeConnector, targetId, visibleTables } from './connector';
 import { tableHeight } from './table';
-import type { Anchor, Cardinality, DesignNode, Point, TableNode } from './types';
+import type { Anchor, Box, Cardinality, DesignNode, Point, TableNode } from './types';
 
 /**
  * Pure helpers for the layer tree. The document stays a flat list in preorder
@@ -24,6 +24,31 @@ export function childrenByParent(nodes: readonly DesignNode[]): Map<string | nul
     else map.set(n.parentId, [n]);
   }
   return map;
+}
+
+/**
+ * Ids the canvas mounts: layers touching `window`, plus `pinned` layers (selection, the one being edited)
+ * and their ancestors. A layer outside the window takes its subtree with it, which holds because a group's
+ * box is the union of its children and frames clip theirs. Hidden layers render nothing, so they and their
+ * subtrees are left out unless pinned.
+ */
+export function renderedIds(nodes: readonly DesignNode[], window: Box, pinned: Iterable<string>): Set<string> {
+  const byId = byIdOf(nodes);
+  const keep = new Set<string>();
+  for (const id of pinned) {
+    if (!byId.has(id)) continue;
+    keep.add(id);
+    for (const a of ancestorIds(byId, id)) keep.add(a);
+  }
+  const children = childrenByParent(nodes);
+  const result = new Set<string>();
+  const visit = (n: DesignNode) => {
+    if (!keep.has(n.id) && (!n.visible || !boxesIntersect(rotatedBounds(n, n.rotation), window))) return;
+    result.add(n.id);
+    for (const c of children.get(n.id) ?? []) visit(c);
+  };
+  for (const n of children.get(null) ?? []) visit(n);
+  return result;
 }
 
 /** Ancestor ids, nearest first. */
@@ -142,8 +167,9 @@ export function mapSiblings(
  * - empty groups are removed;
  * - each group's box is the union of its children, with rotation 0;
  * - each table is as tall as its header and rows, with rotation 0;
- * - each connector sits at the top level and is routed against the final
- *   layers (see `routeConnector`).
+ * - each connector sits at the top level, is always visible (the Layers panel
+ *   doesn't list connectors, so nothing could unhide one) and is routed against
+ *   the final layers (see `routeConnector`).
  * Nodes that need no change keep their identity, so memoized views skip them.
  */
 export function normalizeTree(input: readonly DesignNode[]): DesignNode[] {
@@ -209,7 +235,11 @@ export function normalizeTree(input: readonly DesignNode[]): DesignNode[] {
   if (!out.some((n) => n.type === 'connector')) return out;
   const final = byIdOf(out);
   const tables = visibleTables(final);
-  return out.map((n) => (n.type === 'connector' ? routeConnector(n, final, tables) : n));
+  return out.map((n) => {
+    if (n.type !== 'connector') return n;
+    const routed = routeConnector(n, final, tables);
+    return routed.visible ? routed : { ...routed, visible: true };
+  });
 }
 
 /**

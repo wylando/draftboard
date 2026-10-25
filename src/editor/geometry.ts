@@ -91,6 +91,35 @@ export function unionBoxes(boxes: Box[]): Box | null {
   return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
 
+/** The world area the canvas shows. A 0x0 canvas (not yet measured) gives a zero-size box at the viewport's origin. */
+export function viewWorldBox(viewport: Viewport, size: { width: number; height: number }): Box {
+  return boxFromPoints(screenToWorld({ x: 0, y: 0 }, viewport), screenToWorld({ x: size.width, y: size.height }, viewport));
+}
+
+// Design choice: render half a screen of padding on each side, so a pan has room before anything pops in.
+const CULL_PADDING = 0.5;
+// Design choice (hysteresis): keep the window until the view is within a quarter screen of its edge.
+const CULL_KEEP_MARGIN = 0.25;
+// Design choice: past this, zooming in has left the window holding far more than the screen needs.
+const CULL_MAX_AREA_RATIO = 4;
+
+const growBox = (b: Box, fx: number, fy: number): Box => ({ x: b.x - b.width * fx, y: b.y - b.height * fy, width: b.width * (1 + 2 * fx), height: b.height * (1 + 2 * fy) });
+
+/**
+ * The world window to render. Returns `prev` itself while it still serves `view`, so most pan frames change
+ * nothing downstream. An unmeasured (zero-size) view gets a zero-size window, which `renderedIds` treats as
+ * a point, matching `snapCandidates`' view.
+ */
+export function nextCullWindow(prev: Box | null, view: Box): Box {
+  const fresh = growBox(view, CULL_PADDING, CULL_PADDING);
+  if (prev) {
+    const need = growBox(view, CULL_KEEP_MARGIN, CULL_KEEP_MARGIN);
+    const contains = prev.x <= need.x && prev.y <= need.y && prev.x + prev.width >= need.x + need.width && prev.y + prev.height >= need.y + need.height;
+    if (contains && prev.width * prev.height <= CULL_MAX_AREA_RATIO * fresh.width * fresh.height) return prev;
+  }
+  return fresh;
+}
+
 export function boxesIntersect(a: Box, b: Box): boolean {
   return a.x <= b.x + b.width && b.x <= a.x + a.width && a.y <= b.y + b.height && b.y <= a.y + a.height;
 }

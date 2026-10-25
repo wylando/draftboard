@@ -171,8 +171,9 @@ describe('Reshaping an elbow connector by dragging its segments', () => {
         const bends = shaped.bends as Pt[];
 
         cy.pressKey('a', { code: 'KeyA', metaKey: true });
-        // The drag reads the selection when it starts, so wait until all three layers are selected.
-        cy.get('[role=treeitem][aria-selected=true]').should('have.length', 3);
+        // The drag reads the selection when it starts, so wait until it is applied. Select all sets the connector with
+        // the two tables in one step, and the connector has no row, so the two table rows show it.
+        cy.get('[role=treeitem][aria-selected=true]').should('have.length', 2);
         cy.canvasDrag([A[0] + 120, A[1] + 10], [A[0] + 220, A[1] + 60]);
         // Both tables went along, so the shape has to be moved by the same amount, not re-derived.
         savedTables((tables) => expect(tables.map((t) => [t.x, t.y])).to.deep.equal([[A[0] + 100, A[1] + 50], [C[0] + 100, C[1] + 50]]));
@@ -232,7 +233,8 @@ describe('Reshaping an elbow connector by dragging its segments', () => {
       dragHandle(v, [30, 0], false).then(([x, y]) => {
         saved((c) => expect((c.points[v] as Pt).x).to.be.closeTo(x0 + 30, 1));
         cy.pressKey('Escape');
-        cy.get('[role=treeitem][aria-selected=true]').should('not.exist');
+        // The connector has no layer row; its segment handles disappear with its selection.
+        cy.get('[data-connector-segment]').should('not.exist');
         cy.canvasPointer('pointermove', [x + 80, y]);
         cy.canvasPointer('pointerup', [x + 80, y]);
         // Two frames, so a (wrongly) applied move has been rendered before looking.

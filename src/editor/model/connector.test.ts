@@ -303,6 +303,13 @@ describe('tight gaps and odd trees', () => {
     });
   });
 
+  it('keeps a connector visible, since no panel can unhide it', () => {
+    const { a, b } = scene();
+    const link = createConnector({ kind: 'node', nodeId: a.id }, { kind: 'node', nodeId: b.id }, 'a_b', byIdOf([a, b]));
+    const connectors = normalizeTree([a, b, { ...link, visible: false }]).filter((n) => n.type === 'connector');
+    expect(connectors.map((n) => n.visible)).toEqual([true]);
+  });
+
   it('terminates on a parent cycle', () => {
     const { a, b, mid } = scene();
     const x = { ...mid, id: 'x', parentId: 'y' };
