@@ -1,6 +1,8 @@
 import { Splitter, useSplitter, type SplitterPanelData as PanelData } from '@ark-ui/react/splitter';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { css, cx } from 'styled-system/css';
 import { splitter as splitterRecipe } from 'styled-system/recipes';
+import { IconButton, icons } from '../../design-system';
 import {
   clampPanelWidth,
   loadPanelLayout,
@@ -27,9 +29,56 @@ const PANELS: PanelData[] = [sidebar('layers'), { id: 'canvas', minSize: px(CANV
 const SIDEBAR_INDEX: Record<PanelId, number> = { layers: 0, properties: 2 };
 // Ark sizes are percentages with float noise; a collapsed panel is 0.
 const COLLAPSED_PERCENT = 0.01;
+// Only reached when a toggle changes nothing; until the morph's callback settles, the page doesn't paint.
+const MORPH_SETTLE_MS = 300;
+
+const SIDEBARS: Record<PanelId, { title: string; testId: string; side: 'left' | 'right' }> = {
+  layers: { title: 'Layers', testId: 'layers-panel', side: 'left' },
+  properties: { title: 'Design', testId: 'properties-panel', side: 'right' },
+};
+
+const sidebarClass = css({
+  flexDirection: 'column',
+  bg: 'bg',
+  borderColor: 'border',
+  borderStyle: 'solid',
+  borderWidth: '0',
+  '&[data-side=left]': { borderRightWidth: '1px' },
+  '&[data-side=right]': { borderLeftWidth: '1px' },
+});
+// Outside the scrolling panel below it, so it stays put while the panel scrolls.
+const headerClass = css({
+  flex: 'none',
+  display: 'flex',
+  alignItems: 'center',
+  gap: '1',
+  height: 'panelHeader',
+  paddingInline: '2',
+  '[data-side=left] > &': { paddingInlineStart: '4' },
+  '[data-side=right] > &': { paddingInlineEnd: '4' },
+});
+const titleClass = css({ flex: '1', margin: '0', textStyle: 'body.mediumStrong' });
+const canvasPanelClass = css({ position: 'relative' });
+// Over the canvas but a sibling of it: the canvas starts gestures on pointer-down.
+const chipClass = css({
+  position: 'absolute',
+  top: '2',
+  padding: '1',
+  borderRadius: 'medium',
+  bg: 'bg',
+  boxShadow: 'elevation100',
+  '&[data-side=left]': { left: '2' },
+  '&[data-side=right]': { right: '2' },
+});
+// One name per panel, held by the open panel or by its collapsed button, never both: a view
+// transition between the two morphs one into the other (pseudo-element styles in panda.config.ts).
+const morphName: Record<PanelId, string> = {
+  layers: css({ viewTransitionName: 'layers-panel' }),
+  properties: css({ viewTransitionName: 'properties-panel' }),
+};
 
 /** Panel widths and collapse state, saved across sessions, with the Ark splitter that applies them. */
-export function useSidePanels() {
+function useSidePanels() {
   const [layout, setLayout] = useState<PanelLayout>(loadPanelLayout);
   const rootRef = useRef<HTMLDivElement>(null);
   const rootWidth = () => rootRef.current?.getBoundingClientRect().width ?? 0;
@@ -86,24 +135,83 @@ export function useSidePanels() {
   return { splitter, layout, toggle, rootRef };
 }
 
-export type SidePanels = ReturnType<typeof useSidePanels>;
-
 interface EditorBodyProps {
-  panels: SidePanels;
   layers: ReactNode;
   canvas: ReactNode;
   properties: ReactNode;
 }
 
-export function EditorBody({ panels, layers, canvas, properties }: EditorBodyProps) {
+/** Layers | canvas | Design. Each sidebar collapses into a button in its corner of the canvas. */
+export function EditorBody({ layers, canvas, properties }: EditorBodyProps) {
   const classes = splitterRecipe();
-  const { splitter, layout, rootRef } = panels;
+  const { splitter, layout, toggle, rootRef } = useSidePanels();
+  const buttons = useRef(new Map<string, HTMLButtonElement | null>());
+  // The button to focus once a toggle commits: the one that was clicked is inert or gone by then.
+  const focusAfter = useRef<string | null>(null);
+  const settleMorph = useRef<(() => void) | null>(null);
+
+  useLayoutEffect(() => {
+    settleMorph.current?.();
+    settleMorph.current = null;
+    if (focusAfter.current) buttons.current.get(focusAfter.current)?.focus();
+    focusAfter.current = null;
+  }, [layout]);
+
+  const toggleWithMorph = (id: PanelId) => {
+    focusAfter.current = `${layout[id].collapsed ? 'hide' : 'show'}-${id}`;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion || !('startViewTransition' in document)) return toggle(id);
+    // The after-snapshot is taken when this settles, so it waits for the toggle to commit.
+    document.startViewTransition(
+      () =>
+        new Promise<void>((resolve) => {
+          settleMorph.current = resolve;
+          toggle(id);
+          setTimeout(resolve, MORPH_SETTLE_MS);
+        }),
+    );
+  };
+
+  const toggleButton = (id: PanelId, action: 'hide' | 'show') => (
+    <IconButton
+      ref={(el) => {
+        buttons.current.set(`${action}-${id}`, el);
+      }}
+      label={`${action === 'hide' ? 'Hide' : 'Show'} ${SIDEBARS[id].title} panel`}
+      aria-expanded={action === 'hide'}
+      data-testid={`${action}-${SIDEBARS[id].testId}`}
+      icon={id === 'layers' ? <icons.panelLeft /> : <icons.panelRight />}
+      onClick={() => toggleWithMorph(id)}
+    />
+  );
+
+  const sidebarPanel = (id: PanelId, content: ReactNode) => {
+    const { title, side } = SIDEBARS[id];
+    const collapsed = layout[id].collapsed;
+    return (
+      // Inert while collapsed: zero width hides it, but its controls could still take focus.
+      <Splitter.Panel id={id} className={cx(classes.panel, sidebarClass, !collapsed && morphName[id])} data-side={side} inert={collapsed}>
+        {/* The button sits on the canvas side, nearest the corner the panel collapses to. */}
+        <div className={headerClass}>
+          {side === 'right' && toggleButton(id, 'hide')}
+          <h2 className={titleClass}>{title}</h2>
+          {side === 'left' && toggleButton(id, 'hide')}
+        </div>
+        {content}
+      </Splitter.Panel>
+    );
+  };
+
+  const chip = (id: PanelId) =>
+    layout[id].collapsed && (
+      <div className={cx(chipClass, morphName[id])} data-side={SIDEBARS[id].side}>
+        {toggleButton(id, 'show')}
+      </div>
+    );
+
   return (
     <Splitter.RootProvider value={splitter} ref={rootRef} className={classes.root}>
-      {/* Inert while collapsed: zero width hides it, but its controls could still take focus. */}
-      <Splitter.Panel id="layers" className={classes.panel} inert={layout.layers.collapsed}>
-        {layers}
-      </Splitter.Panel>
+      {sidebarPanel('layers', layers)}
       <Splitter.ResizeTrigger
         id="layers:canvas"
         className={classes.resizeTrigger}
@@ -111,8 +219,10 @@ export function EditorBody({ panels, layers, canvas, properties }: EditorBodyPro
         data-testid="resize-layers"
         aria-label="Resize Layers panel"
       />
-      <Splitter.Panel id="canvas" className={classes.panel}>
+      <Splitter.Panel id="canvas" className={cx(classes.panel, canvasPanelClass)}>
         {canvas}
+        {chip('layers')}
+        {chip('properties')}
       </Splitter.Panel>
       <Splitter.ResizeTrigger
         id="canvas:properties"
@@ -121,9 +231,7 @@ export function EditorBody({ panels, layers, canvas, properties }: EditorBodyPro
         data-testid="resize-properties"
         aria-label="Resize Design panel"
       />
-      <Splitter.Panel id="properties" className={classes.panel} inert={layout.properties.collapsed}>
-        {properties}
-      </Splitter.Panel>
+      {sidebarPanel('properties', properties)}
     </Splitter.RootProvider>
   );
 }

@@ -1,6 +1,10 @@
-const panelWidth = (testId: string) => cy.get(`[data-testid=${testId}]`).invoke('outerWidth');
-// Ark lays panels out with flex-grow ratios, so a width lands within a pixel of its target.
-const shouldBeWidth = (testId: string, px: number) => panelWidth(testId).should('be.closeTo', px, 1);
+// Measured on the splitter panel, which holds the header bar and the scrolling panel below it.
+const panelWidth = (testId: string) => cy.get(`[data-testid=${testId}]`).parent().invoke('outerWidth');
+const rectOf = (testId: string) => cy.get(`[data-testid=${testId}]`).then(($el) => $el[0]!.getBoundingClientRect());
+// Ark lays panels out with flex-grow percentages rounded to 3 significant digits, so a width lands
+// within a couple of pixels of its target.
+const TOLERANCE = 2;
+const shouldBeWidth = (testId: string, px: number) => panelWidth(testId).should('be.closeTo', px, TOLERANCE);
 const savedLayout = () => cy.window().then((win) => JSON.parse(win.localStorage.getItem('draftboard:layout:v1') ?? 'null'));
 
 /** Drags a resize handle sideways; Ark tracks the move on the document once the handle is pressed. */
@@ -48,44 +52,86 @@ describe('Side panels', () => {
     dragHandle('resize-layers', 600);
     shouldBeWidth('layers-panel', 480);
     dragHandle('resize-layers', -400);
-    cy.get('[data-testid=toggle-layers-panel]').should('have.attr', 'aria-pressed', 'false');
     cy.get('[data-testid=layers-panel]').should('not.be.visible');
     // It reopens at the width it had before the drag.
-    cy.get('[data-testid=toggle-layers-panel]').click();
+    cy.get('[data-testid=show-layers-panel]').click();
     shouldBeWidth('layers-panel', 480);
   });
 
-  it('collapses and reopens a panel from the top bar, and remembers it across a reload', () => {
+  it('collapses each panel into a button in its corner of the canvas and reopens it from there', () => {
     dragHandle('resize-layers', 40);
     shouldBeWidth('layers-panel', 280);
     // Read once: an invoked alias would be re-measured after the collapse.
     let canvasBefore = 0;
     cy.get('[data-testid=canvas]').invoke('outerWidth').then((w) => (canvasBefore = w ?? 0));
 
-    cy.get('[data-testid=toggle-layers-panel]').should('have.attr', 'aria-pressed', 'true').click();
-    cy.get('[data-testid=toggle-layers-panel]').should('have.attr', 'aria-pressed', 'false');
+    // The Layers button sits at the right of its header, on the canvas side.
+    rectOf('layers-panel').then((panel) =>
+      rectOf('hide-layers-panel').should((b) => {
+        expect(b.right).to.be.within(panel.right - 16, panel.right);
+        expect(b.bottom).to.be.at.most(panel.top);
+      }),
+    );
+    cy.get('[data-testid=hide-layers-panel]').should('have.attr', 'aria-expanded', 'true').click();
     cy.get('[data-testid=layers-panel]').should('not.be.visible');
-    // Collapsed controls must not take keyboard focus.
+    // Collapsed controls must not take keyboard focus; focus moves to the button that reopens it.
     cy.get('[data-testid=layers-panel]').closest('[inert]').should('exist');
-    cy.get('[data-testid=canvas]').invoke('outerWidth').should((w) => expect(w).to.be.closeTo(canvasBefore + 280, 1));
+    cy.get('[data-testid=show-layers-panel]').should('have.focus').and('have.attr', 'aria-expanded', 'false');
+    cy.get('[data-testid=canvas]').invoke('outerWidth').should((w) => expect(w).to.be.closeTo(canvasBefore + 280, TOLERANCE));
+    rectOf('canvas').then((canvas) =>
+      rectOf('show-layers-panel').should((b) => {
+        expect(b.left).to.be.within(canvas.left, canvas.left + 16);
+        expect(b.top).to.be.within(canvas.top, canvas.top + 16);
+      }),
+    );
+    // The morph: the panel's transition name moves to the button that replaces it.
+    cy.get('[data-testid=show-layers-panel]').parent().should('have.css', 'view-transition-name', 'layers-panel');
+    cy.get('[data-testid=layers-panel]').parent().should('have.css', 'view-transition-name', 'none');
 
     cy.reload();
-    cy.get('[data-testid=toggle-layers-panel]').should('have.attr', 'aria-pressed', 'false');
     cy.get('[data-testid=layers-panel]').should('not.be.visible');
-    cy.get('[data-testid=toggle-layers-panel]').click();
+    cy.get('[data-testid=show-layers-panel]').click();
     shouldBeWidth('layers-panel', 280);
+    cy.get('[data-testid=hide-layers-panel]').should('have.focus');
+    cy.get('[data-testid=show-layers-panel]').should('not.exist');
     cy.get('[data-testid=layers-panel]').closest('[inert]').should('not.exist');
 
+    // The Design panel mirrors it: its button is at the left of its header, and it collapses to the top right.
+    rectOf('properties-panel').then((panel) =>
+      rectOf('hide-properties-panel').should((b) => expect(b.left).to.be.within(panel.left, panel.left + 16)),
+    );
     // Collapsed in a narrow window, reopened in a wider one: still its own width, not its old share of the window.
     cy.viewport(1000, 800);
-    cy.get('[data-testid=toggle-properties-panel]').click();
+    cy.get('[data-testid=hide-properties-panel]').click();
     cy.get('[data-testid=properties-panel]').should('not.be.visible');
+    rectOf('canvas').then((canvas) =>
+      rectOf('show-properties-panel').should((b) => {
+        expect(b.right).to.be.within(canvas.right - 16, canvas.right);
+        expect(b.top).to.be.within(canvas.top, canvas.top + 16);
+      }),
+    );
     cy.viewport(1400, 800);
     // Wait for the splitter to take in the new window width before reopening.
-    cy.get('[data-testid=canvas]').invoke('outerWidth').should('be.closeTo', 1400 - 280, 1);
-    cy.get('[data-testid=toggle-properties-panel]').click();
+    cy.get('[data-testid=canvas]').invoke('outerWidth').should('be.closeTo', 1400 - 280, TOLERANCE);
+    cy.get('[data-testid=show-properties-panel]').click();
     shouldBeWidth('properties-panel', 240);
     shouldBeWidth('layers-panel', 280);
+  });
+
+  it('keeps the header bar in place while a long Layers list scrolls', () => {
+    const rects = Array.from({ length: 60 }, (_, i) => ({
+      id: `r${i}`, type: 'rect', name: `Rect ${i}`, parentId: null, x: i * 20, y: 100, width: 10, height: 10,
+      rotation: 0, fill: '#cccccc', stroke: '#000000', strokeWidth: 1, opacity: 1, visible: true, cornerRadius: 0,
+    }));
+    const workspace = { version: 1, activeId: 'b1', boards: [{ id: 'b1', name: 'Board 1', nodes: rects }] };
+    cy.visit('/', { onBeforeLoad: (win) => win.localStorage.setItem('draftboard:workspace:v1', JSON.stringify(workspace)) });
+    cy.get('[data-testid=layers-panel] [role=treeitem]').should('have.length', 60);
+    rectOf('hide-layers-panel').then((before) => {
+      cy.get('[data-testid=layers-panel]').scrollTo('bottom');
+      cy.get('[data-testid=layers-panel]').invoke('scrollTop').should('be.greaterThan', 0);
+      rectOf('hide-layers-panel').its('top').should('equal', before.top);
+    });
+    cy.get('[data-testid=layers-panel] [role=treeitem]').first().should('not.be.visible');
   });
 
   it('resizes with the arrow keys on a focused handle without nudging the selection', () => {

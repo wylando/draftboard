@@ -1,22 +1,8 @@
 import { css } from 'styled-system/css';
 
 /** Styles shared by several editor components. One-off styles live next to their component. */
-// The splitter panel around a sidebar sets its width.
-export const sidebarLeft = css({
-  flex: '1',
-  minWidth: '0',
-  borderRightWidth: '1px',
-  borderRightStyle: 'solid',
-  borderRightColor: 'border',
-});
-
-export const sidebarRight = css({
-  flex: '1',
-  minWidth: '0',
-  borderLeftWidth: '1px',
-  borderLeftStyle: 'solid',
-  borderLeftColor: 'border',
-});
+/** A sidebar's scrolling body, under its header bar; the splitter panel around it sets the width and border. */
+export const sidebar = css({ flex: '1', minWidth: '0', minHeight: '0' });
 
 export const twoColumnGrid = css({
   display: 'grid',

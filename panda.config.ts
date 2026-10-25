@@ -66,5 +66,19 @@ export default defineConfig({
       overflow: 'hidden',
       WebkitFontSmoothing: 'antialiased',
     },
+    // A sidebar morphing into its collapsed button and back (EditorBody). Only the panel animates;
+    // the rest of the page swaps at once instead of cross-fading. The images keep their size and are
+    // clipped to the moving box from the corner the button sits in, so the panel isn't squashed.
+    '::view-transition-old(root), ::view-transition-new(root)': { animation: 'none' },
+    '::view-transition-group(layers-panel), ::view-transition-group(properties-panel)': {
+      animationDuration: '220ms',
+      animationTimingFunction: 'cubic-bezier(0.2, 0, 0, 1)',
+      overflow: 'clip',
+      borderRadius: 'medium',
+    },
+    '::view-transition-old(layers-panel), ::view-transition-new(layers-panel), ::view-transition-old(properties-panel), ::view-transition-new(properties-panel)':
+      { height: 'full', objectFit: 'none' },
+    '::view-transition-old(layers-panel), ::view-transition-new(layers-panel)': { objectPosition: 'left top' },
+    '::view-transition-old(properties-panel), ::view-transition-new(properties-panel)': { objectPosition: 'right top' },
   },
 });

@@ -1,8 +1,8 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import { cx } from 'styled-system/css';
 import { iconButton } from 'styled-system/recipes';
 
-export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
+export interface IconButtonProps extends Omit<ComponentProps<'button'>, 'children'> {
   /** Required: icon-only buttons need an accessible name. */
   label: string;
   icon: ReactNode;

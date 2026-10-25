@@ -1,10 +1,9 @@
-import { useMemo } from 'react';
 import { css } from 'styled-system/css';
 import { DialogProvider } from './design-system';
 import { useHashRoute } from './app/useHashRoute';
 import { EditorProvider, useBoards, useEditor } from './editor/EditorContext';
 import { Canvas } from './editor/components/Canvas';
-import { EditorBody, useSidePanels } from './editor/components/EditorBody';
+import { EditorBody } from './editor/components/EditorBody';
 import { LayersPanel } from './editor/components/LayersPanel';
 import { PropertiesPanel } from './editor/components/PropertiesPanel';
 import { ToolDock } from './editor/components/ToolDock';
@@ -23,31 +22,20 @@ function Editor({ onOpenSettings }: { onOpenSettings: () => void }) {
   const { state, dispatch } = useEditor();
   const { activeId } = useBoards();
   const controls = useViewportControls();
-  const panels = useSidePanels();
   useKeyboardShortcuts({ state, dispatch, ...controls, openSettings: onOpenSettings });
-  // The splitter re-renders Editor on every handle hover and drag tick; the same elements let
-  // React skip the panels and the canvas. They read everything from context, so they must stay prop-less.
-  const layers = useMemo(() => <LayersPanel key={`layers-${activeId}`} />, [activeId]);
-  const canvas = useMemo(
-    () => (
-      <div className={canvasAreaClass}>
-        {/* Keyed so marquee, guides, hover and in-place editors start fresh on each board. */}
-        <Canvas key={activeId} />
-        <ToolDock />
-      </div>
-    ),
-    [activeId],
-  );
-  const properties = useMemo(() => <PropertiesPanel key={`properties-${activeId}`} />, [activeId]);
-
   return (
     <div className={editorClass}>
-      <Toolbar onOpenSettings={onOpenSettings} panels={panels} />
+      <Toolbar onOpenSettings={onOpenSettings} />
       <EditorBody
-        panels={panels}
-        layers={layers}
-        canvas={canvas}
-        properties={properties}
+        layers={<LayersPanel key={`layers-${activeId}`} />}
+        canvas={
+          <div className={canvasAreaClass}>
+            {/* Keyed so marquee, guides, hover and in-place editors start fresh on each board. */}
+            <Canvas key={activeId} />
+            <ToolDock />
+          </div>
+        }
+        properties={<PropertiesPanel key={`properties-${activeId}`} />}
       />
     </div>
   );
