@@ -116,6 +116,8 @@ function buildRows(nodes: DesignNode[], collapsed: ReadonlySet<string>, selected
     const list = children.get(parentId) ?? [];
     for (let i = list.length - 1; i >= 0; i--) {
       const node = list[i] as DesignNode;
+      // Connectors are links, not layers: always top-level and always visible.
+      if (node.type === 'connector') continue;
       const hasChildren = (children.get(node.id)?.length ?? 0) > 0;
       rows.push({ node, depth, hasChildren, inSelection: inSelection && !selected.has(node.id) });
       if (hasChildren && !collapsed.has(node.id)) visit(node.id, depth + 1, inSelection || selected.has(node.id));

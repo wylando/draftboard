@@ -142,8 +142,9 @@ export function mapSiblings(
  * - empty groups are removed;
  * - each group's box is the union of its children, with rotation 0;
  * - each table is as tall as its header and rows, with rotation 0;
- * - each connector sits at the top level and is routed against the final
- *   layers (see `routeConnector`).
+ * - each connector sits at the top level, is always visible (the Layers panel
+ *   doesn't list connectors, so nothing could unhide one) and is routed against
+ *   the final layers (see `routeConnector`).
  * Nodes that need no change keep their identity, so memoized views skip them.
  */
 export function normalizeTree(input: readonly DesignNode[]): DesignNode[] {
@@ -209,7 +210,11 @@ export function normalizeTree(input: readonly DesignNode[]): DesignNode[] {
   if (!out.some((n) => n.type === 'connector')) return out;
   const final = byIdOf(out);
   const tables = visibleTables(final);
-  return out.map((n) => (n.type === 'connector' ? routeConnector(n, final, tables) : n));
+  return out.map((n) => {
+    if (n.type !== 'connector') return n;
+    const routed = routeConnector(n, final, tables);
+    return routed.visible ? routed : { ...routed, visible: true };
+  });
 }
 
 /**
