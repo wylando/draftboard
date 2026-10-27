@@ -135,11 +135,17 @@ describe('Side panels', () => {
     });
   });
 
-  it('keeps the tool dock in place while panels hide and show', () => {
+  it('keeps the tool dock in place while panels resize, hide and show', () => {
     let dockWidth = 0;
     rectOf('tool-dock').then((dock) => {
       dockWidth = dock.width;
       const stays = () => rectOf('tool-dock').its('left').should('be.closeTo', dock.left, 0.5);
+      dragHandle('resize-layers', 60);
+      shouldBeWidth('layers-panel', 300);
+      stays();
+      dragHandle('resize-properties', -100);
+      shouldBeWidth('properties-panel', 340);
+      stays();
       cy.get('[data-testid=hide-layers-panel]').click();
       cy.get('[data-testid=show-layers-panel]').should('have.focus');
       stays();

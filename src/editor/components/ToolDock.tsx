@@ -9,9 +9,10 @@ import { css } from 'styled-system/css';
 import { iconButton } from 'styled-system/recipes';
 
 // A sibling of the canvas element, not a child: the canvas blurs editors and starts gestures on pointer-down.
-// Centered as if collapsed side panels were open, so hiding or showing one doesn't move it: spacers
-// start at their widths (EditorBody sets them) and share the rest equally. Where that room doesn't
-// fit, they shrink in proportion, so the dock stays whole on the canvas. The row lets presses through.
+// Centered on the editor body, so resizing, hiding or showing a side panel doesn't move it: the
+// spacer on the narrower panel's side starts at how much wider the other is (EditorBody sets them),
+// and they share the rest equally. Where that doesn't fit, they shrink in proportion, so the dock stays whole on the
+// canvas. The row lets presses through.
 const dockRowClass = css({
   position: 'absolute',
   insetInline: '0',
