@@ -76,7 +76,7 @@ export function rotatedBounds(b: Box, rotation: number): Box {
   return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
 }
 
-export function unionBoxes(boxes: Box[]): Box | null {
+export function unionBoxes(boxes: readonly Box[]): Box | null {
   if (boxes.length === 0) return null;
   let minX = Infinity;
   let minY = Infinity;
@@ -122,6 +122,60 @@ export function nextCullWindow(prev: Box | null, view: Box): Box {
 
 export function boxesIntersect(a: Box, b: Box): boolean {
   return a.x <= b.x + b.width && b.x <= a.x + a.width && a.y <= b.y + b.height && b.y <= a.y + a.height;
+}
+
+/**
+ * Top-left corner for a popup of `size` inside `bounds` that covers none of the `avoid` boxes (all in one
+ * coordinate space). It prefers below, above, right, then left of the boxes' union, and keeps `gap` clear of
+ * each box. Failing that it takes the clear bounds corner nearest the union, so the popup still reads as
+ * attached to what it describes; with no clear corner, the farthest one, to cover as little as possible.
+ */
+export function placePopup(avoid: readonly Box[], size: { width: number; height: number }, bounds: Box, gap: number): Point {
+  const fit = (v: number, min: number, room: number) => Math.max(min, Math.min(v, min + room));
+  const clampX = (x: number) => fit(x, bounds.x, bounds.width - size.width);
+  const clampY = (y: number) => fit(y, bounds.y, bounds.height - size.height);
+  const u = unionBoxes(avoid);
+  if (!u) return { x: clampX(bounds.x + bounds.width - size.width), y: bounds.y };
+
+  const clear = (p: Point) =>
+    avoid.every(
+      (b) =>
+        p.x + size.width <= b.x - gap ||
+        p.x >= b.x + b.width + gap ||
+        p.y + size.height <= b.y - gap ||
+        p.y >= b.y + b.height + gap,
+    );
+  const midX = u.x + u.width / 2 - size.width / 2;
+  const midY = u.y + u.height / 2 - size.height / 2;
+  const sides: Point[] = [
+    { x: midX, y: u.y + u.height + gap },
+    { x: midX, y: u.y - gap - size.height },
+    { x: u.x + u.width + gap, y: midY },
+    { x: u.x - gap - size.width, y: midY },
+  ];
+  for (const [i, side] of sides.entries()) {
+    const vertical = i < 2;
+    const main = vertical ? side.y : side.x;
+    const lo = vertical ? bounds.y : bounds.x;
+    const room = vertical ? bounds.height - size.height : bounds.width - size.width;
+    if (main < lo || main > lo + room) continue;
+    const p = vertical ? { x: clampX(side.x), y: side.y } : { x: side.x, y: clampY(side.y) };
+    if (clear(p)) return p;
+  }
+
+  const corners: Point[] = [
+    { x: clampX(bounds.x), y: clampY(bounds.y) },
+    { x: clampX(bounds.x + bounds.width - size.width), y: clampY(bounds.y) },
+    { x: clampX(bounds.x), y: clampY(bounds.y + bounds.height - size.height) },
+    { x: clampX(bounds.x + bounds.width - size.width), y: clampY(bounds.y + bounds.height - size.height) },
+  ];
+  const cx = u.x + u.width / 2;
+  const cy = u.y + u.height / 2;
+  const dist = (p: Point) => Math.hypot(p.x + size.width / 2 - cx, p.y + size.height / 2 - cy);
+  const free = corners.filter(clear);
+  const pool = free.length > 0 ? free : corners;
+  const sign = free.length > 0 ? 1 : -1;
+  return pool.reduce((best, p) => (sign * dist(p) < sign * dist(best) ? p : best));
 }
 
 /** Handle direction: -1 = left/top edge, 0 = middle, 1 = right/bottom edge. */

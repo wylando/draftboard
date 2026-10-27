@@ -47,7 +47,7 @@ describe('Table focus highlight', () => {
     overlay().find(`[data-testid=related-table][data-related-id="${b}"]`).should('exist');
     relatedConnectors().should('have.length', 1);
     relatedTables().should('have.length', 1);
-    cy.get('[data-testid=section-join-route]').should('not.exist');
+    cy.get('[data-testid=route-popup]').should('not.exist');
     overlay().find(`[data-testid=related-table][data-related-id="${a}"]`).should('not.exist');
     overlay().find(`[data-testid=related-table][data-related-id="${c}"]`).should('not.exist');
   };
@@ -71,9 +71,59 @@ describe('Table focus highlight', () => {
     cy.get('[data-testid=layers-panel] [role=treeitem][aria-selected=true]').should('have.length', 2);
     relatedConnectors().should('not.exist');
     relatedTables().should('not.exist');
-    cy.get('[data-testid=section-join-route]').should('contain', 'Estimated fastest route');
+    cy.get('[data-testid=route-popup]').should('contain', 'Estimated fastest route');
     cy.get('[data-testid=join-route-none]').should('have.text', 'No route between these tables.');
     cy.get('[data-testid=join-route-step]').should('not.exist');
+    cy.get('[data-testid=properties-panel]').should('not.contain', 'route');
+  });
+
+  const selectAB = () => {
+    layerRow('Table 1').click();
+    layerRow('Table 2').click({ shiftKey: true });
+    cy.get('[data-testid=layers-panel] [role=treeitem][aria-selected=true]').should('have.length', 2);
+  };
+  const rectOf = (el: Element) => el.getBoundingClientRect();
+  const overlaps = (p: DOMRect, q: DOMRect) => p.left < q.right && q.left < p.right && p.top < q.bottom && q.top < p.bottom;
+
+  it('shows the route in a popup over the canvas that covers neither table nor their link', () => {
+    selectAB();
+    cy.get('[data-testid=route-popup]').should('contain', 'Estimated fastest route');
+    cy.get('[data-testid=join-route-step]').should('have.length', 2);
+    cy.get('[data-testid=properties-panel]').should('not.contain', 'route');
+    cy.get('[data-testid=route-popup]').should(($popup) => {
+      const popup = rectOf($popup[0]!);
+      const doc = $popup[0]!.ownerDocument;
+      const blockers = [`[data-node-id="${a}"]`, `[data-node-id="${b}"]`, `[data-related-id="${link}"]`].map((q) => doc.querySelector(q)!);
+      for (const el of blockers) expect(overlaps(popup, rectOf(el)), el.outerHTML.slice(0, 60)).to.equal(false);
+      expect(overlaps(popup, rectOf(doc.querySelector('[data-testid=tool-dock]')!)), 'tool dock').to.equal(false);
+    });
+  });
+
+  it('closes on its close button, keeping the selection, until the selection changes', () => {
+    selectAB();
+    cy.get('[data-testid=route-popup-close]').click();
+    cy.get('[data-testid=route-popup]').should('not.exist');
+    cy.get('[data-testid=layers-panel] [role=treeitem][aria-selected=true]').should('have.length', 2);
+    overlay().find(`[data-testid=related-connector][data-related-id="${link}"]`).should('exist');
+    layerRow('Table 1').click();
+    cy.get('[data-testid=layers-panel] [role=treeitem][aria-selected=true]').should('have.length', 1);
+    layerRow('Table 2').click({ shiftKey: true });
+    cy.get('[data-testid=route-popup]').should('exist');
+  });
+
+  it('hides while the tables are dragged and comes back where it fits after the drop', () => {
+    selectAB();
+    cy.get('[data-testid=route-popup]').should('exist');
+    cy.canvasPointer('pointerdown', A);
+    cy.canvasPointer('pointermove', [A[0] + 20, A[1] + 20]);
+    cy.get('[data-testid=route-popup]').should('not.exist');
+    cy.canvasPointer('pointermove', [A[0] + 40, A[1] + 40]);
+    cy.canvasPointer('pointerup', [A[0] + 40, A[1] + 40]);
+    cy.get('[data-testid=route-popup]').should('exist');
+    cy.get(`[data-node-id="${a}"]`).should(($a) => {
+      const popup = rectOf($a[0]!.ownerDocument.querySelector('[data-testid=route-popup]')!);
+      expect(overlaps(popup, rectOf($a[0]!))).to.equal(false);
+    });
   });
 
   it('keeps the highlight while a cell of the table is being edited', () => {
@@ -180,13 +230,13 @@ describe('Table focus highlight for two selected tables', () => {
 
   // Each step's whole visible text, so a swapped "index lookup" / "scan" label fails too.
   const expectRoute = (steps: string[]) => {
-    cy.get('[data-testid=section-join-route]').should('contain', 'Estimated fastest route');
+    cy.get('[data-testid=route-popup]').should('contain', 'Estimated fastest route');
     cy.get('[data-testid=join-route-step]').should('have.length', steps.length);
     steps.forEach((text, i) => cy.get('[data-testid=join-route-step]').eq(i).should('have.text', text));
   };
 
   const expectGuaranteed = (steps: string[]) => {
-    cy.get('[data-testid=section-guaranteed-route]').should('contain', 'Guaranteed route');
+    cy.get('[data-testid=route-popup-guaranteed]').should('contain', 'Guaranteed route');
     cy.get('[data-testid=guaranteed-route-step]').should('have.length', steps.length);
     steps.forEach((text, i) => cy.get('[data-testid=guaranteed-route-step]').eq(i).should('have.text', text));
   };
@@ -195,7 +245,7 @@ describe('Table focus highlight for two selected tables', () => {
     pick('accounts', 'orders');
     expectRoute(['accounts', '→ owners · index lookup', '→ orders · index lookup']);
     // Imported foreign keys are many to one, so entering orders or owners from accounts may find no row.
-    cy.get('[data-testid=section-guaranteed-route]').should('not.exist');
+    cy.get('[data-testid=route-popup-guaranteed]').should('not.exist');
     expectRelated([link('accounts', 'owners'), link('owners', 'orders')], [ids.owners]);
   });
 
@@ -203,7 +253,7 @@ describe('Table focus highlight for two selected tables', () => {
     pick('orders', 'accounts');
     expectRoute(['orders', '→ accounts · index lookup']);
     // Guaranteed because the marker at accounts' end is `one`; the guarantee follows markers, not column nullability.
-    cy.get('[data-testid=section-guaranteed-route]').should('not.exist');
+    cy.get('[data-testid=route-popup-guaranteed]').should('not.exist');
     expectRelated([link('accounts', 'orders')], []);
   });
 

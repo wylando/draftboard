@@ -22,6 +22,8 @@ export const semanticTokens = defineSemanticTokens({
       tabActive: { value: '{colors.grey.900}' },
       tabHover: { value: '{colors.grey.800}' },
       canvas: { value: '{colors.grey.100}' },
+      /** Canvas popups: the dock's dark, slightly see-through so the canvas shows faintly behind (blurred). */
+      popup: { value: '#1e1e1ee6' },
       /** Dims the app behind a modal dialog. */
       backdrop: { value: '#00000066' },
     },
@@ -30,6 +32,8 @@ export const semanticTokens = defineSemanticTokens({
       secondary: { value: '{colors.black.500}' },
       onBrand: { value: '{colors.white}' },
       onToolbar: { value: '{colors.white}' },
+      /** Quieter text on the dark toolbar and popups; about 8:1 on grey.900. */
+      onToolbarSecondary: { value: '{colors.grey.400}' },
       tabInactive: { value: '{colors.grey.400}' },
       danger: { value: '{colors.red.500}' },
     },
@@ -37,6 +41,8 @@ export const semanticTokens = defineSemanticTokens({
       DEFAULT: { value: '{colors.grey.200}' },
       strong: { value: '{colors.grey.300}' },
       selected: { value: '{colors.blue.500}' },
+      /** Hairlines on the dark toolbar and popups: a popup's rim and its section dividers. */
+      onToolbar: { value: '#ffffff1f' },
       /** Indent guides in the Layers tree. */
       guide: { value: '{colors.grey.200}' },
     },

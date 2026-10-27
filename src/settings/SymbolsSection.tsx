@@ -209,7 +209,7 @@ export function SymbolsSection() {
       </Block>
 
       <Block title="Route terms" testId="symbols-routes">
-        <p className={mutedClass}>Shown in the Design panel when exactly two tables are selected.</p>
+        <p className={mutedClass}>Shown in a popup beside the route when exactly two tables are selected.</p>
         <Terms
           items={[
             ['Estimated fastest route', 'The cheapest chain of links from the first selected table to the second. It is an estimate: Draftboard has no row counts, so it assumes index lookups are cheap and scans are costly.'],
