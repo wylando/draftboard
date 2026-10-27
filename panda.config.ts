@@ -1,5 +1,6 @@
 import { defineConfig } from '@pandacss/dev';
 import {
+  accordionRecipe,
   boardTabsRecipe,
   buttonRecipe,
   checkboxRecipe,
@@ -55,6 +56,7 @@ export default defineConfig({
       checkbox: checkboxRecipe,
       chipGroup: chipGroupRecipe,
       splitter: splitterRecipe,
+      accordion: accordionRecipe,
     },
   },
   globalCss: {

@@ -15,3 +15,4 @@ export { checkboxRecipe } from './recipes/checkbox';
 export { boardTabsRecipe } from './recipes/boardTabs';
 export { menuRecipe } from './recipes/menu';
 export { splitterRecipe } from './recipes/splitter';
+export { accordionRecipe } from './recipes/accordion';

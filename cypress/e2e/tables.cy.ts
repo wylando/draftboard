@@ -43,6 +43,45 @@ describe('Tables', () => {
     tableRow(1).should('contain', 'email').and('not.contain', 'varchar');
   });
 
+  it('folds columns to one-line rows past 3, and lists only the first 5 until asked', () => {
+    placeTable();
+    cy.get('[data-testid=add-column]').click().click();
+    cy.get('[data-testid=column-editor]').should('have.length', 3);
+    cy.get('[data-testid=column-row]').should('not.exist');
+
+    cy.get('[data-testid=add-column]').click();
+    // Past 3 every column is a one-line row; only the one just added is open, to name it.
+    cy.get('[data-testid=column-row]').should('have.length', 4);
+    cy.get('[data-testid=column-editor]').should('have.length', 1).find('[data-testid=column-name]').should('have.value', 'column_3');
+    cy.get('[data-testid=column-row]').eq(0).should('contain', 'id').and('contain', 'uuid').and('contain', 'PK').click();
+    cy.get('[data-testid=column-editor]').should('have.length', 2);
+    cy.get('[data-testid=column-row]').eq(0).click();
+    cy.get('[data-testid=column-editor]').should('have.length', 1);
+
+    cy.get('[data-testid=add-column]').click().click();
+    cy.get('[data-testid=column-row]').should('have.length', 6);
+    // Selecting the table afresh lists the first 5.
+    cy.canvasClick([700, 500]);
+    cy.contains('[data-testid=layers-panel] [role=treeitem]', 'Table 1').click();
+    cy.get('[data-testid=column-row]').should('have.length', 5);
+    cy.get('[data-testid=show-more-columns]').should('have.text', 'Show 1 more column').click();
+    cy.get('[data-testid=column-row]').should('have.length', 6);
+    cy.get('[data-testid=show-more-columns]').should('have.text', 'Show fewer columns');
+  });
+
+  it('opens the column picked on the canvas, even past the first 5', () => {
+    placeTable();
+    for (let i = 0; i < 5; i++) cy.get('[data-testid=add-column]').click();
+    tableRow(5).should('contain', 'column_5');
+    cy.canvasClick([700, 500]);
+    cy.contains('[data-testid=layers-panel] [role=treeitem]', 'Table 1').click();
+    cy.get('[data-testid=column-row]').should('have.length', 5);
+    // Placed at (200, 200): header 200..236, then 28 px rows.
+    cy.canvasClick([250, 236 + 28 * 5 + 14]);
+    cy.get('[data-testid=column-row]').should('have.length', 6);
+    cy.get('[data-testid=column-editor]').should('have.length', 1).find('[data-testid=column-name]').should('have.value', 'column_5');
+  });
+
   it('never lets a primary key be nullable', () => {
     placeTable();
     columnEditor(0).find('[data-testid=column-nullable]').click();
