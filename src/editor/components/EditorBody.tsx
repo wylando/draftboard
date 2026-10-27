@@ -1,5 +1,5 @@
 import { Splitter, useSplitter, type SplitterPanelData as PanelData } from '@ark-ui/react/splitter';
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { css, cx } from 'styled-system/css';
 import { splitter as splitterRecipe } from 'styled-system/recipes';
 import { IconButton, icons } from '../../design-system';
@@ -154,9 +154,17 @@ function useSidePanels() {
     const panel = canvasPanel.current;
     const body = rootRef.current;
     if ((last && last.sizes === sizes) || !panel || !body) return;
-    const left = panel.getBoundingClientRect().left;
-    const bodyWidth = body.getBoundingClientRect().width;
+    const canvasBox = panel.getBoundingClientRect();
+    const bodyBox = body.getBoundingClientRect();
+    const left = canvasBox.left;
+    const bodyWidth = bodyBox.width;
     lastEdge.current = { sizes, left, bodyWidth };
+    // The tool dock centers on the editor body, not the canvas, so no panel change moves it: on the
+    // side of the narrower panel, its row's spacer starts at the difference (ToolDock). Set here
+    // rather than rendered, as only the measured edges are exact (Ark's sizes are rounded).
+    const rightWider = bodyBox.right - canvasBox.right - (canvasBox.left - bodyBox.left);
+    panel.style.setProperty('--dock-inset-start', px(Math.max(0, rightWider)));
+    panel.style.setProperty('--dock-inset-end', px(Math.max(0, -rightWider)));
     // Only a resize Ark reports moves the view. Its first layout isn't reported: that swaps the panels'
     // px basis for rounded percentages, shifting the edge by under a pixel. A window resize keeps the
     // Layers panel's px width, so any shift then is the same rounding.
@@ -265,18 +273,7 @@ export function EditorBody({ layers, canvas, properties }: EditorBodyProps) {
         data-testid="resize-layers"
         aria-label="Resize Layers panel"
       />
-      <Splitter.Panel
-        id="canvas"
-        ref={canvasPanel}
-        className={cx(classes.panel, canvasPanelClass)}
-        // Read by the tool dock, which centers on the canvas as if collapsed panels were open.
-        style={
-          {
-            '--dock-inset-start': px(layout.layers.collapsed ? layout.layers.width : 0),
-            '--dock-inset-end': px(layout.properties.collapsed ? layout.properties.width : 0),
-          } as CSSProperties
-        }
-      >
+      <Splitter.Panel id="canvas" ref={canvasPanel} className={cx(classes.panel, canvasPanelClass)}>
         {canvas}
         {chip('layers')}
         {chip('properties')}
