@@ -65,7 +65,7 @@ const FLAGS: Array<{ id: Flag; label: string; testId: string }> = [
   { id: 'unique', label: 'Unique', testId: 'column-unique' },
 ];
 
-function ColumnEditor({ table, column, edit }: { table: TableNode; column: Column; edit: (e: TableEdit) => void }) {
+function ColumnEditor({ table, column, edit, autoSelect }: { table: TableNode; column: Column; edit: (e: TableEdit) => void; autoSelect?: boolean }) {
   const [nameError, setNameError] = useState<string | null>(null);
   const update = (patch: Partial<Omit<Column, 'id'>>) => edit({ kind: 'updateColumn', columnId: column.id, patch });
   return (
@@ -73,6 +73,7 @@ function ColumnEditor({ table, column, edit }: { table: TableNode; column: Colum
       <div className={twoColumnGrid}>
         <TextInput
           value={column.name}
+          autoSelect={autoSelect}
           testId="column-name"
           error={nameError !== null ? `This table already has a column named “${nameError}”.` : undefined}
           onCommit={(value) => {
@@ -295,6 +296,9 @@ export function TableProperties({ table }: { table: TableNode }) {
 
   const [openColumns, setOpenColumns] = useState<string[]>([]);
   const [showAllColumns, setShowAllColumns] = useState(false);
+  // Columns past the first few that stay listed once added or picked here, so a row never vanishes from under the user.
+  const [pinnedColumns, setPinnedColumns] = useState<string[]>([]);
+  const [newColumn, setNewColumn] = useState<string | null>(null);
   // A column picked on the canvas opens its row, listed even past the first few.
   const picked = state.selectedColumn?.tableId === table.id ? state.selectedColumn.columnId : null;
   const [seenPick, setSeenPick] = useState<string | null>(null);
@@ -302,7 +306,7 @@ export function TableProperties({ table }: { table: TableNode }) {
     setSeenPick(picked);
     if (picked) {
       if (!openColumns.includes(picked)) setOpenColumns([...openColumns, picked]);
-      if (table.columns.findIndex((c) => c.id === picked) >= LISTED_COLUMNS) setShowAllColumns(true);
+      if (!pinnedColumns.includes(picked)) setPinnedColumns([...pinnedColumns, picked]);
     }
   }
   const [openIndexId, setOpenIndex] = useState<string | null>(null);
@@ -325,8 +329,28 @@ export function TableProperties({ table }: { table: TableNode }) {
   }, [openIndex]);
   const columnName = (id: string) => table.columns.find((c) => c.id === id)?.name;
   const foldColumns = table.columns.length > FOLD_COLUMNS_AFTER;
-  const hiddenColumns = showAllColumns ? 0 : Math.max(0, table.columns.length - LISTED_COLUMNS);
-  const listedColumns = hiddenColumns > 0 ? table.columns.slice(0, LISTED_COLUMNS) : table.columns;
+  const headColumns = table.columns.slice(0, LISTED_COLUMNS);
+  const restColumns = table.columns.slice(LISTED_COLUMNS);
+  const tailColumns = showAllColumns ? restColumns : restColumns.filter((c) => pinnedColumns.includes(c.id));
+  const hiddenColumns = restColumns.length - tailColumns.length;
+  const columnRow = (c: Column) => (
+    <Accordion.Item key={c.id} value={c.id} className={rows.item}>
+      <Accordion.ItemTrigger className={rows.itemTrigger} data-testid="column-row">
+        <span className={rowNameClass}>{c.name}</span>
+        <span className={rowTypeClass}>
+          {c.dataType}
+          {c.nullable && '?'}
+        </span>
+        {(c.primaryKey || c.unique) && <span className={rowBadgeClass}>{c.primaryKey ? 'PK' : 'UQ'}</span>}
+        <Accordion.ItemIndicator className={rows.itemIndicator}>
+          <icons.chevronRight />
+        </Accordion.ItemIndicator>
+      </Accordion.ItemTrigger>
+      <Accordion.ItemContent className={rows.itemContent}>
+        <ColumnEditor table={table} column={c} edit={edit} autoSelect={c.id === newColumn} />
+      </Accordion.ItemContent>
+    </Accordion.Item>
+  );
 
   return (
     <>
@@ -366,33 +390,26 @@ export function TableProperties({ table }: { table: TableNode }) {
             lazyMount
             unmountOnExit
             value={openColumns}
-            onValueChange={({ value }) => setOpenColumns(value)}
+            onValueChange={({ value }) => {
+              setOpenColumns(value);
+              setNewColumn(null);
+            }}
           >
-            {listedColumns.map((c) => (
-              <Accordion.Item key={c.id} value={c.id} className={rows.item}>
-                <Accordion.ItemTrigger className={rows.itemTrigger} data-testid="column-row">
-                  <span className={rowNameClass}>{c.name}</span>
-                  <span className={rowTypeClass}>
-                    {c.dataType}
-                    {c.nullable && '?'}
-                  </span>
-                  {(c.primaryKey || c.unique) && <span className={rowBadgeClass}>{c.primaryKey ? 'PK' : 'UQ'}</span>}
-                  <Accordion.ItemIndicator className={rows.itemIndicator}>
-                    <icons.chevronRight />
-                  </Accordion.ItemIndicator>
-                </Accordion.ItemTrigger>
-                <Accordion.ItemContent className={rows.itemContent}>
-                  <ColumnEditor table={table} column={c} edit={edit} />
-                </Accordion.ItemContent>
-              </Accordion.Item>
-            ))}
+            {headColumns.map(columnRow)}
+            {hiddenColumns > 0 && (
+              // Stands where the hidden columns are, so the ones listed after it keep their place in the table.
+              <Button data-testid="show-more-columns" onClick={() => setShowAllColumns(true)}>
+                {`Show ${hiddenColumns} more column${hiddenColumns === 1 ? '' : 's'}`}
+              </Button>
+            )}
+            {tailColumns.map(columnRow)}
           </Accordion.Root>
         ) : (
-          table.columns.map((c) => <ColumnEditor key={c.id} table={table} column={c} edit={edit} />)
+          table.columns.map((c) => <ColumnEditor key={c.id} table={table} column={c} edit={edit} autoSelect={c.id === newColumn} />)
         )}
-        {table.columns.length > LISTED_COLUMNS && (
-          <Button data-testid="show-more-columns" onClick={() => setShowAllColumns(hiddenColumns > 0)}>
-            {hiddenColumns > 0 ? `Show ${hiddenColumns} more column${hiddenColumns === 1 ? '' : 's'}` : 'Show fewer columns'}
+        {showAllColumns && table.columns.length > LISTED_COLUMNS && (
+          <Button data-testid="show-more-columns" onClick={() => setShowAllColumns(false)}>
+            Show fewer columns
           </Button>
         )}
         <Button
@@ -400,9 +417,11 @@ export function TableProperties({ table }: { table: TableNode }) {
           onClick={() => {
             const column = createColumn('', dialect.defaultType);
             edit({ kind: 'addColumn', column });
-            // The new column opens on its own and stays listed, so it can be named right away.
+            // Design choice: the new column opens on its own, listed at the end with its name selected to type
+            // over, while columns hidden behind "Show more" stay hidden.
             setOpenColumns([column.id]);
-            setShowAllColumns(true);
+            setPinnedColumns([...pinnedColumns, column.id]);
+            setNewColumn(column.id);
           }}
         >
           Add column

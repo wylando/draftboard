@@ -66,8 +66,21 @@ describe('Tables', () => {
     cy.canvasClick([700, 500]);
     cy.contains('[data-testid=layers-panel] [role=treeitem]', 'Table 1').click();
     cy.get('[data-testid=column-row]').should('have.length', 5);
-    cy.get('[data-testid=show-more-columns]').should('have.text', 'Show 1 more column').click();
-    cy.get('[data-testid=column-row]').should('have.length', 6);
+    cy.get('[data-testid=show-more-columns]').should('have.text', 'Show 1 more column');
+
+    // A column added now opens at the end, ready to name, while the hidden one stays hidden.
+    cy.get('[data-testid=add-column]').click();
+    cy.get('[data-testid=column-row]').should('have.length', 6).eq(5).should('contain', 'column_6');
+    cy.get('[data-testid=show-more-columns]').should('have.text', 'Show 1 more column');
+    cy.get('[data-testid=column-editor]').should('have.length', 1);
+    cy.focused().should('have.attr', 'data-testid', 'column-name').and('have.value', 'column_6');
+    cy.focused().should(($input) => {
+      const input = $input[0] as HTMLInputElement;
+      expect([input.selectionStart, input.selectionEnd]).to.deep.equal([0, 'column_6'.length]);
+    });
+
+    cy.get('[data-testid=show-more-columns]').click();
+    cy.get('[data-testid=column-row]').should('have.length', 7);
     cy.get('[data-testid=show-more-columns]').should('have.text', 'Show fewer columns');
   });
 

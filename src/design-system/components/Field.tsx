@@ -206,14 +206,25 @@ export interface TextInputProps {
   onCommit: (value: string) => void;
   /** Id of a `<datalist>` whose options the browser suggests while typing. */
   list?: string;
+  /** Focuses the input and selects its text when it mounts, for something just created that wants a name. */
+  autoSelect?: boolean;
   testId?: string;
 }
 
-export function TextInput({ label, error, value, onCommit, list, testId }: TextInputProps) {
+export function TextInput({ label, error, value, onCommit, list, autoSelect, testId }: TextInputProps) {
   const [draft, setDraft] = useDraft(value, identity);
+  const input = useRef<HTMLInputElement>(null);
+  // Kept from the first render: a later re-render must not pull focus back.
+  const [selectOnMount] = useState(autoSelect);
+  useEffect(() => {
+    if (!selectOnMount) return;
+    input.current?.focus();
+    input.current?.select();
+  }, [selectOnMount]);
   return (
     <FieldShell label={label} error={error}>
       <Field.Input
+        ref={input}
         className={classes.input}
         value={draft}
         list={list}
