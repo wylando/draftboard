@@ -7,8 +7,11 @@ const TOLERANCE = 2;
 const shouldBeWidth = (testId: string, px: number) => panelWidth(testId).should('be.closeTo', px, TOLERANCE);
 const savedLayout = () => cy.window().then((win) => JSON.parse(win.localStorage.getItem('draftboard:layout:v1') ?? 'null'));
 
-/** Drags a resize handle sideways; Ark tracks the move on the document once the handle is pressed. */
-function dragHandle(testId: string, dx: number) {
+/**
+ * Drags a resize handle sideways; Ark tracks the move on the document once the handle is pressed.
+ * `whileHeld` runs between the last move and the release, to check the drag in progress.
+ */
+function dragHandle(testId: string, dx: number, whileHeld?: () => void) {
   cy.get(`[data-testid=${testId}]`).pointer('pointerdown').should('have.attr', 'data-dragging');
   cy.get(`[data-testid=${testId}]`).then(($h) => {
     const doc = $h[0]!.ownerDocument;
@@ -19,7 +22,8 @@ function dragHandle(testId: string, dx: number) {
       );
     at('pointermove', dx / 2, 1);
     at('pointermove', dx, 1);
-    at('pointerup', dx, 0);
+    whileHeld?.();
+    cy.then(() => at('pointerup', dx, 0));
   });
   cy.get(`[data-testid=${testId}]`).should('not.have.attr', 'data-dragging');
 }
@@ -140,7 +144,10 @@ describe('Side panels', () => {
     rectOf('tool-dock').then((dock) => {
       dockWidth = dock.width;
       const stays = () => rectOf('tool-dock').its('left').should('be.closeTo', dock.left, 0.5);
-      dragHandle('resize-layers', 60);
+      dragHandle('resize-layers', 60, () => {
+        cy.get('[data-testid=resize-layers]').should('have.attr', 'data-dragging');
+        stays();
+      });
       shouldBeWidth('layers-panel', 300);
       stays();
       dragHandle('resize-properties', -100);
@@ -156,7 +163,8 @@ describe('Side panels', () => {
       cy.get('[data-testid=hide-layers-panel]').should('have.focus');
       stays();
     });
-    // Where the collapsed panels' room doesn't fit (480 + 240 px of an 800 px canvas), the dock still stays whole on the canvas.
+    // Where centring on the body doesn't fit (the open Design panel is 340 px wider than collapsed Layers,
+    // on an 800 px canvas), the dock still stays whole on the canvas.
     dragHandle('resize-layers', 600);
     shouldBeWidth('layers-panel', 480);
     cy.get('[data-testid=hide-layers-panel]').click();
