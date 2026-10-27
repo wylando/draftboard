@@ -50,6 +50,7 @@ export const sectionRecipe = defineSlotRecipe({
     indicator: {
       display: 'flex',
       color: 'icon',
+      '[data-part=trigger]:hover > &': { color: 'text' },
       // chevronRight points down while the section is open.
       '&[data-state=open]': { transform: 'rotate(90deg)' },
     },

@@ -93,7 +93,7 @@ describe('Properties panel', () => {
     cy.get('[data-node-type=rect]').should('have.attr', 'opacity', '0');
   });
 
-  it('folds a section, keeping its typed draft and its fold across selections', () => {
+  it('commits a typed value when its section folds, and keeps the fold across selections', () => {
     cy.prop('x').clear().type('250');
     cy.get('[data-testid=section-toggle-position]').should('have.attr', 'aria-expanded', 'true').click();
     // Clicking the toggle blurs the input first, so the draft commits before its section folds.
