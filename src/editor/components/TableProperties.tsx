@@ -70,19 +70,29 @@ function ColumnEditor({
   table,
   column,
   edit,
+  picked,
   autoSelect,
   onAutoSelected,
 }: {
   table: TableNode;
   column: Column;
   edit: (e: TableEdit) => void;
+  /** Picked on the canvas: scrolls into view, with its row when folded, so the pick visibly lands. */
+  picked: boolean;
   autoSelect?: boolean;
   onAutoSelected?: () => void;
 }) {
+  const root = useRef<HTMLDivElement>(null);
+  // Here, not in the list: Ark mounts a row's editor a render after it opens, and the editor is what must be seen.
+  useEffect(() => {
+    if (!picked) return;
+    const el = root.current;
+    (el?.closest('[data-part=item]') ?? el)?.scrollIntoView({ block: 'nearest' });
+  }, [picked]);
   const [nameError, setNameError] = useState<string | null>(null);
   const update = (patch: Partial<Omit<Column, 'id'>>) => edit({ kind: 'updateColumn', columnId: column.id, patch });
   return (
-    <div className={editorClass} data-testid="column-editor">
+    <div ref={root} className={editorClass} data-testid="column-editor">
       <div className={twoColumnGrid}>
         <TextInput
           value={column.name}
@@ -317,7 +327,14 @@ export function TableProperties({ table }: { table: TableNode }) {
   if (draftColumn !== null && !draft) setDraftColumn(null);
   // Cleared once the new name field has taken focus, so a later remount (redo, the list unfolding) doesn't take it again.
   const columnEditor = (c: Column) => (
-    <ColumnEditor table={table} column={c} edit={edit} autoSelect={c.id === newColumn} onAutoSelected={() => setNewColumn(null)} />
+    <ColumnEditor
+      table={table}
+      column={c}
+      edit={edit}
+      picked={c.id === picked}
+      autoSelect={c.id === newColumn}
+      onAutoSelected={() => setNewColumn(null)}
+    />
   );
   // Design choice: a column picked on the canvas opens in its place, showing the whole list if it was hidden.
   const picked = state.selectedColumn?.tableId === table.id ? state.selectedColumn.columnId : null;

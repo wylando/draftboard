@@ -122,6 +122,23 @@ describe('Tables', () => {
     cy.get('[data-testid=show-more-columns]').should('have.text', 'Show fewer columns');
   });
 
+  it('scrolls the Design panel to a column picked on the canvas', () => {
+    // Short enough that the panel scrolls and the last column starts out of view.
+    cy.viewport(1280, 560);
+    placeTable();
+    for (let i = 0; i < 6; i++) addColumn();
+    cy.get('[data-testid=show-more-columns]').click();
+    cy.get('[data-testid=properties-panel]').scrollTo('top');
+    cy.canvasClick([250, 236 + 28 * 6 + 14]);
+    cy.get('[data-testid=column-editor]').should('have.length', 1).find('[data-testid=column-name]').should('have.value', 'column_6');
+    cy.get('[data-testid=properties-panel]').should(($panel) => {
+      const panel = $panel[0]!.getBoundingClientRect();
+      const editor = $panel[0]!.querySelector('[data-testid=column-editor]')!.getBoundingClientRect();
+      expect(editor.top).to.be.at.least(panel.top);
+      expect(editor.bottom).to.be.at.most(panel.bottom);
+    });
+  });
+
   it('never lets a primary key be nullable', () => {
     placeTable();
     columnEditor(0).find('[data-testid=column-nullable]').click();
