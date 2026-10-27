@@ -1,7 +1,7 @@
 import { Accordion } from '@ark-ui/react/accordion';
 import { Combobox, createListCollection } from '@ark-ui/react/combobox';
 import { ToggleGroup } from '@ark-ui/react/toggle-group';
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { Fragment, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { Button, ColorInput, IconButton, icons, Section, TextInput } from '../../design-system';
 import { usePreferences } from '../../settings/preferences/PreferencesContext';
 import { useEditor } from '../EditorContext';
@@ -56,6 +56,7 @@ const swatchClass = css({
 const rowNameClass = css({ flex: '1', minWidth: '0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' });
 const rowTypeClass = css({ maxWidth: '[50%]', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'text.secondary' });
 const rowBadgeClass = css({ flex: 'none', textStyle: 'body.small', color: 'text.secondary' });
+const newColumnLabel = css({ margin: '0', textStyle: 'body.small', color: 'text.secondary' });
 const flagsRowClass = css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '2' });
 
 type Flag = 'primaryKey' | 'nullable' | 'unique';
@@ -65,7 +66,19 @@ const FLAGS: Array<{ id: Flag; label: string; testId: string }> = [
   { id: 'unique', label: 'Unique', testId: 'column-unique' },
 ];
 
-function ColumnEditor({ table, column, edit, autoSelect }: { table: TableNode; column: Column; edit: (e: TableEdit) => void; autoSelect?: boolean }) {
+function ColumnEditor({
+  table,
+  column,
+  edit,
+  autoSelect,
+  onAutoSelected,
+}: {
+  table: TableNode;
+  column: Column;
+  edit: (e: TableEdit) => void;
+  autoSelect?: boolean;
+  onAutoSelected?: () => void;
+}) {
   const [nameError, setNameError] = useState<string | null>(null);
   const update = (patch: Partial<Omit<Column, 'id'>>) => edit({ kind: 'updateColumn', columnId: column.id, patch });
   return (
@@ -74,6 +87,7 @@ function ColumnEditor({ table, column, edit, autoSelect }: { table: TableNode; c
         <TextInput
           value={column.name}
           autoSelect={autoSelect}
+          onAutoSelected={onAutoSelected}
           testId="column-name"
           error={nameError !== null ? `This table already has a column named “${nameError}”.` : undefined}
           onCommit={(value) => {
@@ -296,9 +310,17 @@ export function TableProperties({ table }: { table: TableNode }) {
 
   const [openColumns, setOpenColumns] = useState<string[]>([]);
   const [showAllColumns, setShowAllColumns] = useState(false);
-  // Columns past the first few that stay listed once added or picked here, so a row never vanishes from under the user.
+  // Columns past the first few that stay listed once picked on the canvas, so a row never vanishes from under the user.
   const [pinnedColumns, setPinnedColumns] = useState<string[]>([]);
   const [newColumn, setNewColumn] = useState<string | null>(null);
+  const [draftColumn, setDraftColumn] = useState<string | null>(null);
+  // Only a folded list sets a column apart; a shorter one shows every column's editor anyway.
+  const draft = table.columns.length > FOLD_COLUMNS_AFTER ? table.columns.find((c) => c.id === draftColumn) : undefined;
+  if (draftColumn !== null && !draft) setDraftColumn(null);
+  // Cleared once the new name field has taken focus, so a later remount (redo, the list unfolding) doesn't take it again.
+  const columnEditor = (c: Column) => (
+    <ColumnEditor table={table} column={c} edit={edit} autoSelect={c.id === newColumn} onAutoSelected={() => setNewColumn(null)} />
+  );
   // A column picked on the canvas opens its row, listed even past the first few.
   const picked = state.selectedColumn?.tableId === table.id ? state.selectedColumn.columnId : null;
   const [seenPick, setSeenPick] = useState<string | null>(null);
@@ -329,8 +351,9 @@ export function TableProperties({ table }: { table: TableNode }) {
   }, [openIndex]);
   const columnName = (id: string) => table.columns.find((c) => c.id === id)?.name;
   const foldColumns = table.columns.length > FOLD_COLUMNS_AFTER;
-  const headColumns = table.columns.slice(0, LISTED_COLUMNS);
-  const restColumns = table.columns.slice(LISTED_COLUMNS);
+  const filedColumns = draft ? table.columns.filter((c) => c !== draft) : table.columns;
+  const headColumns = filedColumns.slice(0, LISTED_COLUMNS);
+  const restColumns = filedColumns.slice(LISTED_COLUMNS);
   const tailColumns = showAllColumns ? restColumns : restColumns.filter((c) => pinnedColumns.includes(c.id));
   const hiddenColumns = restColumns.length - tailColumns.length;
   const columnRow = (c: Column) => (
@@ -347,7 +370,7 @@ export function TableProperties({ table }: { table: TableNode }) {
         </Accordion.ItemIndicator>
       </Accordion.ItemTrigger>
       <Accordion.ItemContent className={rows.itemContent}>
-        <ColumnEditor table={table} column={c} edit={edit} autoSelect={c.id === newColumn} />
+        {columnEditor(c)}
       </Accordion.ItemContent>
     </Accordion.Item>
   );
@@ -390,14 +413,11 @@ export function TableProperties({ table }: { table: TableNode }) {
             lazyMount
             unmountOnExit
             value={openColumns}
-            onValueChange={({ value }) => {
-              setOpenColumns(value);
-              setNewColumn(null);
-            }}
+            onValueChange={({ value }) => setOpenColumns(value)}
           >
             {headColumns.map(columnRow)}
             {hiddenColumns > 0 && (
-              // Stands where the hidden columns are, so the ones listed after it keep their place in the table.
+              // Stands in for every hidden column; picked ones listed after it are all past the first few.
               <Button data-testid="show-more-columns" onClick={() => setShowAllColumns(true)}>
                 {`Show ${hiddenColumns} more column${hiddenColumns === 1 ? '' : 's'}`}
               </Button>
@@ -405,27 +425,45 @@ export function TableProperties({ table }: { table: TableNode }) {
             {tailColumns.map(columnRow)}
           </Accordion.Root>
         ) : (
-          table.columns.map((c) => <ColumnEditor key={c.id} table={table} column={c} edit={edit} autoSelect={c.id === newColumn} />)
+          table.columns.map((c) => <Fragment key={c.id}>{columnEditor(c)}</Fragment>)
         )}
         {showAllColumns && table.columns.length > LISTED_COLUMNS && (
-          <Button data-testid="show-more-columns" onClick={() => setShowAllColumns(false)}>
+          <Button
+            data-testid="show-more-columns"
+            onClick={() => {
+              setShowAllColumns(false);
+              setPinnedColumns([]);
+            }}
+          >
             Show fewer columns
           </Button>
         )}
-        <Button
-          data-testid="add-column"
-          onClick={() => {
-            const column = createColumn('', dialect.defaultType);
-            edit({ kind: 'addColumn', column });
-            // Design choice: the new column opens on its own, listed at the end with its name selected to type
-            // over, while columns hidden behind "Show more" stay hidden.
-            setOpenColumns([column.id]);
-            setPinnedColumns([...pinnedColumns, column.id]);
-            setNewColumn(column.id);
-          }}
-        >
-          Add column
-        </Button>
+        {draft ? (
+          <div
+            data-testid="new-column"
+            // Enter blurs a field without moving focus, which finishes the column too.
+            onBlur={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget)) setDraftColumn(null);
+            }}
+          >
+            <h3 className={newColumnLabel}>New column</h3>
+            {columnEditor(draft)}
+          </div>
+        ) : (
+          <Button
+            data-testid="add-column"
+            onClick={() => {
+              const column = createColumn('', dialect.defaultType);
+              edit({ kind: 'addColumn', column });
+              setNewColumn(column.id);
+              // Design choice: in a folded list the new column is edited in the Add button's place, then filed with
+              // the rest (behind "Show more" if past the first few), so new columns never pile up below the gap.
+              if (table.columns.length + 1 > FOLD_COLUMNS_AFTER) setDraftColumn(column.id);
+            }}
+          >
+            Add column
+          </Button>
+        )}
       </Section>
 
       <Section title="Indexes" testId="section-indexes" {...fold('indexes')}>

@@ -10,6 +10,12 @@ const placeTable = () => {
   cy.get('[data-node-type=table]').should('have.length', 1);
 };
 
+// Past 3 columns the Add button turns into the new column's editor until Enter or a press elsewhere.
+const addColumn = () => {
+  cy.get('[data-testid=add-column]').click();
+  cy.focused().should('have.attr', 'data-testid', 'column-name').type('{enter}');
+};
+
 const addEmailColumn = () => {
   cy.get('[data-testid=add-column]').click();
   columnEditor(1).find('[data-testid=column-name]').clear().type('email{enter}');
@@ -47,46 +53,65 @@ describe('Tables', () => {
 
   it('folds columns to one-line rows past 3, and lists only the first 5 until asked', () => {
     placeTable();
-    cy.get('[data-testid=add-column]').click().click();
+    addColumn();
+    addColumn();
     cy.get('[data-testid=column-editor]').should('have.length', 3);
     cy.get('[data-testid=column-row]').should('not.exist');
 
-    cy.get('[data-testid=add-column]').click();
-    // Past 3 every column is a one-line row; only the one just added is open, to name it.
+    addColumn();
     cy.get('[data-testid=column-row]').should('have.length', 4);
-    cy.get('[data-testid=column-editor]').should('have.length', 1).find('[data-testid=column-name]').should('have.value', 'column_3');
+    cy.get('[data-testid=column-editor]').should('not.exist');
     cy.get('[data-testid=column-row]').eq(0).should('contain', 'id').and('contain', 'uuid').and('contain', 'PK').click();
-    cy.get('[data-testid=column-editor]').should('have.length', 2);
+    cy.get('[data-testid=column-editor]').should('have.length', 1);
     cy.get('[data-testid=column-row]').eq(0).click();
-    cy.get('[data-testid=column-editor]').should('have.length', 1);
+    cy.get('[data-testid=column-editor]').should('not.exist');
 
-    cy.get('[data-testid=add-column]').click().click();
-    cy.get('[data-testid=column-row]').should('have.length', 6);
-    // Selecting the table afresh lists the first 5.
-    cy.canvasClick([700, 500]);
-    cy.contains('[data-testid=layers-panel] [role=treeitem]', 'Table 1').click();
+    addColumn();
+    addColumn();
+    // Past 5 the rest wait behind Show more, a new column included once it is named.
     cy.get('[data-testid=column-row]').should('have.length', 5);
+    cy.get('[data-testid=show-more-columns]').should('have.text', 'Show 1 more column').click();
+    cy.get('[data-testid=column-row]').should('have.length', 6);
+    cy.get('[data-testid=show-more-columns]').should('have.text', 'Show fewer columns').click();
+    cy.get('[data-testid=column-row]').should('have.length', 5);
+  });
+
+  it('names a new column in place of the Add button, then files it with the rest', () => {
+    placeTable();
+    for (let i = 0; i < 5; i++) addColumn();
     cy.get('[data-testid=show-more-columns]').should('have.text', 'Show 1 more column');
 
-    // A column added now opens at the end, ready to name, while the hidden one stays hidden.
     cy.get('[data-testid=add-column]').click();
-    cy.get('[data-testid=column-row]').should('have.length', 6).eq(5).should('contain', 'column_6');
-    cy.get('[data-testid=show-more-columns]').should('have.text', 'Show 1 more column');
-    cy.get('[data-testid=column-editor]').should('have.length', 1);
-    cy.focused().should('have.attr', 'data-testid', 'column-name').and('have.value', 'column_6');
+    cy.get('[data-testid=add-column]').should('not.exist');
+    cy.get('[data-testid=column-row]').should('have.length', 5);
+    cy.get('[data-testid=new-column] [data-testid=column-name]').should('have.focus').and('have.value', 'column_6');
     cy.focused().should(($input) => {
       const input = $input[0] as HTMLInputElement;
       expect([input.selectionStart, input.selectionEnd]).to.deep.equal([0, 'column_6'.length]);
     });
+    // Leaving the new column's fields finishes it.
+    cy.focused().type('total').blur();
+    cy.get('[data-testid=new-column]').should('not.exist');
+    cy.get('[data-testid=add-column]').should('exist');
+    cy.get('[data-testid=show-more-columns]').should('have.text', 'Show 2 more columns');
+    tableRow(6).should('contain', 'total');
+  });
 
-    cy.get('[data-testid=show-more-columns]').click();
-    cy.get('[data-testid=column-row]').should('have.length', 7);
-    cy.get('[data-testid=show-more-columns]').should('have.text', 'Show fewer columns');
+  it('focuses a new column\'s name once, not again when an undo and redo bring it back', () => {
+    placeTable();
+    addColumn();
+    addColumn();
+    addColumn();
+    cy.pressKey('z', { code: 'KeyZ', metaKey: true });
+    cy.get('[data-testid=column-row]').should('not.exist');
+    cy.pressKey('z', { code: 'KeyZ', metaKey: true, shiftKey: true });
+    cy.get('[data-testid=column-row]').should('have.length', 4);
+    cy.document().its('activeElement.tagName').should('eq', 'BODY');
   });
 
   it('opens the column picked on the canvas, even past the first 5', () => {
     placeTable();
-    for (let i = 0; i < 5; i++) cy.get('[data-testid=add-column]').click();
+    for (let i = 0; i < 5; i++) addColumn();
     tableRow(5).should('contain', 'column_5');
     cy.canvasClick([700, 500]);
     cy.contains('[data-testid=layers-panel] [role=treeitem]', 'Table 1').click();
