@@ -310,8 +310,6 @@ export function TableProperties({ table }: { table: TableNode }) {
 
   const [openColumns, setOpenColumns] = useState<string[]>([]);
   const [showAllColumns, setShowAllColumns] = useState(false);
-  // Columns past the first few that stay listed once picked on the canvas, so a row never vanishes from under the user.
-  const [pinnedColumns, setPinnedColumns] = useState<string[]>([]);
   const [newColumn, setNewColumn] = useState<string | null>(null);
   const [draftColumn, setDraftColumn] = useState<string | null>(null);
   // Only a folded list sets a column apart; a shorter one shows every column's editor anyway.
@@ -321,14 +319,14 @@ export function TableProperties({ table }: { table: TableNode }) {
   const columnEditor = (c: Column) => (
     <ColumnEditor table={table} column={c} edit={edit} autoSelect={c.id === newColumn} onAutoSelected={() => setNewColumn(null)} />
   );
-  // A column picked on the canvas opens its row, listed even past the first few.
+  // Design choice: a column picked on the canvas opens in its place, showing the whole list if it was hidden.
   const picked = state.selectedColumn?.tableId === table.id ? state.selectedColumn.columnId : null;
   const [seenPick, setSeenPick] = useState<string | null>(null);
   if (picked !== seenPick) {
     setSeenPick(picked);
     if (picked) {
       if (!openColumns.includes(picked)) setOpenColumns([...openColumns, picked]);
-      if (!pinnedColumns.includes(picked)) setPinnedColumns([...pinnedColumns, picked]);
+      if (table.columns.filter((c) => c !== draft).findIndex((c) => c.id === picked) >= LISTED_COLUMNS) setShowAllColumns(true);
     }
   }
   const [openIndexId, setOpenIndex] = useState<string | null>(null);
@@ -354,7 +352,7 @@ export function TableProperties({ table }: { table: TableNode }) {
   const filedColumns = draft ? table.columns.filter((c) => c !== draft) : table.columns;
   const headColumns = filedColumns.slice(0, LISTED_COLUMNS);
   const restColumns = filedColumns.slice(LISTED_COLUMNS);
-  const tailColumns = showAllColumns ? restColumns : restColumns.filter((c) => pinnedColumns.includes(c.id));
+  const tailColumns = showAllColumns ? restColumns : [];
   const hiddenColumns = restColumns.length - tailColumns.length;
   const columnRow = (c: Column) => (
     <Accordion.Item key={c.id} value={c.id} className={rows.item}>
@@ -417,7 +415,6 @@ export function TableProperties({ table }: { table: TableNode }) {
           >
             {headColumns.map(columnRow)}
             {hiddenColumns > 0 && (
-              // Stands in for every hidden column; picked ones listed after it are all past the first few.
               <Button data-testid="show-more-columns" onClick={() => setShowAllColumns(true)}>
                 {`Show ${hiddenColumns} more column${hiddenColumns === 1 ? '' : 's'}`}
               </Button>
@@ -430,10 +427,7 @@ export function TableProperties({ table }: { table: TableNode }) {
         {showAllColumns && table.columns.length > LISTED_COLUMNS && (
           <Button
             data-testid="show-more-columns"
-            onClick={() => {
-              setShowAllColumns(false);
-              setPinnedColumns([]);
-            }}
+            onClick={() => setShowAllColumns(false)}
           >
             Show fewer columns
           </Button>

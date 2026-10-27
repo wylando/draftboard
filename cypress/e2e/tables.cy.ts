@@ -109,17 +109,17 @@ describe('Tables', () => {
     cy.document().its('activeElement.tagName').should('eq', 'BODY');
   });
 
-  it('opens the column picked on the canvas, even past the first 5', () => {
+  it('shows the whole list when a hidden column is picked on the canvas, opening it in its place', () => {
     placeTable();
-    for (let i = 0; i < 5; i++) addColumn();
-    tableRow(5).should('contain', 'column_5');
+    for (let i = 0; i < 6; i++) addColumn();
     cy.canvasClick([700, 500]);
     cy.contains('[data-testid=layers-panel] [role=treeitem]', 'Table 1').click();
-    cy.get('[data-testid=column-row]').should('have.length', 5);
+    cy.get('[data-testid=show-more-columns]').should('have.text', 'Show 2 more columns');
     // Placed at (200, 200): header 200..236, then 28 px rows.
     cy.canvasClick([250, 236 + 28 * 5 + 14]);
-    cy.get('[data-testid=column-row]').should('have.length', 6);
+    cy.get('[data-testid=column-row]').should('have.length', 7).eq(5).should('contain', 'column_5');
     cy.get('[data-testid=column-editor]').should('have.length', 1).find('[data-testid=column-name]').should('have.value', 'column_5');
+    cy.get('[data-testid=show-more-columns]').should('have.text', 'Show fewer columns');
   });
 
   it('never lets a primary key be nullable', () => {
