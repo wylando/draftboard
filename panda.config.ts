@@ -4,6 +4,7 @@ import {
   boardTabsRecipe,
   buttonRecipe,
   checkboxRecipe,
+  comboboxRecipe,
   chipGroupRecipe,
   dialogRecipe,
   fieldRecipe,
@@ -57,6 +58,7 @@ export default defineConfig({
       chipGroup: chipGroupRecipe,
       splitter: splitterRecipe,
       accordion: accordionRecipe,
+      combobox: comboboxRecipe,
     },
   },
   globalCss: {

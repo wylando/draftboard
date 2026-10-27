@@ -1,5 +1,7 @@
 const tableRow = (i: number) => cy.get('[data-node-type=table] [data-testid=table-column]').eq(i);
 const columnEditor = (i: number) => cy.get('[data-testid=column-editor]').eq(i);
+const indexSearch = () => cy.get('[data-testid=index-editor] [data-testid=index-column-search]');
+const indexChips = () => cy.get('[data-testid=index-editor] [data-testid=index-chip]');
 
 const placeTable = () => {
   cy.pressKey('d', { code: 'KeyD' });
@@ -108,36 +110,67 @@ describe('Tables', () => {
     tableRow(0).find('[data-testid=column-name]').should(($t) => expect($t.text()).to.match(/…$/));
   });
 
-  it('marks unique and indexed columns, shows index order, and keeps unrelated indexes when a column goes', () => {
+  it('marks unique and indexed columns, finds index columns by fuzzy search, and keeps unrelated indexes when a column goes', () => {
     placeTable();
     addEmailColumn();
     columnEditor(1).find('[data-testid=column-unique]').click();
     tableRow(1).find('[data-testid=column-badge]').should('have.text', 'UQ');
 
     cy.get('[data-testid=add-index]').click();
-    cy.get('[data-testid=index-editor]').eq(0).find('[data-testid=index-column]').contains('email').click();
+    // Clicked while empty, the search lists every column.
+    indexSearch().click();
+    cy.get('[data-testid=index-column-option]').should('have.length', 2);
+    cy.contains('[data-testid=index-column-option]', 'email').click();
     tableRow(1).find('[data-testid=column-index]').should('exist');
     tableRow(0).find('[data-testid=column-index]').should('not.exist');
 
-    // A composite index lists its columns in the order they were picked.
+    // Adding another index folds the first to its one-line summary.
     cy.get('[data-testid=add-index]').click();
-    cy.get('[data-testid=index-editor]').eq(1).find('[data-testid=index-column]').contains('email').click();
-    cy.get('[data-testid=index-editor]').eq(1).find('[data-testid=index-column]').contains(/^id$/).click();
-    cy.get('[data-testid=index-editor]').eq(1).find('[data-testid=index-order]').should('have.text', 'email, id');
+    cy.get('[data-testid=index-row]').eq(0).should('contain', 'table_1_idx').and('contain', 'email');
+    indexSearch().type('eml');
+    cy.get('[data-testid=index-column-option]').should('have.length', 1).click();
+    indexSearch().type('id');
+    cy.get('[data-testid=index-column-option]').should('have.length', 1).click();
+    indexChips().should(($chips) => expect([...$chips].map((c) => c.textContent)).to.deep.equal(['email', 'id']));
 
     // Deleting email empties the first index, which goes; the second keeps id.
     columnEditor(1).find('[data-testid=column-delete]').click();
     cy.get('[data-node-type=table] [data-testid=table-column]').should('have.length', 1);
-    cy.get('[data-testid=index-editor]').should('have.length', 1).find('[data-testid=index-order]').should('have.text', 'id');
+    cy.get('[data-testid=index-row]').should('have.length', 1).and('contain', 'id').and('not.contain', 'email');
+  });
+
+  it('reorders index columns by dragging their chips, as one undo step, and folds the index to one line when not editing', () => {
+    placeTable();
+    addEmailColumn();
+    cy.get('[data-testid=add-index]').click();
+    indexSearch().click();
+    cy.contains('[data-testid=index-column-option]', 'email').click();
+    cy.contains('[data-testid=index-column-option]', /^id$/).click();
+    indexChips().should('have.length', 2);
+
+    cy.contains('[data-testid=index-chip]', /^id$/).then(($id) => {
+      cy.contains('[data-testid=index-chip]', 'email').then(($email) => {
+        const dx = $email[0]!.getBoundingClientRect().left + 2 - ($id[0]!.getBoundingClientRect().left + $id[0]!.getBoundingClientRect().width / 2);
+        cy.wrap($id).pointer('pointerdown').pointer('pointermove', [dx / 2, 0]).pointer('pointermove', [dx, 0]).pointer('pointerup', [dx, 0]);
+      });
+    });
+    indexChips().should(($chips) => expect([...$chips].map((c) => c.textContent)).to.deep.equal(['id', 'email']));
+
+    cy.prop('name').click();
+    cy.get('[data-testid=index-editor]').should('not.exist');
+    cy.get('[data-testid=index-row]').should('contain', 'id, email');
+    cy.pressKey('z', { code: 'KeyZ', metaKey: true });
+    cy.get('[data-testid=index-row]').should('contain', 'email, id').click();
+    cy.get('[data-testid=index-editor]').should('exist');
   });
 
   it('refuses an index name already used in the table, saying why', () => {
     placeTable();
     cy.get('[data-testid=add-index]').click();
     cy.get('[data-testid=add-index]').click();
-    cy.get('[data-testid=index-editor]').eq(1).find('[data-testid=index-name]').clear().type('table_1_idx{enter}');
-    cy.get('[data-testid=index-editor]').eq(1).should('contain', 'already has an index named');
-    cy.get('[data-testid=index-editor]').eq(1).find('[data-testid=index-name]').should('have.value', 'table_1_idx_2');
+    cy.get('[data-testid=index-editor]').find('[data-testid=index-name]').clear().type('table_1_idx{enter}');
+    cy.get('[data-testid=index-editor]').should('contain', 'already has an index named');
+    cy.get('[data-testid=index-editor]').find('[data-testid=index-name]').should('have.value', 'table_1_idx_2');
   });
 
   it('renaming an index to the name it already has adds no undo step', () => {

@@ -37,6 +37,5 @@ export const accordionRecipe = defineSlotRecipe({
       // chevronRight points down while the row is open.
       '&[data-state=open]': { transform: 'rotate(90deg)' },
     },
-    itemContent: { paddingBlockEnd: '2' },
   },
 });
