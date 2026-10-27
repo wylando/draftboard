@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { clampPanelWidth, DEFAULT_PANEL_LAYOUT, PANEL_MAX_WIDTH, PANEL_MIN_WIDTH, parsePanelLayout } from './panelLayout';
+import {
+  clampPanelWidth,
+  DEFAULT_PANEL_LAYOUT,
+  DEFAULT_SECTION_FOLDS,
+  foldAllSections,
+  isSectionOpen,
+  PANEL_MAX_WIDTH,
+  PANEL_MIN_WIDTH,
+  parsePanelLayout,
+  parseSectionFolds,
+  setSectionOpen,
+} from './panelLayout';
 
 describe('clampPanelWidth', () => {
   it("rounds to whole pixels and stays within each panel's limits", () => {
@@ -39,6 +50,34 @@ describe('parsePanelLayout', () => {
     });
     for (const bad of ['300', null, true]) {
       expect(parsePanelLayout(JSON.stringify({ layers: { width: bad } })).layers.width).toBe(DEFAULT_PANEL_LAYOUT.layers.width);
+    }
+  });
+});
+
+describe('section folds', () => {
+  it('opens every section by default', () => {
+    expect(isSectionOpen(DEFAULT_SECTION_FOLDS, 'fill')).toBe(true);
+  });
+
+  it('folds one section without touching the others', () => {
+    const folds = setSectionOpen(DEFAULT_SECTION_FOLDS, 'fill', false);
+    expect(isSectionOpen(folds, 'fill')).toBe(false);
+    expect(isSectionOpen(folds, 'stroke')).toBe(true);
+    expect(setSectionOpen(folds, 'fill', true)).toEqual(DEFAULT_SECTION_FOLDS);
+  });
+
+  it('collapse all also folds sections that are not on screen yet', () => {
+    const folds = setSectionOpen(foldAllSections(false), 'fill', true);
+    expect(isSectionOpen(folds, 'text')).toBe(false);
+    expect(isSectionOpen(folds, 'fill')).toBe(true);
+    expect(foldAllSections(true)).toEqual(DEFAULT_SECTION_FOLDS);
+  });
+
+  it('parses saved folds, falling back to the default when invalid', () => {
+    const saved = setSectionOpen(foldAllSections(false), 'layer', true);
+    expect(parseSectionFolds(JSON.stringify(saved))).toEqual(saved);
+    for (const raw of [null, '', 'not json', '[]', '{"open":"no"}', '{"open":true,"except":[1]}']) {
+      expect(parseSectionFolds(raw)).toEqual(DEFAULT_SECTION_FOLDS);
     }
   });
 });

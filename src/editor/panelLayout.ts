@@ -66,3 +66,60 @@ export function savePanelLayout(layout: PanelLayout): void {
     // Storage blocked: the layout still applies for this session.
   }
 }
+
+const SECTIONS_KEY = 'draftboard:sections:v1';
+
+/**
+ * Which Design panel sections are open. `except` lists the section ids whose state is the opposite
+ * of `open`, so collapse all and expand all also cover sections that aren't on screen yet.
+ */
+export interface SectionFolds {
+  open: boolean;
+  except: string[];
+}
+
+export const DEFAULT_SECTION_FOLDS: SectionFolds = { open: true, except: [] };
+
+export function isSectionOpen(folds: SectionFolds, id: string): boolean {
+  return folds.except.includes(id) !== folds.open;
+}
+
+export function setSectionOpen(folds: SectionFolds, id: string, open: boolean): SectionFolds {
+  const except = folds.except.filter((other) => other !== id);
+  return { open: folds.open, except: open === folds.open ? except : [...except, id] };
+}
+
+export function foldAllSections(open: boolean): SectionFolds {
+  return { open, except: [] };
+}
+
+export function parseSectionFolds(raw: string | null): SectionFolds {
+  if (!raw) return DEFAULT_SECTION_FOLDS;
+  try {
+    const data: unknown = JSON.parse(raw);
+    if (typeof data !== 'object' || data === null) return DEFAULT_SECTION_FOLDS;
+    const { open, except } = data as Record<string, unknown>;
+    if (typeof open !== 'boolean' || !Array.isArray(except) || !except.every((id) => typeof id === 'string')) {
+      return DEFAULT_SECTION_FOLDS;
+    }
+    return { open, except: except as string[] };
+  } catch {
+    return DEFAULT_SECTION_FOLDS;
+  }
+}
+
+export function loadSectionFolds(): SectionFolds {
+  try {
+    return parseSectionFolds(localStorage.getItem(SECTIONS_KEY));
+  } catch {
+    return DEFAULT_SECTION_FOLDS;
+  }
+}
+
+export function saveSectionFolds(folds: SectionFolds): void {
+  try {
+    localStorage.setItem(SECTIONS_KEY, JSON.stringify(folds));
+  } catch {
+    // Storage blocked: the folds still apply for this session.
+  }
+}

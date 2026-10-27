@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Button, ColorInput, IconButton, icons, Section, TextInput } from '../../design-system';
 import { usePreferences } from '../../settings/preferences/PreferencesContext';
 import { useEditor } from '../EditorContext';
+import { useSectionFold } from '../SectionFoldsContext';
 import { createId, nameKey } from '../model/names';
 import {
   columnNameTaken,
@@ -164,12 +165,13 @@ function IndexEditor({ table, index, edit }: { table: TableNode; index: TableInd
 /** Header color, columns and indexes of the selected table. Each change is one undo step. */
 export function TableProperties({ table }: { table: TableNode }) {
   const { dispatch } = useEditor();
+  const fold = useSectionFold();
   const dialect = SQL_DIALECTS[usePreferences().preferences.sqlDialect];
   const edit = (e: TableEdit) => dispatch({ type: 'editTable', id: table.id, edit: e });
 
   return (
     <>
-      <Section title="Header">
+      <Section title="Header" {...fold('table-header')}>
         <ToggleGroup.Root
           className={swatchesClass}
           aria-label="Header color"
@@ -191,7 +193,7 @@ export function TableProperties({ table }: { table: TableNode }) {
         <ColorInput value={table.accent} testId="prop-accent" onCommit={(accent) => edit({ kind: 'setAccent', accent })} />
       </Section>
 
-      <Section title="Columns" testId="section-columns">
+      <Section title="Columns" testId="section-columns" {...fold('columns')}>
         <datalist id={COLUMN_TYPES_LIST_ID}>
           {dialect.types.map((t) => (
             <option key={t} value={t} />
@@ -205,7 +207,7 @@ export function TableProperties({ table }: { table: TableNode }) {
         </Button>
       </Section>
 
-      <Section title="Indexes" testId="section-indexes">
+      <Section title="Indexes" testId="section-indexes" {...fold('indexes')}>
         {table.indexes.map((i) => (
           <IndexEditor key={i.id} table={table} index={i} edit={edit} />
         ))}

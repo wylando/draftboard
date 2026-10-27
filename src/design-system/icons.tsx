@@ -140,6 +140,16 @@ export const icons = {
       <path d="M10 3L5 8l5 5" />
     </Icon>
   ),
+  expandAll: () => (
+    <Icon>
+      <path d="M5 10l3 3 3-3M5 6l3-3 3 3" />
+    </Icon>
+  ),
+  collapseAll: () => (
+    <Icon>
+      <path d="M5 13l3-3 3 3M5 3l3 3 3-3" />
+    </Icon>
+  ),
   panelLeft: () => (
     <Icon>
       <rect x="2" y="2" width="12" height="12" rx="1.5" />

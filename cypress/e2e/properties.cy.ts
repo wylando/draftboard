@@ -92,4 +92,36 @@ describe('Properties panel', () => {
     cy.prop('opacity').should('have.value', '0');
     cy.get('[data-node-type=rect]').should('have.attr', 'opacity', '0');
   });
+
+  it('folds a section, keeping its typed draft and its fold across selections', () => {
+    cy.prop('x').clear().type('250');
+    cy.get('[data-testid=section-toggle-position]').should('have.attr', 'aria-expanded', 'true').click();
+    // Clicking the toggle blurs the input first, so the draft commits before its section folds.
+    cy.get('[data-node-type=rect]').should('have.attr', 'transform').and('contain', 'translate(250 100)');
+    cy.prop('x').should('not.exist');
+    cy.prop('fill').should('exist');
+
+    cy.drawShape('ellipse', [400, 100], [450, 150]);
+    cy.get('[data-testid=section-toggle-position]').should('have.attr', 'aria-expanded', 'false');
+    cy.prop('x').should('not.exist');
+    cy.get('[data-testid=section-toggle-position]').click();
+    cy.prop('x').should('have.value', '400');
+  });
+
+  it('collapses and expands every section from the Design header, and keeps that after a reload', () => {
+    cy.get('[data-testid=collapse-all-sections]').click();
+    cy.get('[data-testid=properties-panel] [aria-expanded=true]').should('not.exist');
+    cy.prop('name').should('not.exist');
+    cy.get('[data-testid=delete-selection]').should('not.exist');
+
+    cy.reload();
+    cy.contains('[data-testid=layers-panel] [role=treeitem]', 'Rectangle').click();
+    cy.get('[data-testid=section-toggle-layer]').should('have.attr', 'aria-expanded', 'false');
+    cy.prop('name').should('not.exist');
+
+    cy.get('[data-testid=expand-all-sections]').click();
+    cy.get('[data-testid=properties-panel] [aria-expanded=false]').should('not.exist');
+    cy.prop('name').should('exist');
+    cy.get('[data-testid=delete-selection]').should('exist');
+  });
 });

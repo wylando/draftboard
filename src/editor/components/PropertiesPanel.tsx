@@ -7,6 +7,7 @@ import { nameTaken } from '../model/names';
 import { minSizeFor } from '../model/nodes';
 import { byIdOf, cheapestJoinPath, type ById } from '../model/tree';
 import type { Box, DesignNode, NodePatch } from '../model/types';
+import { useSectionFold } from '../SectionFoldsContext';
 import { emptyHint, sidebar, twoColumnGrid } from '../styles';
 import { CANVAS_FONT_FAMILY, measureText } from '../textMetrics';
 import { ConnectorProperties } from './ConnectorProperties';
@@ -15,6 +16,7 @@ import { TableProperties } from './TableProperties';
 function SingleNodeProperties({ node }: { node: DesignNode }) {
   const { state, dispatch } = useEditor();
   const [nameError, setNameError] = useState<string | null>(null);
+  const fold = useSectionFold();
   const patch = (p: NodePatch) => dispatch({ type: 'updateNodes', patches: { [node.id]: p } });
   const update = (p: NodePatch) => {
     dispatch({ type: 'checkpoint' });
@@ -41,7 +43,7 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
 
   return (
     <>
-      <Section title="Layer" testId="section-layer">
+      <Section title="Layer" testId="section-layer" {...fold('layer')}>
         <TextInput
           value={node.name}
           testId="prop-name"
@@ -60,7 +62,7 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
 
       {/* A connector's place and size come from its ends. */}
       {!isConnector && (
-        <Section title="Position & size">
+        <Section title="Position & size" {...fold('position')}>
           <div className={twoColumnGrid}>
             <NumberInput label="X" value={node.x} {...edits((x) => transform({ x }))} testId="prop-x" />
             <NumberInput label="Y" value={node.y} {...edits((y) => transform({ y }))} testId="prop-y" />
@@ -83,7 +85,7 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
       {node.type === 'connector' && <ConnectorProperties connector={node} />}
 
       {node.type === 'text' && (
-        <Section title="Text">
+        <Section title="Text" {...fold('text')}>
           <TextInput
             value={node.text}
             testId="prop-text"
@@ -100,13 +102,13 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
       )}
 
       {hasFill && (
-        <Section title="Fill">
+        <Section title="Fill" {...fold('fill')}>
           <ColorInput value={node.fill} onCommit={(fill) => update({ fill })} testId="prop-fill" />
         </Section>
       )}
 
       {!isGroup && (
-        <Section title="Stroke">
+        <Section title="Stroke" {...fold('stroke')}>
           <div className={twoColumnGrid}>
             <ColorInput value={node.stroke} onCommit={(stroke) => update({ stroke })} testId="prop-stroke" />
             <NumberInput label="W" value={node.strokeWidth} min={0} {...edits((strokeWidth) => patch({ strokeWidth }))} testId="prop-stroke-width" />
@@ -114,7 +116,7 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
         </Section>
       )}
 
-      <Section title="Layer opacity">
+      <Section title="Layer opacity" {...fold('opacity')}>
         <NumberInput
           label="%"
           value={Math.round(node.opacity * 100)}
@@ -157,6 +159,7 @@ function RouteSteps({ route, byId, testId }: { route: JoinStep[]; byId: ById; te
 
 function JoinRoute() {
   const { state } = useEditor();
+  const fold = useSectionFold();
   const found = useMemo(() => {
     // Skips building the map on drag ticks with fewer than two layers selected.
     if (state.selection.length < 2) return null;
@@ -171,7 +174,7 @@ function JoinRoute() {
   const showGuaranteed = guaranteed.route.length > 0 && path.route.some((s) => s.via && !s.via.guaranteed);
   return (
     <>
-      <Section title="Estimated fastest route" testId="section-join-route">
+      <Section title="Estimated fastest route" testId="section-join-route" {...fold('join-route')}>
         {path.route.length === 0 ? (
           <p className={emptyHint} data-testid="join-route-none">No route between these tables.</p>
         ) : (
@@ -179,7 +182,7 @@ function JoinRoute() {
         )}
       </Section>
       {showGuaranteed && (
-        <Section title="Guaranteed route" testId="section-guaranteed-route">
+        <Section title="Guaranteed route" testId="section-guaranteed-route" {...fold('guaranteed-route')}>
           <RouteSteps route={guaranteed.route} byId={byId} testId="guaranteed-route-step" />
         </Section>
       )}
@@ -191,6 +194,7 @@ export function PropertiesPanel() {
   const { dispatch } = useEditor();
   const selected = useSelectedNodes();
   const { zoomToSelection } = useViewportControls();
+  const fold = useSectionFold();
   const single = selected.length === 1 ? selected[0] : undefined;
   const hasGroup = selected.some((n) => n.type === 'group');
 
@@ -209,7 +213,7 @@ export function PropertiesPanel() {
       )}
       <JoinRoute />
       {selected.length > 0 && (
-        <Section title="Arrange">
+        <Section title="Arrange" {...fold('arrange')}>
           <div className={twoColumnGrid}>
             <Button onClick={() => dispatch({ type: 'reorderSelection', direction: 'front' })}>Bring to front</Button>
             <Button onClick={() => dispatch({ type: 'reorderSelection', direction: 'back' })}>Send to back</Button>
