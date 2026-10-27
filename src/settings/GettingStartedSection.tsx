@@ -75,12 +75,12 @@ export function GettingStartedSection() {
       <Block title="Design panel options" testId="guide-options">
         <Terms
           items={[
-            ['Layer', 'The layer name, as shown in the Layers panel.'],
-            ['Position & size', 'X and Y (top-left corner), W and H, rotation in degrees (°), and corner radius (R) for rectangles and frames.'],
+            ['Layer', 'The layer name, as shown in the Layers panel; X and Y (top-left corner), W and H, rotation in degrees (°), and corner radius (R) for rectangles and frames.'],
             ['Text', 'For text layers: the content and font size.'],
-            ['Fill', 'Fill color. Click the swatch for a picker or type a 6-digit hex value.'],
-            ['Stroke', 'Outline color and width. Width 0 means no outline (lines always have one).'],
-            ['Layer opacity', '0–100% transparency for the whole layer.'],
+            [
+              'Appearance',
+              'Fill color (click the swatch for a picker or type a 6-digit hex value); stroke color and width (0 means no outline; lines always have one); and opacity, 0–100% transparency for the whole layer.',
+            ],
             ['Arrange', 'Bring to front, send to back, duplicate, zoom to the selection, group, ungroup, or delete. Ordering applies among layers in the same frame or group.'],
           ]}
         />

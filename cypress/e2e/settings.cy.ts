@@ -204,7 +204,7 @@ describe('Settings: getting started guide', () => {
     cy.get('[data-testid=getting-started-section]').should('be.visible');
     cy.get('[data-testid=guide-screen]').should('contain', 'Layers').and('contain', 'Design panel');
     cy.get('[data-testid=guide-tools]').should('contain', 'Rectangle').find('kbd').should('have.length.at.least', 7);
-    cy.get('[data-testid=guide-options]').should('contain', 'Stroke').and('contain', 'Layer opacity');
+    cy.get('[data-testid=guide-options]').should('contain', 'Appearance').and('contain', 'opacity');
   });
 });
 

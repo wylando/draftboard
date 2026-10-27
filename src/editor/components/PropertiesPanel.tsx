@@ -58,11 +58,8 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
             dispatch({ type: 'renameNode', id: node.id, name });
           }}
         />
-      </Section>
-
-      {/* A connector's place and size come from its ends. */}
-      {!isConnector && (
-        <Section title="Position & size" {...fold('position')}>
+        {/* A connector's place and size come from its ends. */}
+        {!isConnector && (
           <div className={twoColumnGrid}>
             <NumberInput label="X" value={node.x} {...edits((x) => transform({ x }))} testId="prop-x" />
             <NumberInput label="Y" value={node.y} {...edits((y) => transform({ y }))} testId="prop-y" />
@@ -78,8 +75,8 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
               <NumberInput label="R" value={node.cornerRadius} min={0} {...edits((cornerRadius) => patch({ cornerRadius }))} testId="prop-radius" />
             )}
           </div>
-        </Section>
-      )}
+        )}
+      </Section>
 
       {node.type === 'table' && <TableProperties table={node} />}
       {node.type === 'connector' && <ConnectorProperties connector={node} />}
@@ -101,22 +98,23 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
         </Section>
       )}
 
-      {hasFill && (
-        <Section title="Fill" {...fold('fill')}>
-          <ColorInput value={node.fill} onCommit={(fill) => update({ fill })} testId="prop-fill" />
-        </Section>
-      )}
-
-      {!isGroup && (
-        <Section title="Stroke" {...fold('stroke')}>
-          <div className={twoColumnGrid}>
-            <ColorInput value={node.stroke} onCommit={(stroke) => update({ stroke })} testId="prop-stroke" />
-            <NumberInput label="W" value={node.strokeWidth} min={0} {...edits((strokeWidth) => patch({ strokeWidth }))} testId="prop-stroke-width" />
-          </div>
-        </Section>
-      )}
-
-      <Section title="Layer opacity" {...fold('opacity')}>
+      <Section title="Appearance" {...fold('appearance')}>
+        {hasFill && (
+          <>
+            <h3 className={subLabel}>Fill</h3>
+            <ColorInput value={node.fill} onCommit={(fill) => update({ fill })} testId="prop-fill" />
+          </>
+        )}
+        {!isGroup && (
+          <>
+            <h3 className={subLabel}>Stroke</h3>
+            <div className={twoColumnGrid}>
+              <ColorInput value={node.stroke} onCommit={(stroke) => update({ stroke })} testId="prop-stroke" />
+              <NumberInput label="W" value={node.strokeWidth} min={0} {...edits((strokeWidth) => patch({ strokeWidth }))} testId="prop-stroke-width" />
+            </div>
+          </>
+        )}
+        <h3 className={subLabel}>Opacity</h3>
         <NumberInput
           label="%"
           value={Math.round(node.opacity * 100)}
@@ -130,6 +128,7 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
   );
 }
 
+const subLabel = css({ margin: '0', textStyle: 'body.small', color: 'text.secondary' });
 const routeList = css({ margin: '0', paddingLeft: '0', listStyle: 'none' });
 // Imported names like customer_order_line_items have no spaces to wrap at.
 const routeStep = css({ overflowWrap: 'anywhere' });
