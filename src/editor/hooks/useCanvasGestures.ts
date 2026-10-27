@@ -711,6 +711,8 @@ export function useCanvasGestures({
     if (!el) return;
     let settle: ReturnType<typeof setTimeout> | undefined;
     const onWheel = (e: WheelEvent) => {
+      // A popup's own scroll area takes the wheel; the canvas stays put.
+      if (e.target instanceof Element && e.target.closest('[data-canvas-popup]')) return;
       e.preventDefault();
       onBusy(true);
       clearTimeout(settle);

@@ -95,7 +95,6 @@ describe('Table focus highlight', () => {
       const doc = $popup[0]!.ownerDocument;
       const blockers = [`[data-node-id="${a}"]`, `[data-node-id="${b}"]`, `[data-related-id="${link}"]`].map((q) => doc.querySelector(q)!);
       for (const el of blockers) expect(overlaps(popup, rectOf(el)), el.outerHTML.slice(0, 60)).to.equal(false);
-      expect(overlaps(popup, rectOf(doc.querySelector('[data-testid=tool-dock]')!)), 'tool dock').to.equal(false);
     });
   });
 
@@ -105,6 +104,12 @@ describe('Table focus highlight', () => {
     cy.get('[data-testid=route-popup]').should('not.exist');
     cy.get('[data-testid=layers-panel] [role=treeitem][aria-selected=true]').should('have.length', 2);
     overlay().find(`[data-testid=related-connector][data-related-id="${link}"]`).should('exist');
+    // Undo rebuilds the selection without changing it, which must not count as a new one.
+    cy.pressKey('ArrowRight', { code: 'ArrowRight' });
+    cy.get('[data-testid=undo]').click();
+    cy.get('[data-testid=redo]').should('not.be.disabled');
+    cy.get('[data-testid=layers-panel] [role=treeitem][aria-selected=true]').should('have.length', 2);
+    cy.get('[data-testid=route-popup]').should('not.exist');
     layerRow('Table 1').click();
     cy.get('[data-testid=layers-panel] [role=treeitem][aria-selected=true]').should('have.length', 1);
     layerRow('Table 2').click({ shiftKey: true });

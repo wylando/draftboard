@@ -44,6 +44,7 @@ export function CanvasPopup({ title, onClose, place, testId, children }: CanvasP
         className={classes.content}
         aria-labelledby={titleId}
         data-testid={testId}
+        data-canvas-popup=""
         // The canvas starts gestures on these, and a press on empty canvas clears the selection.
         onPointerDown={(e) => e.stopPropagation()}
         onDoubleClick={(e) => e.stopPropagation()}

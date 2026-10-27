@@ -2,7 +2,7 @@ import { css } from 'styled-system/css';
 import { popup } from 'styled-system/recipes';
 import { CanvasPopup } from '../../design-system';
 import { placePopup, rotatedBounds } from '../geometry';
-import { cheapestJoinPath, type ById } from '../model/tree';
+import type { cheapestJoinPath, ById } from '../model/tree';
 import type { Box, Viewport } from '../model/types';
 
 type JoinPath = NonNullable<ReturnType<typeof cheapestJoinPath>>;
@@ -34,13 +34,14 @@ function RouteSteps({ route, byId, testId }: { route: JoinPath['route']; byId: B
   );
 }
 
-/** What the popup must not cover, in canvas px: the route's tables (or the two selected ones) and each leg of its links. */
+/** What the popup must not cover, in canvas px: the route's tables, the two selected ones and each leg of its links. */
 function routeBoxes(path: JoinPath, ends: readonly string[], byId: ById, vp: Viewport): Box[] {
   const toScreen = (b: Box): Box => ({ x: vp.x + b.x * vp.zoom, y: vp.y + b.y * vp.zoom, width: b.width * vp.zoom, height: b.height * vp.zoom });
   const boxes: Box[] = [];
   for (const id of new Set([...ends, ...path.tables])) {
     const node = byId.get(id);
-    if (node) boxes.push(toScreen(rotatedBounds(node, node.rotation)));
+    // Other selected layers ride along in `ends`; only tables are part of the route.
+    if (node?.type === 'table') boxes.push(toScreen(rotatedBounds(node, node.rotation)));
   }
   // Legs rather than the connector's box: an L-shaped link's box is mostly empty room the popup may use.
   for (const id of path.connectors) {
@@ -59,17 +60,18 @@ function routeBoxes(path: JoinPath, ends: readonly string[], byId: ById, vp: Vie
 
 /**
  * The estimated fastest route between two selected tables, and the guaranteed one when it differs, in a popup
- * beside the highlighted route. `ends` are the two selected tables.
+ * beside the highlighted route. `ends` is the selection, which holds the two tables.
  */
-export function RoutePopup({ path, ends, byId, viewport, onClose }: {
+export function RoutePopup({ path, guaranteed, ends, byId, viewport, onClose }: {
   path: JoinPath;
+  /** The cheapest route of guaranteed steps (`cheapestJoinPath(..., true)`). */
+  guaranteed: JoinPath | null;
   ends: readonly string[];
   byId: ById;
   viewport: Viewport;
   onClose: () => void;
 }) {
   const classes = popup();
-  const guaranteed = cheapestJoinPath(ends, byId, true);
   // Equal-cost ties can make the guaranteed search pick another route, so judge the fastest route itself.
   const showGuaranteed = !!guaranteed?.route.length && path.route.some((s) => s.via && !s.via.guaranteed);
   const avoid = routeBoxes(path, ends, byId, viewport);

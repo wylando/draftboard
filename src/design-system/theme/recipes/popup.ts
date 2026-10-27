@@ -22,6 +22,9 @@ export const popupRecipe = defineSlotRecipe({
       position: 'absolute',
       width: 'max-content',
       maxWidth: 'popup',
+      // A long route scrolls inside the card rather than running past the tool dock.
+      maxHeight: 'full',
+      gridTemplateRows: 'auto minmax(0, 1fr)',
       paddingBlock: '2',
       paddingInline: '3',
       display: 'grid',
@@ -49,7 +52,7 @@ export const popupRecipe = defineSlotRecipe({
       marginBlock: '-1',
     },
     title: { flex: '1', margin: '0', textStyle: 'body.mediumStrong' },
-    body: { display: 'grid', gap: '2', overflowWrap: 'anywhere' },
+    body: { display: 'grid', alignContent: 'start', gap: '2', overflowWrap: 'anywhere', overflowY: 'auto', overscrollBehavior: 'contain' },
     section: {
       display: 'grid',
       gap: '1',
