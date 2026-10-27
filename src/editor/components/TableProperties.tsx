@@ -1,7 +1,7 @@
 import { Accordion } from '@ark-ui/react/accordion';
 import { Combobox, createListCollection } from '@ark-ui/react/combobox';
 import { ToggleGroup } from '@ark-ui/react/toggle-group';
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { Button, ColorInput, IconButton, icons, Section, TextInput } from '../../design-system';
 import { usePreferences } from '../../settings/preferences/PreferencesContext';
 import { useEditor } from '../EditorContext';
@@ -119,6 +119,9 @@ function IndexColumnPicker({ table, index, update }: { table: TableNode; index: 
   const [query, setQuery] = useState('');
   const [dragging, setDragging] = useState<{ id: string; order: string[] } | null>(null);
   const chipEls = useRef(new Map<string, HTMLElement>());
+  // Ends a drag still held when the picker goes away (selection changed, index deleted), without committing.
+  const cancelDrag = useRef<(() => void) | null>(null);
+  useEffect(() => () => cancelDrag.current?.(), []);
   const options = fuzzyFilter(table.columns, query, (c) => c.name);
   const collection = createListCollection({ items: options, itemToValue: (c) => c.id, itemToString: (c) => c.name });
   const nameOf = (id: string) => table.columns.find((c) => c.id === id)?.name ?? '';
@@ -144,14 +147,34 @@ function IndexColumnPicker({ table, index, update }: { table: TableNode; index: 
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onCancel);
+      cancelDrag.current = null;
       setDragging(null);
       if (commit && !sameOrder(order, start)) update({ columnIds: order });
     };
     const onUp = end(true);
     const onCancel = end(false);
+    cancelDrag.current = onCancel;
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onCancel);
+  };
+
+  // Stopped here so the editor's window shortcuts (nudge, delete the selection) don't see these keys.
+  const chipKeys = (id: string) => (e: ReactKeyboardEvent) => {
+    const at = index.columnIds.indexOf(id);
+    const to = e.altKey && e.key === 'ArrowLeft' ? at - 1 : e.altKey && e.key === 'ArrowRight' ? at + 1 : null;
+    if (to !== null) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (to < 0 || to >= index.columnIds.length) return;
+      const order = index.columnIds.filter((other) => other !== id);
+      order.splice(to, 0, id);
+      update({ columnIds: order });
+    } else if (e.key === 'Backspace' || e.key === 'Delete') {
+      e.preventDefault();
+      e.stopPropagation();
+      update({ columnIds: index.columnIds.filter((other) => other !== id) });
+    }
   };
 
   return (
@@ -180,7 +203,10 @@ function IndexColumnPicker({ table, index, update }: { table: TableNode; index: 
             className={picker.chip}
             data-testid="index-chip"
             data-dragging={dragging?.id === id ? '' : undefined}
+            tabIndex={0}
+            aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight Backspace"
             onPointerDown={startDrag(id)}
+            onKeyDown={chipKeys(id)}
           >
             {nameOf(id)}
             <button
@@ -279,13 +305,20 @@ export function TableProperties({ table }: { table: TableNode }) {
       if (table.columns.findIndex((c) => c.id === picked) >= LISTED_COLUMNS) setShowAllColumns(true);
     }
   }
-  const [openIndex, setOpenIndex] = useState<string | null>(null);
+  const [openIndexId, setOpenIndex] = useState<string | null>(null);
+  // An id left over from a deleted index must not reopen it on undo.
+  const openIndex = table.indexes.some((i) => i.id === openIndexId) ? openIndexId : null;
+  if (openIndexId !== null && openIndex === null) setOpenIndex(null);
   // Design choice: an index is edited in place and folds back to one line on a press outside it
   // (or focus moving elsewhere). Capture, because the canvas handles its own presses.
   useEffect(() => {
     if (!openIndex) return;
     const onDown = (e: PointerEvent) => {
-      if (!(e.target instanceof Element) || e.target.closest('[data-index-id]')?.getAttribute('data-index-id') !== openIndex) setOpenIndex(null);
+      if (e.target instanceof Element && e.target.closest('[data-index-id]')?.getAttribute('data-index-id') === openIndex) return;
+      // Fields commit their draft on blur; folding unmounts them before the press would move focus.
+      const focused = document.activeElement;
+      if (focused instanceof HTMLElement && focused.closest(`[data-index-id="${openIndex}"]`)) focused.blur();
+      setOpenIndex(null);
     };
     window.addEventListener('pointerdown', onDown, true);
     return () => window.removeEventListener('pointerdown', onDown, true);

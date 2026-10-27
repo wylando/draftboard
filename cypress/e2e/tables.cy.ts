@@ -164,6 +164,30 @@ describe('Tables', () => {
     cy.get('[data-testid=index-editor]').should('exist');
   });
 
+  it('keeps a typed index name when a press elsewhere folds the index', () => {
+    placeTable();
+    cy.get('[data-testid=add-index]').click();
+    cy.get('[data-testid=index-name]').clear().type('by_id');
+    cy.prop('name').click();
+    cy.get('[data-testid=index-editor]').should('not.exist');
+    cy.get('[data-testid=index-row]').should('contain', 'by_id');
+  });
+
+  it('moves and removes index chips from the keyboard', () => {
+    placeTable();
+    addEmailColumn();
+    cy.get('[data-testid=add-index]').click();
+    indexSearch().click();
+    cy.contains('[data-testid=index-column-option]', 'email').click();
+    cy.contains('[data-testid=index-column-option]', /^id$/).click();
+    cy.contains('[data-testid=index-chip]', /^id$/).focus().type('{alt}{leftArrow}');
+    indexChips().should(($chips) => expect([...$chips].map((c) => c.textContent)).to.deep.equal(['id', 'email']));
+    // Backspace on a chip removes that column, never the selected table behind the panel.
+    cy.contains('[data-testid=index-chip]', 'email').focus().type('{backspace}');
+    indexChips().should('have.length', 1);
+    cy.get('[data-node-type=table]').should('exist');
+  });
+
   it('refuses an index name already used in the table, saying why', () => {
     placeTable();
     cy.get('[data-testid=add-index]').click();

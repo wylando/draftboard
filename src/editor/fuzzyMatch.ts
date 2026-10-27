@@ -49,7 +49,7 @@ function score(text: string, query: string): number | null {
 
 /** The items whose text matches `query`, best first; ties keep the shorter text, then the original order. */
 export function fuzzyFilter<T>(items: readonly T[], query: string, text: (item: T) => string): T[] {
-  const q = query.trim().toLowerCase();
+  const q = query.replace(/\s+/g, '').toLowerCase();
   if (q === '') return [...items];
   return items
     .flatMap((item, order) => {

@@ -54,6 +54,7 @@ export const comboboxRecipe = defineSlotRecipe({
       // A touch drag reorders instead of scrolling the panel.
       touchAction: 'none',
       '&[data-dragging]': { borderColor: 'border.selected', bg: 'bg.selected', cursor: 'grabbing' },
+      _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.selected', outlineOffset: '1px' },
     },
     chipRemove: {
       display: 'inline-flex',

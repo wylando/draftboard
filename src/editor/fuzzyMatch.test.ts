@@ -15,6 +15,10 @@ describe('fuzzyFilter', () => {
     expect(names(['name'], 'x')).toEqual([]);
   });
 
+  it('ignores spaces in the query, so words can be typed apart', () => {
+    expect(names(['user_id', 'name'], 'user id')).toEqual(['user_id']);
+  });
+
   it('ranks an exact name, then a prefix, then a word start, then scattered letters', () => {
     expect(names(['i_d', 'user_id', 'idx_name', 'id'], 'id')).toEqual(['id', 'idx_name', 'user_id', 'i_d']);
   });
