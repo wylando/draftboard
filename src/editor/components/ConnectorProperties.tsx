@@ -3,6 +3,7 @@ import { ToggleGroup } from '@ark-ui/react/toggle-group';
 import { useId, useRef } from 'react';
 import { Button, Section } from '../../design-system';
 import { useEditor } from '../EditorContext';
+import { useSectionFold } from '../SectionFoldsContext';
 import { typeMismatch } from '../model/connector';
 import { byIdOf } from '../model/tree';
 import type { Anchor, ConnectorNode, DesignNode } from '../model/types';
@@ -43,12 +44,13 @@ const columnType = (a: Anchor, nodes: DesignNode[]) => {
  */
 export function ConnectorProperties({ connector }: { connector: ConnectorNode }) {
   const { state, dispatch } = useEditor();
+  const fold = useSectionFold();
   const routingLabel = useId();
   const routingGroup = useRef<HTMLDivElement>(null);
   const betweenColumns = connector.from.kind === 'column' && connector.to.kind === 'column';
   const mismatch = typeMismatch(connector, byIdOf(state.nodes));
   return (
-    <Section title="Connector" testId="section-connector">
+    <Section title="Connector" testId="section-connector" {...fold('connector')}>
       <dl className={endsClass}>
         <dt className={termClass}>From</dt>
         <dd className={valueClass} data-testid="connector-from">

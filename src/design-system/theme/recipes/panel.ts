@@ -15,8 +15,9 @@ export const panelRecipe = defineRecipe({
 
 export const sectionRecipe = defineSlotRecipe({
   className: 'section',
-  description: 'Titled group inside a panel',
-  slots: ['root', 'title', 'body'],
+  description: 'Titled group inside a panel; with a trigger it folds as an Ark UI Collapsible',
+  jsx: ['Section'],
+  slots: ['root', 'title', 'trigger', 'indicator', 'body'],
   base: {
     root: {
       paddingBlock: '3',
@@ -29,6 +30,29 @@ export const sectionRecipe = defineSlotRecipe({
       margin: '0',
       marginBottom: '2',
       textStyle: 'body.mediumStrong',
+      '[data-state=closed] > &': { marginBottom: '0' },
+    },
+    trigger: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '2',
+      width: 'full',
+      padding: '0',
+      border: 'none',
+      bg: 'transparent',
+      color: 'inherit',
+      font: 'inherit',
+      textAlign: 'start',
+      cursor: 'pointer',
+      _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.selected', outlineOffset: '1px' },
+    },
+    indicator: {
+      display: 'flex',
+      color: 'icon',
+      '[data-part=trigger]:hover > &': { color: 'text' },
+      // chevronRight points down while the section is open.
+      '&[data-state=open]': { transform: 'rotate(90deg)' },
     },
     body: {
       display: 'grid',

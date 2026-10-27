@@ -4,6 +4,7 @@ import { css, cx } from 'styled-system/css';
 import { splitter as splitterRecipe } from 'styled-system/recipes';
 import { IconButton, icons } from '../../design-system';
 import { useEditor } from '../EditorContext';
+import { useSectionFolds } from '../SectionFoldsContext';
 import {
   clampPanelWidth,
   loadPanelLayout,
@@ -186,6 +187,7 @@ interface EditorBodyProps {
 export function EditorBody({ layers, canvas, properties }: EditorBodyProps) {
   const classes = splitterRecipe();
   const { splitter, layout, toggle, rootRef, canvasPanel } = useSidePanels();
+  const { foldAll } = useSectionFolds();
   const buttons = useRef(new Map<string, HTMLButtonElement | null>());
   // The button to focus once a toggle commits: the one that was clicked is inert or gone by then.
   const focusAfter = useRef<string | null>(null);
@@ -250,6 +252,12 @@ export function EditorBody({ layers, canvas, properties }: EditorBodyProps) {
           {side === 'right' && toggleButton(id, 'hide')}
           <h2 className={titleClass}>{title}</h2>
           {side === 'left' && toggleButton(id, 'hide')}
+          {id === 'properties' && (
+            <>
+              <IconButton label="Expand all sections" data-testid="expand-all-sections" icon={<icons.expandAll />} onClick={() => foldAll(true)} />
+              <IconButton label="Collapse all sections" data-testid="collapse-all-sections" icon={<icons.collapseAll />} onClick={() => foldAll(false)} />
+            </>
+          )}
         </div>
         {content}
       </Splitter.Panel>

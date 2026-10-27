@@ -2,6 +2,7 @@ import { css } from 'styled-system/css';
 import { DialogProvider } from './design-system';
 import { useHashRoute } from './app/useHashRoute';
 import { EditorProvider, useBoards, useEditor } from './editor/EditorContext';
+import { SectionFoldsProvider } from './editor/SectionFoldsContext';
 import { Canvas } from './editor/components/Canvas';
 import { EditorBody } from './editor/components/EditorBody';
 import { LayersPanel } from './editor/components/LayersPanel';
@@ -26,17 +27,19 @@ function Editor({ onOpenSettings }: { onOpenSettings: () => void }) {
   return (
     <div className={editorClass}>
       <Toolbar onOpenSettings={onOpenSettings} />
-      <EditorBody
-        layers={<LayersPanel key={`layers-${activeId}`} />}
-        canvas={
-          <div className={canvasAreaClass}>
-            {/* Keyed so marquee, guides, hover and in-place editors start fresh on each board. */}
-            <Canvas key={activeId} />
-            <ToolDock />
-          </div>
-        }
-        properties={<PropertiesPanel key={`properties-${activeId}`} />}
-      />
+      <SectionFoldsProvider>
+        <EditorBody
+          layers={<LayersPanel key={`layers-${activeId}`} />}
+          canvas={
+            <div className={canvasAreaClass}>
+              {/* Keyed so marquee, guides, hover and in-place editors start fresh on each board. */}
+              <Canvas key={activeId} />
+              <ToolDock />
+            </div>
+          }
+          properties={<PropertiesPanel key={`properties-${activeId}`} />}
+        />
+      </SectionFoldsProvider>
     </div>
   );
 }
