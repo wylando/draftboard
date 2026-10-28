@@ -1,4 +1,6 @@
 import { lazy, Suspense, useRef, useState } from 'react';
+import { Menu } from '@ark-ui/react/menu';
+import { Portal } from '@ark-ui/react/portal';
 import { Button, IconButton, icons, useDialogs } from '../../design-system';
 import { useEditor } from '../EditorContext';
 import { BoardTabs } from './BoardTabs';
@@ -7,10 +9,13 @@ import { isBroken } from '../model/connector';
 import { downloadDocument, parseDocument } from '../persistence';
 import { useCommandTitle } from '../../settings/keybindings/useCommandTitle';
 import { css } from 'styled-system/css';
+import { menu } from 'styled-system/recipes';
 
 // Loaded on first open so its parser and layout code stay out of the startup bundle.
 const SchemaImportDialog = lazy(() => import('./SchemaImportDialog').then((m) => ({ default: m.SchemaImportDialog })));
 const SchemaExportDialog = lazy(() => import('./SchemaExportDialog').then((m) => ({ default: m.SchemaExportDialog })));
+
+const menuClasses = menu();
 
 const toolbarClass = css({
   flex: 'none',
@@ -39,6 +44,8 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const [schemaRequested, setSchemaRequested] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [exportRequested, setExportRequested] = useState(false);
+  // Opened once the menu has closed, so the menu's focus return doesn't pull focus out of the dialog.
+  const openWhenMenuCloses = useRef<'import' | 'export' | null>(null);
   const broken = state.nodes.filter((n) => n.type === 'connector' && isBroken(n));
 
   const onImport = async (file: File | undefined) => {
@@ -85,23 +92,47 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
         <Button variant="toolbar" onClick={() => fileInput.current?.click()}>
           Import
         </Button>
-        <Button variant="toolbar" data-testid="import-schema" onClick={() => {
-            setSchemaRequested(true);
-            setSchemaOpen(true);
-          }}>
-          Import schema
-        </Button>
+        {/* One menu for both schema dialogs, so the top bar leaves the board tabs their room. */}
+        <Menu.Root
+          lazyMount
+          unmountOnExit
+          positioning={{ placement: 'bottom-end' }}
+          onSelect={({ value }) => (openWhenMenuCloses.current = value === 'export' ? 'export' : 'import')}
+          onExitComplete={() => {
+            const next = openWhenMenuCloses.current;
+            openWhenMenuCloses.current = null;
+            if (next === 'import') {
+              setSchemaRequested(true);
+              setSchemaOpen(true);
+            } else if (next === 'export') {
+              setExportRequested(true);
+              setExportOpen(true);
+            }
+          }}
+        >
+          <Menu.Trigger asChild>
+            <Button variant="toolbar" data-testid="schema-menu">
+              Schema
+            </Button>
+          </Menu.Trigger>
+          <Portal>
+            <Menu.Positioner className={menuClasses.positioner}>
+              <Menu.Content className={menuClasses.content}>
+                <Menu.Item value="import" className={menuClasses.item} data-testid="import-schema">
+                  Import schema…
+                </Menu.Item>
+                <Menu.Item value="export" className={menuClasses.item} data-testid="export-schema">
+                  Export schema…
+                </Menu.Item>
+              </Menu.Content>
+            </Menu.Positioner>
+          </Portal>
+        </Menu.Root>
         {schemaRequested && (
           <Suspense fallback={null}>
             <SchemaImportDialog open={schemaOpen} onOpenChange={setSchemaOpen} />
           </Suspense>
         )}
-        <Button variant="toolbar" data-testid="export-schema" onClick={() => {
-            setExportRequested(true);
-            setExportOpen(true);
-          }}>
-          Export schema
-        </Button>
         {exportRequested && (
           <Suspense fallback={null}>
             <SchemaExportDialog open={exportOpen} onOpenChange={setExportOpen} />

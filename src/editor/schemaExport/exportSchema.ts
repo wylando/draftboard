@@ -128,15 +128,21 @@ const referenceType = (type: string) =>
     .replace(/\s+(?:auto_increment|autoincrement)\b/i, '')
     .replace(/\s+generated\s+(?:always|by\s+default)\s+as\s+identity\b.*$/i, '');
 
-const LITERAL_DEFAULT = /^(?:'(?:[^']|'')*'|[-+]?\d+(?:\.\d+)?|true|false|null|current_(?:time|date|timestamp)|\(.*\))$/is;
-/** MySQL also takes the current-time functions bare, which is how mysqldump writes them. */
+const STRING_DEFAULT = /^'(?:[^']|'')*'$/s;
+const LITERAL_DEFAULT = /^(?:[-+]?\d+(?:\.\d+)?|true|false|null|\(.*\))$/is;
+/** SQLite takes all three bare; MySQL only CURRENT_TIMESTAMP and its synonyms, which is how mysqldump writes them. */
+const SQLITE_TIME_DEFAULT = /^current_(?:time|date|timestamp)$/i;
 const MYSQL_TIME_DEFAULT = /^(?:current_timestamp|now|localtime|localtimestamp)(?:\(\d*\))?$/i;
 
-/** MySQL and SQLite read only a literal as a bare default; an expression such as `uuid()` needs parentheses. */
+/**
+ * MySQL and SQLite read only a literal as a bare default; an expression such as `uuid()` needs parentheses.
+ * Line breaks outside a string become spaces, so each column stays on its own line.
+ */
 function sqlDefault(value: string, dialect: SqlDialect): string {
+  if (STRING_DEFAULT.test(value)) return value;
   const oneLine = value.replace(/\s*[\r\n]+\s*/g, ' ');
-  if (dialect === 'postgres' || LITERAL_DEFAULT.test(oneLine) || (dialect === 'mysql' && MYSQL_TIME_DEFAULT.test(oneLine))) return oneLine;
-  return `(${oneLine})`;
+  const bare = dialect === 'postgres' || LITERAL_DEFAULT.test(oneLine) || (dialect === 'mysql' ? MYSQL_TIME_DEFAULT : SQLITE_TIME_DEFAULT).test(oneLine);
+  return bare ? oneLine : `(${oneLine})`;
 }
 
 // PostgreSQL ends a `--` comment at a lone carriage return too.

@@ -5,6 +5,7 @@ const PREVIEW = '[data-testid=export-preview]';
 
 // Three tables (users, posts, comments) and three foreign keys, via the importer.
 const importFixture = () => {
+  cy.get('[data-testid=schema-menu]').click();
   cy.get('[data-testid=import-schema]').click();
   cy.fixture('schema/postgres.sql').then((sql: string) => {
     cy.get('[data-testid=schema-source]').type(sql, { delay: 0, parseSpecialCharSequences: false });
@@ -21,6 +22,7 @@ describe('Schema export', () => {
     importFixture();
     // The import selects what it added; select just users by its layer row.
     cy.contains('[data-testid=layers-panel] [role=treeitem]', 'users').click();
+    cy.get('[data-testid=schema-menu]').click();
     cy.get('[data-testid=export-schema]').click();
     cy.get('[data-testid=export-scope]').should('contain', '1 table from the selection');
     cy.get(PREVIEW).should('contain.value', 'CREATE TABLE "users"').and('not.contain.value', '"posts"');
@@ -29,6 +31,7 @@ describe('Schema export', () => {
 
     cy.pressKey('Escape');
     cy.get('[data-testid=selection-overlay] [data-handle]').should('not.exist');
+    cy.get('[data-testid=schema-menu]').click();
     cy.get('[data-testid=export-schema]').click();
     cy.get('[data-testid=export-scope]').should('contain', '3 tables on this board');
     cy.get(PREVIEW)
@@ -45,6 +48,7 @@ describe('Schema export', () => {
 
   it('copies the preview and downloads it as a file named after the board', () => {
     importFixture();
+    cy.get('[data-testid=schema-menu]').click();
     cy.get('[data-testid=export-schema]').click();
     cy.window().then((win) => cy.stub(win.navigator.clipboard, 'writeText').as('copy').resolves());
     cy.get('[data-testid=export-copy]').click();
@@ -61,6 +65,7 @@ describe('Schema export', () => {
   });
 
   it('says there is nothing to export on a board without tables', () => {
+    cy.get('[data-testid=schema-menu]').click();
     cy.get('[data-testid=export-schema]').click();
     cy.get('[data-testid=export-scope]').should('contain', 'No tables to export');
     cy.get('[data-testid=export-copy]').should('be.disabled');

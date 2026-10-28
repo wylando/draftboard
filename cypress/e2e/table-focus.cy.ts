@@ -148,6 +148,7 @@ describe('Table focus highlight for two selected tables', () => {
 
   beforeEach(() => {
     cy.visitEmpty();
+    cy.get('[data-testid=schema-menu]').click();
     cy.get('[data-testid=import-schema]').click();
     cy.get('[data-testid=schema-source]').should('be.visible').type(SQL, { delay: 0, parseSpecialCharSequences: false });
     cy.contains('button', 'Preview').click();

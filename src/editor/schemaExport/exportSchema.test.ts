@@ -203,6 +203,10 @@ describe('toSql', () => {
     const mysql = toSql(collectSchema([t], []), 'mysql').text;
     expect(mysql).toContain('DEFAULT (uuid())');
     expect(mysql).toContain('DEFAULT CURRENT_TIMESTAMP');
+    const day = table('d', [{ name: 'on', dataType: 'date', default: 'current_date' }, { name: 'msg', dataType: 'text', default: "'a\nb'" }]);
+    // MySQL takes only CURRENT_TIMESTAMP and its synonyms bare; a string keeps its line break.
+    expect(toSql(collectSchema([day], []), 'mysql').text).toContain("DEFAULT (current_date)");
+    expect(toSql(collectSchema([day], []), 'postgres').text).toContain("DEFAULT 'a\nb'");
     expect((await parseSql(mysql, 'mysql')).warnings).toEqual([]);
     expect(toSql(collectSchema([t], []), 'postgres').text).toContain('DEFAULT uuid()');
   });
