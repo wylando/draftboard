@@ -317,6 +317,7 @@ describe('Tables', () => {
   });
 
   it('takes the id type and type suggestions from the SQL dialect setting', () => {
+    cy.get('[data-testid=app-menu]').click();
     cy.get('[data-testid=open-settings]').click();
     cy.get('[data-testid=nav-canvas]').click();
     cy.get('[data-testid=sql-dialect-mysql]').click();

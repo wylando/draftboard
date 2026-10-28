@@ -1,4 +1,5 @@
 const openCanvasSettings = () => {
+  cy.get('[data-testid=app-menu]').click();
   cy.get('[data-testid=open-settings]').click();
   cy.get('[data-testid=nav-canvas]').click();
   cy.get('[data-testid=canvas-section]').should('be.visible');

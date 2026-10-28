@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { initialWorkspace, workspaceReducer } from './model/workspace';
 import { createNode } from './model/nodes';
-import { parseDocument, parseWorkspace, serializeDocument, serializeWorkspace, workspaceFromStorage } from './persistence';
+import { documentFileName, parseDocument, parseWorkspace, serializeDocument, serializeWorkspace, workspaceFromStorage } from './persistence';
 
 const rect = () => createNode('rect', { x: 0, y: 0, width: 50, height: 50 }, []);
 const wrap = (boards: unknown[], activeId = 'a') => JSON.stringify({ version: 1, activeId, boards });
@@ -59,5 +59,16 @@ describe('workspaceFromStorage', () => {
   it('is empty when nothing usable is stored', () => {
     expect(workspaceFromStorage(null, null).boards).toEqual([]);
     expect(workspaceFromStorage(null, 'junk').boards).toEqual([]);
+  });
+});
+
+describe('documentFileName', () => {
+  it('names the file after the board, replacing only what file systems forbid', () => {
+    expect(documentFileName('Board 1')).toBe('Board 1.draftboard.json');
+    expect(documentFileName('Q3 / plan: "v2"?')).toBe('Q3 _ plan_ _v2__.draftboard.json');
+    // A leading dot would hide the file on macOS and Linux.
+    expect(documentFileName('  ..notes ')).toBe('notes.draftboard.json');
+    expect(documentFileName('///')).toBe('___.draftboard.json');
+    expect(documentFileName('   ')).toBe('board.draftboard.json');
   });
 });

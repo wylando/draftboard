@@ -44,6 +44,8 @@ export const tokens = defineTokens({
     default: {
       value: "'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
     },
+    /** Design choice, not observed in Figma: system monospace for code previews (no web font). */
+    mono: { value: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' },
   },
   fontWeights: {
     default: { value: '400' },
@@ -102,7 +104,8 @@ export const tokens = defineTokens({
     /** Layers tree: compact rows and one indent step (chevron width), as in code-editor file trees. */
     treeRow: { value: '24px' },
     treeIndent: { value: '16px' },
-    zoomLabel: { value: '48px' },
+    /** Design choice: fits "25600%" (MAX_ZOOM) and the menu chevron, so the button never changes width. */
+    zoomLabel: { value: '96px' },
     /** Board tabs: height, the width they shrink to before the strip scrolls, and their widest. */
     boardTab: { value: '36px' },
     boardTabMin: { value: '96px' },

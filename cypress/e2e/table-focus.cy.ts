@@ -165,6 +165,7 @@ describe('Table focus highlight', () => {
   });
 
   it('draws the highlight in the colour chosen in Settings, until it is reset', () => {
+    cy.get('[data-testid=app-menu]').click();
     cy.get('[data-testid=open-settings]').click();
     cy.get('[data-testid=nav-canvas]').click();
     cy.get('[data-testid=relation-highlight]').clear().type('FF00AA{enter}');
@@ -174,6 +175,7 @@ describe('Table focus highlight', () => {
     relatedConnectors().should('have.attr', 'stroke', '#ff00aa');
     relatedTables().should('have.attr', 'stroke', '#ff00aa');
 
+    cy.get('[data-testid=app-menu]').click();
     cy.get('[data-testid=open-settings]').click();
     cy.get('[data-testid=nav-canvas]').click();
     cy.get('[data-testid=relation-highlight-reset]').click();
@@ -203,6 +205,7 @@ describe('Table focus highlight for two selected tables', () => {
 
   beforeEach(() => {
     cy.visitEmpty();
+    cy.get('[data-testid=app-menu]').click();
     cy.get('[data-testid=import-schema]').click();
     cy.get('[data-testid=schema-source]').should('be.visible').type(SQL, { delay: 0, parseSpecialCharSequences: false });
     cy.contains('button', 'Preview').click();

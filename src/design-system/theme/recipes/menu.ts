@@ -30,7 +30,10 @@ export const menuRecipe = defineSlotRecipe({
       '&[data-highlighted]': { bg: 'bg.hover' },
       '&[data-disabled]': { color: 'text.secondary', cursor: 'default', pointerEvents: 'none' },
     },
+    // A quiet hairline, as in macOS and Radix menus. Ark renders an <hr>, so its own border has to go,
+    // or it draws a dark rule over the fill.
     separator: {
+      border: 'none',
       height: '1px',
       marginBlock: '1',
       bg: 'border',
