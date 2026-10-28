@@ -28,7 +28,7 @@ export const chipGroupRecipe = defineSlotRecipe({
       textStyle: 'body.medium',
       cursor: 'pointer',
       _hover: { bg: 'bg.hover' },
-      '&[data-state=on]': { borderColor: 'border.selected', bg: 'bg.selected', color: 'text' },
+      '&[data-state=on]': { borderColor: 'border.focus', bg: 'bg.selected', color: 'text' },
       _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.focus', outlineOffset: '1px' },
     },
   },

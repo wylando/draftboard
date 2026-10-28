@@ -68,8 +68,6 @@ export const tokens = defineTokens({
     heading: { value: '600' },
   },
   fontSizes: {
-    bodySmall: { value: '0.5625rem' }, // 9px
-    bodyMedium: { value: '0.6875rem' }, // 11px
     bodyLarge: { value: '0.8125rem' }, // 13px
     /** Ours: inspector and control text; 11px is too dense for a default. */
     ui: { value: '0.75rem' }, // 12px
@@ -78,8 +76,6 @@ export const tokens = defineTokens({
     headingTitle: { value: '1.25rem' }, // 20px
   },
   lineHeights: {
-    bodySmall: { value: '0.875rem' },
-    bodyMedium: { value: '1rem' },
     bodyLarge: { value: '1.375rem' },
     ui: { value: '1rem' },
     headingPage: { value: '1.5rem' },

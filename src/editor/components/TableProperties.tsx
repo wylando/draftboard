@@ -50,7 +50,7 @@ const swatchClass = css({
   borderColor: 'border.control',
   borderRadius: 'small',
   cursor: 'pointer',
-  '&[data-state=on]': { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.selected', outlineOffset: '[1px]' },
+  '&[data-state=on]': { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.focus', outlineOffset: '[1px]' },
   _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.focus', outlineOffset: '[1px]' },
 });
 const rowNameClass = css({ flex: '1', minWidth: '0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' });

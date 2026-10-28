@@ -52,7 +52,8 @@ export const boardTabsRecipe = defineSlotRecipe({
       minWidth: '0',
       height: 'full',
       paddingInlineStart: '3',
-      paddingInlineEnd: '[28px]',
+      // Room for the close button (inset 4px) plus a 4px gap.
+      paddingInlineEnd: '[calc(token(sizes.boardTabClose) + 8px)]',
       border: 'none',
       borderRadius: 'inherit',
       bg: 'transparent',

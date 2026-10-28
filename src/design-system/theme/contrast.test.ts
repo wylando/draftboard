@@ -1,8 +1,12 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_PREFERENCES } from '../../settings/preferences/storage';
 import { contrastRatio, semanticColor, type Mode } from './contrast';
 import { comboboxRecipe } from './recipes/combobox';
+import { chipGroupRecipe } from './recipes/chipGroup';
 import { menuRecipe } from './recipes/menu';
+import { splitterRecipe } from './recipes/splitter';
 import { textStyles } from './textStyles';
 import { tokens } from './tokens';
 
@@ -99,5 +103,47 @@ describe('type scale and targets', () => {
     expect(parseInt(tokens.sizes.boardTabClose.value)).toBeGreaterThanOrEqual(24);
     expect(parseInt(tokens.sizes.target.value)).toBeGreaterThanOrEqual(24);
     expect(parseInt(tokens.sizes.resizeGrab.value)).toBeGreaterThanOrEqual(8);
+  });
+});
+
+describe('type scale values', () => {
+  it('sets inspector text at 12px and reading text at 13px', () => {
+    expect(tokens.fontSizes.ui.value).toBe('0.75rem');
+    expect(tokens.fontSizes.bodyLarge.value).toBe('0.8125rem');
+    expect(tokens.fontSizes).not.toHaveProperty('bodySmall');
+    expect(tokens.fontSizes).not.toHaveProperty('bodyMedium');
+  });
+});
+
+describe('focus indicators', () => {
+  const sources = (dir: string): string[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+      const path = join(dir, e.name);
+      if (e.isDirectory()) return sources(path);
+      return /\.tsx?$/.test(e.name) && !/\.test\./.test(e.name) ? [path] : [];
+    });
+
+  // popup.ts's 1px outline is the card's rim, not a focus ring.
+  it('colours every 2px outline with a focus token', () => {
+    const offenders: string[] = [];
+    for (const file of [...sources('src/design-system/theme/recipes'), ...sources('src/editor/components'), ...sources('src/settings')]) {
+      for (const [i, line] of readFileSync(file, 'utf8').split('\n').entries()) {
+        const colour = /outlineColor: '([^']+)'/.exec(line)?.[1];
+        if (colour && !line.includes("outlineWidth: '1px'") && !/^border\.focus(OnToolbar)?$/.test(colour) && !file.endsWith('popup.ts')) {
+          offenders.push(`${file}:${i + 1} ${colour}`);
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('draws the splitter handle focus line and a pressed chip in the focus colour', () => {
+    expect((splitterRecipe.base?.resizeTrigger as Record<string, unknown>)['&:focus-visible::after']).toMatchObject({ bg: 'border.focus' });
+    expect((chipGroupRecipe.base?.item as Record<string, unknown>)['&[data-state=on]']).toMatchObject({ borderColor: 'border.focus' });
+  });
+
+  it.each(MODES)('keeps the focus colour at 3:1 on white and the grey surface in the %s theme', (mode) => {
+    expect(ratio('border.focus', 'bg', mode)).toBeGreaterThanOrEqual(3);
+    expect(ratio('border.focus', 'bg.secondary', mode)).toBeGreaterThanOrEqual(3);
   });
 });
