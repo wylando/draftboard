@@ -105,7 +105,7 @@ Then open **http://localhost:5173**. That's it.
 
 ### Saving your work
 
-Boards autosave to `localStorage` (their names, order, the open board and their layers; undo history and the view are not saved). Panel widths, which panels are collapsed and which Design sections are folded are saved too, separately. A design saved before boards existed opens as "Board 1". Use the toolbar's File menu to **export** the open board as JSON or **import** one back into it. If the canvas isn't empty, Draftboard asks before an import replaces it. Storage is scoped to the browser and the address, which is why the dev server always runs on port `5173`.
+Boards autosave to `localStorage` (their names, order, the open board and their layers; undo history and the view are not saved). Panel widths, which panels are collapsed and which Design sections are folded are saved too, separately. A design saved before boards existed opens as "Board 1". Use the toolbar's File menu to **export** the open board as JSON (saved as `<board name>.draftboard.json`) or **import** one back into it. If the canvas isn't empty, Draftboard asks before an import replaces it. Storage is scoped to the browser and the address, which is why the dev server always runs on port `5173`.
 
 ## 🛠 Development
 

@@ -2,11 +2,11 @@ import { lazy, Suspense, useRef, useState } from 'react';
 import { Menu } from '@ark-ui/react/menu';
 import { Portal } from '@ark-ui/react/portal';
 import { Button, IconButton, icons, useDialogs } from '../../design-system';
-import { useEditor } from '../EditorContext';
+import { useBoards, useEditor } from '../EditorContext';
 import { BoardTabs } from './BoardTabs';
 import { useViewportControls } from '../hooks/useViewportControls';
 import { isBroken } from '../model/connector';
-import { downloadDocument, parseDocument } from '../persistence';
+import { documentFileName, downloadDocument, parseDocument } from '../persistence';
 import { useCommandTitle } from '../../settings/keybindings/useCommandTitle';
 import { css } from 'styled-system/css';
 import { menu } from 'styled-system/recipes';
@@ -36,6 +36,8 @@ const problemsClass = css({ color: 'text.danger' });
 
 export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const { state, dispatch } = useEditor();
+  const { boards, activeId } = useBoards();
+  const boardName = boards.find((b) => b.id === activeId)?.name ?? '';
   const { zoom, zoomIn, zoomOut, zoomToFit } = useViewportControls();
   const fileInput = useRef<HTMLInputElement>(null);
   const title = useCommandTitle();
@@ -97,7 +99,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
           onSelect={({ value }) => {
             // The file picker opens straight away: browsers only allow it during the click that asked for it.
             if (value === 'import-board') fileInput.current?.click();
-            else if (value === 'export-board') downloadDocument(state.nodes);
+            else if (value === 'export-board') downloadDocument(state.nodes, documentFileName(boardName));
             else openWhenMenuCloses.current = value === 'export-schema' ? 'export' : 'import';
           }}
           onExitComplete={() => {

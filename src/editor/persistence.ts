@@ -121,7 +121,14 @@ export function serializeDocument(nodes: DesignNode[]): string {
   return JSON.stringify(doc, null, 2);
 }
 
-export function downloadDocument(nodes: DesignNode[], filename = 'design.draftboard.json'): void {
+/** `<board name>.draftboard.json`, with the characters Windows, macOS or Linux forbid in a file name replaced. */
+export function documentFileName(boardName: string): string {
+  // eslint-disable-next-line no-control-regex -- control characters are exactly what file names can't hold.
+  const safe = boardName.replace(/[/\\:*?"<>|\u0000-\u001f]/g, '_').trim().replace(/^\.+/, '');
+  return `${safe || 'board'}.draftboard.json`;
+}
+
+export function downloadDocument(nodes: DesignNode[], filename: string): void {
   downloadText(serializeDocument(nodes), filename, 'application/json');
 }
 
