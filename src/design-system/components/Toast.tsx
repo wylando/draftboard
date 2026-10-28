@@ -23,6 +23,11 @@ export function notify(message: string, options: { id?: string; action?: { label
   toaster.create({ title: message, type: 'info', ...options });
 }
 
+/** Removes a toast that is no longer true, such as an Undo whose delete has been overtaken. */
+export function dismissNotice(id: string) {
+  toaster.remove(id);
+}
+
 /** One region per canvas: mount it inside the positioned canvas panel. */
 export function ToastRegion() {
   const classes = toast();

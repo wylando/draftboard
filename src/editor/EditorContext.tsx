@@ -1,9 +1,10 @@
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useReducer, useRef, type Dispatch, type ReactNode } from 'react';
-import { notify } from '../design-system';
+import { flushSync } from 'react-dom';
+import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, type Dispatch, type ReactNode } from 'react';
+import { dismissNotice, notify } from '../design-system';
 import { useLatest } from '../shared/useLatest';
-import { editorReducer, type EditorAction, type EditorState } from './model/editorReducer';
-import { byIdOf, topLevelIds } from './model/tree';
-import { initialWorkspace, sameSavedParts, workspaceReducer, type WorkspaceAction } from './model/workspace';
+import type { EditorAction, EditorState } from './model/editorReducer';
+import { toastFor } from './toasts';
+import { initialWorkspace, sameSavedParts, workspaceReducer, type WorkspaceAction, type WorkspaceState } from './model/workspace';
 import { loadWorkspace, saveWorkspace } from './persistence';
 
 const SAVE_DEBOUNCE_MS = 300;
@@ -25,37 +26,12 @@ interface BoardsContextValue {
   dispatch: Dispatch<WorkspaceAction>;
 }
 
-const layers = (n: number) => `${n} ${n === 1 ? 'layer' : 'layers'}`;
+const TOAST_ACTIONS = new Set<string>(['copySelection', 'cutSelection', 'pasteClipboard', 'duplicateSelection', 'deleteSelection']);
 
-/**
- * The toast an action earns, worked out from the state it ran on. Silent when it changed nothing, so a
- * key with nothing to act on doesn't talk. `undoable` is where Undo goes, for actions it can take back.
- */
-function announce(before: EditorState, action: EditorAction, undo: (past: number) => void) {
-  const after = editorReducer(before, action);
-  const top = (s: EditorState) => topLevelIds(byIdOf(s.nodes), s.selection).length;
-  switch (action.type) {
-    case 'copySelection':
-      if (before.selection.length > 0) notify(`Copied ${layers(top(before))}`, { id: 'copy' });
-      return;
-    case 'cutSelection':
-      if (after !== before) notify(`Cut ${layers(top(before))}`, { id: 'cut' });
-      return;
-    case 'duplicateSelection':
-      if (after !== before) notify(`Duplicated ${layers(top(before))}`, { id: 'duplicate' });
-      return;
-    case 'pasteClipboard': {
-      if (after === before) return notify('Nothing to paste', { id: 'paste' });
-      const inClipboard = new Set(before.clipboard.map((n) => n.id));
-      const pasted = before.clipboard.filter((n) => n.parentId === null || !inClipboard.has(n.parentId)).length;
-      return notify(`Pasted ${layers(pasted)}`, { id: 'paste' });
-    }
-    case 'deleteSelection': {
-      if (after === before) return;
-      const message = before.selectedColumn ? 'Deleted column' : `Deleted ${layers(top(before))}`;
-      notify(message, { id: 'delete', action: { label: 'Undo', onClick: () => undo(after.past.length) } });
-    }
-  }
+function isUndoable(ws: WorkspaceState, mark: { boardId: string; nodes: EditorState['nodes'] }): boolean {
+  if (ws.activeId !== mark.boardId) return false;
+  const editor = ws.boards.find((b) => b.id === mark.boardId)?.editor;
+  return editor !== undefined && editor.past[editor.past.length - 1] === mark.nodes && editor.nodes !== mark.nodes;
 }
 
 const EditorContext = createContext<EditorContextValue | null>(null);
@@ -67,37 +43,37 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     return initialWorkspace(saved.boards, saved.activeId);
   });
   const latest = useLatest(workspace);
-  // Actions sent but not yet rendered. A toast decides from the state its action will really run on, and
-  // a key pressed right after another would otherwise read the state from before that one.
-  const pending = useRef<WorkspaceAction[]>([]);
-  useLayoutEffect(() => {
-    pending.current = [];
-  }, [workspace]);
-  const send = useCallback(
-    (action: WorkspaceAction) => {
-      pending.current.push(action);
-      workspaceDispatch(action);
-    },
-    [],
-  );
+  // The delete a visible "Undo" belongs to: its board, and the document it removed (the top of history after it).
+  const deleted = useRef<{ boardId: string; nodes: EditorState['nodes'] } | null>(null);
+
   const dispatch = useCallback(
     (action: EditorAction) => {
-      const current = () => pending.current.reduce(workspaceReducer, latest.current);
-      const { boards, activeId } = current();
-      const board = boards.find((b) => b.id === activeId);
-      if (board) {
-        // Undo must take back only the delete it announced: any other edit, or another board, changes this.
-        const undo = (past: number) => {
-          const now = current();
-          const here = now.boards.find((b) => b.id === now.activeId);
-          if (now.activeId === activeId && here?.editor.past.length === past) send({ type: 'editor', action: { type: 'undo' } });
+      if (!TOAST_ACTIONS.has(action.type)) return workspaceDispatch({ type: 'editor', action });
+      const ws = latest.current;
+      const board = ws.boards.find((b) => b.id === ws.activeId);
+      const plan = board && toastFor(board.editor, action);
+      if (board && plan) {
+        const mark = { boardId: board.id, nodes: board.editor.nodes };
+        const undo = () => {
+          if (deleted.current === mark && isUndoable(latest.current, mark)) workspaceDispatch({ type: 'editor', action: { type: 'undo' } });
         };
-        announce(board.editor, action, undo);
+        if (plan.undoable) deleted.current = mark;
+        notify(plan.message, { id: plan.id, action: plan.undoable ? { label: 'Undo', onClick: undo } : undefined });
       }
-      send({ type: 'editor', action });
+      // Committed at once, so a key pressed right after reads the result of this one: the toast decides from
+      // `latest`, which updates on commit. Only these five actions pay for it.
+      flushSync(() => workspaceDispatch({ type: 'editor', action }));
     },
-    [latest, send],
+    [latest],
   );
+
+  // The delete toast's Undo is only good while the delete is the newest history entry on its board.
+  useEffect(() => {
+    if (deleted.current && !isUndoable(workspace, deleted.current)) {
+      deleted.current = null;
+      dismissNotice('delete');
+    }
+  }, [workspace]);
 
   const scheduled = useRef(workspace);
   const timer = useRef<number | undefined>(undefined);
@@ -133,8 +109,8 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   const summaryKey = JSON.stringify(workspace.boards.map((b) => ({ id: b.id, name: b.name, isEmpty: b.editor.nodes.length === 0 })));
   const boards = useMemo(() => JSON.parse(summaryKey) as BoardSummary[], [summaryKey]);
   const boardsValue = useMemo(
-    () => ({ boards, activeId: workspace.activeId, dispatch: send }),
-    [boards, workspace.activeId, send],
+    () => ({ boards, activeId: workspace.activeId, dispatch: workspaceDispatch }),
+    [boards, workspace.activeId],
   );
 
   return (

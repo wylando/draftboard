@@ -44,17 +44,23 @@ describe('Toasts', () => {
     cy.get('[data-node-type=rect]').should('have.length', 1);
   });
 
-  it('Undo only takes back the delete it announced', () => {
+  it('Undo goes away when another edit follows the delete', () => {
     cy.drawShape('rect', [100, 100], [200, 200]);
     cy.drawShape('rect', [300, 100], [400, 200]);
     cy.pressKey('Backspace');
     cy.contains('[data-testid=toast]', 'Deleted 1 layer').should('exist');
-    cy.get('[data-node-type=rect]').should('have.length', 1);
-    // Another edit lands in between; Undo must not now undo that one instead.
     cy.drawShape('rect', [100, 300], [200, 400]);
+    cy.get('[data-testid=toast-action]').should('not.exist');
     cy.get('[data-node-type=rect]').should('have.length', 2);
-    cy.get('[data-testid=toast-action]').click();
-    cy.get('[data-node-type=rect]').should('have.length', 2);
+  });
+
+  it('drops the Undo once the delete has been undone and something else edited', () => {
+    cy.drawShape('rect', [100, 100], [200, 200]);
+    cy.pressKey('Backspace');
+    cy.contains('[data-testid=toast]', 'Deleted 1 layer').should('exist');
+    cy.pressKey('z', { ...MOD_KEYS, code: 'KeyZ' });
+    cy.get('[data-node-type=rect]').should('have.length', 1);
+    cy.get('[data-testid=toast-action]').should('not.exist');
   });
 
   it('toasts for the Design panel buttons too', () => {
