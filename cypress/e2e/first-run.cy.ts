@@ -36,8 +36,21 @@ describe('First run: empty board', () => {
   it('adds a sample schema as one undo step', () => {
     cy.get('[data-testid=empty-example]').click();
     cy.get(CARD).should('not.exist');
-    cy.get(TABLES).should('have.length.at.least', 4);
-    cy.get('[data-node-type=connector]').should('have.length.at.least', 3);
+    cy.get(TABLES).should('have.length', 4);
+    cy.get('[data-node-type=connector]').should('have.length', 3);
+    // The view is fitted to the new tables.
+    cy.get('[data-testid=canvas]').then(($c) => {
+      const box = $c[0]!.getBoundingClientRect();
+      cy.get(TABLES).should(($tables) => {
+        for (const t of $tables.toArray()) {
+          const r = t.getBoundingClientRect();
+          expect(r.left).to.be.at.least(box.left - 1);
+          expect(r.right).to.be.at.most(box.right + 1);
+          expect(r.top).to.be.at.least(box.top - 1);
+          expect(r.bottom).to.be.at.most(box.bottom + 1);
+        }
+      });
+    });
     cy.pressKey('z', { code: 'KeyZ', metaKey: true });
     cy.get(TABLES).should('not.exist');
     cy.get(CARD).should('be.visible');
@@ -50,10 +63,10 @@ describe('First run: empty board', () => {
 
   it('opens a board file, and comes back when the board is emptied', () => {
     const doc = JSON.stringify({ version: 1, nodes: [] });
-    cy.get('[data-testid=empty-import-file]').then(($input) => cy.stub($input[0]!, 'click').as('pick'));
+    cy.get('[data-testid=import-file]').then(($input) => cy.stub($input[0]!, 'click').as('pick'));
     cy.get('[data-testid=empty-open-file]').click();
     cy.get('@pick').should('have.been.calledOnce');
-    cy.get('[data-testid=empty-import-file]').selectFile({ contents: Cypress.Buffer.from(doc), fileName: 'b.json' }, { force: true });
+    cy.get('[data-testid=import-file]').selectFile({ contents: Cypress.Buffer.from(doc), fileName: 'b.json' }, { force: true });
     cy.get(CARD).should('be.visible');
     cy.drawShape('rect', [100, 100], [200, 200]);
     cy.get(CARD).should('not.exist');
@@ -90,6 +103,11 @@ describe('First run: Getting started entry points', () => {
     cy.get('[data-testid=getting-started-section]').should('be.visible');
   });
 
+  it('opens from ? on a layout where it is typed with another key', () => {
+    cy.pressKey('?', { code: 'Minus', shiftKey: true });
+    cy.get('[data-testid=getting-started-section]').should('be.visible');
+  });
+
   it('deep-links to a section and defaults to shortcuts', () => {
     cy.visit('/#/settings/getting-started');
     cy.get('[data-testid=getting-started-section]').should('be.visible');
@@ -100,6 +118,8 @@ describe('First run: Getting started entry points', () => {
   it('walks through a first schema with real renderings', () => {
     cy.visit('/#/settings/getting-started');
     cy.get('[data-testid=guide-first-schema] li').should('have.length', 5);
+    cy.get('[data-testid=guide-step-number]').should(($n) => expect($n.toArray().map((e) => e.textContent)).to.deep.equal(['1', '2', '3', '4', '5']));
+    cy.get('[data-testid=guide-step-number]').first().should('be.visible');
     cy.get('[data-testid=guide-first-schema] svg [data-node-type=table]').should('exist');
     cy.get('[data-testid=guide-screen]').should('contain', 'Import').and('contain', 'Tool dock');
   });
@@ -125,6 +145,38 @@ describe('First run: Import and Export menus', () => {
     cy.get('[data-testid=import-board]').click();
     cy.get('@pick').should('have.been.calledOnce');
   });
+
+  it('shows a shortcut hint once a command is bound, and runs it', () => {
+    cy.get('[data-testid=import-menu]').click();
+    cy.get('[data-testid=import-schema] [data-binding]').should('not.exist');
+    cy.get('body').type('{esc}');
+    cy.window().then((win) => {
+      win.localStorage.setItem('draftboard:keybindings:v1', JSON.stringify({ 'file.importSchema': ['Alt+I'] }));
+    });
+    cy.reload();
+    cy.get('[data-testid=import-menu]').click();
+    cy.get('[data-testid=import-schema] [data-binding="Alt+I"]').should('exist');
+    cy.get('body').type('{esc}');
+    cy.pressKey('i', { code: 'KeyI', altKey: true });
+    cy.get('[data-testid=schema-source]').should('be.visible');
+  });
+
+  for (const width of [700, 800, 1000]) {
+    it(`keeps the first tab its width and Import/Export inside the bar at ${width}px`, () => {
+      cy.get('[role=tab]').first().invoke('outerWidth').then((natural) => {
+        cy.viewport(width, 600);
+        cy.get('[role=tab]').first().invoke('outerWidth').should('equal', natural);
+        cy.get('[data-testid=toolbar]').should(($bar) => {
+          const bar = $bar[0]!;
+          expect(bar.scrollWidth).to.be.at.most(bar.clientWidth);
+          const right = bar.getBoundingClientRect().right;
+          for (const id of ['import-menu', 'export-menu', 'zoom-level']) {
+            expect(Cypress.$(`[data-testid=${id}]`)[0]!.getBoundingClientRect().right).to.be.at.most(right);
+          }
+        });
+      });
+    });
+  }
 
   it('collapse to icons on a narrow window but keep their names', () => {
     cy.viewport(700, 600);

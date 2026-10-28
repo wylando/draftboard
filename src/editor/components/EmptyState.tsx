@@ -1,15 +1,12 @@
-import { lazy, Suspense, useState } from 'react';
+import { useState } from 'react';
 import { css } from 'styled-system/css';
 import { Button } from '../../design-system';
 import { usePreferences } from '../../settings/preferences/PreferencesContext';
 import { useEditor } from '../EditorContext';
 import { fitBox, rotatedBounds, screenToWorld, unionBoxes } from '../geometry';
-import { useBoardFileImport } from '../hooks/useBoardFileImport';
+import { useFileActions } from '../hooks/FileActions';
 import { createNode, DEFAULT_SIZE } from '../model/nodes';
 import { SQL_DIALECTS } from '../model/table';
-
-// Loaded on first use, like the toolbar's copy, so its parser and layout code stay out of the startup bundle.
-const SchemaImportDialog = lazy(() => import('./SchemaImportDialog').then((m) => ({ default: m.SchemaImportDialog })));
 
 // A sibling of the canvas element: the canvas starts gestures on pointer-down. The area lets presses
 // through, so drawing works around the card, and it stops above the tool dock.
@@ -45,9 +42,9 @@ const linkClass = css({ justifySelf: 'start' });
 export function EmptyState({ onOpenGuide }: { onOpenGuide: () => void }) {
   const { state, dispatch } = useEditor();
   const { sqlDialect } = usePreferences().preferences;
-  const boardFile = useBoardFileImport('empty-import-file');
-  const [importOpen, setImportOpen] = useState(false);
-  const [importRequested, setImportRequested] = useState(false);
+  const files = useFileActions();
+  // Ignores a second click while the sample is still being laid out, which would add it twice.
+  const [adding, setAdding] = useState(false);
 
   const addTable = () => {
     const { width, height } = DEFAULT_SIZE.table;
@@ -57,15 +54,20 @@ export function EmptyState({ onOpenGuide }: { onOpenGuide: () => void }) {
   };
 
   const addExample = async () => {
-    const [{ EXAMPLE_SCHEMA }, { planImport }] = await Promise.all([import('../schemaImport/exampleSchema'), import('../schemaImport/importSchema')]);
-    const plan = await planImport(EXAMPLE_SCHEMA, state.nodes);
-    dispatch({ type: 'importNodes', nodes: plan.nodes });
-    const bounds = unionBoxes(plan.nodes.filter((n) => n.type === 'table').map((n) => rotatedBounds(n, n.rotation)));
-    if (bounds) dispatch({ type: 'setViewport', viewport: fitBox(bounds, state.canvasSize) });
+    if (adding) return;
+    setAdding(true);
+    try {
+      const [{ EXAMPLE_SCHEMA }, { planImport }] = await Promise.all([import('../schemaImport/exampleSchema'), import('../schemaImport/importSchema')]);
+      const plan = await planImport(EXAMPLE_SCHEMA, state.nodes);
+      dispatch({ type: 'importNodes', nodes: plan.nodes });
+      const bounds = unionBoxes(plan.nodes.filter((n) => n.type === 'table').map((n) => rotatedBounds(n, n.rotation)));
+      if (bounds) dispatch({ type: 'setViewport', viewport: fitBox(bounds, state.canvasSize) });
+    } finally {
+      setAdding(false);
+    }
   };
 
   return (
-    // The dialog and file input stay mounted after the first layer arrives, so adding the import doesn't unmount its own dialog.
     <>
       {state.nodes.length === 0 && (
         <div className={areaClass}>
@@ -75,19 +77,13 @@ export function EmptyState({ onOpenGuide }: { onOpenGuide: () => void }) {
             <Button variant="primary" data-testid="empty-add-table" onClick={addTable}>
               Add a table
             </Button>
-            <Button
-              data-testid="empty-import-schema"
-              onClick={() => {
-                setImportRequested(true);
-                setImportOpen(true);
-              }}
-            >
+            <Button data-testid="empty-import-schema" onClick={files.importSchema}>
               Import SQL or DBML…
             </Button>
-            <Button data-testid="empty-open-file" onClick={boardFile.pick}>
+            <Button data-testid="empty-open-file" onClick={files.importBoard}>
               Open a board file…
             </Button>
-            <Button data-testid="empty-example" onClick={() => void addExample()}>
+            <Button data-testid="empty-example" disabled={adding} onClick={() => void addExample()}>
               Try an example
             </Button>
             <Button variant="ghost" className={linkClass} data-testid="empty-guide" onClick={onOpenGuide}>
@@ -95,12 +91,6 @@ export function EmptyState({ onOpenGuide }: { onOpenGuide: () => void }) {
             </Button>
           </section>
         </div>
-      )}
-      {boardFile.field}
-      {importRequested && (
-        <Suspense fallback={null}>
-          <SchemaImportDialog open={importOpen} onOpenChange={setImportOpen} />
-        </Suspense>
       )}
     </>
   );

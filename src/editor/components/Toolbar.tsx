@@ -1,22 +1,17 @@
-import { lazy, Suspense, useRef, useState } from 'react';
+import { useRef } from 'react';
 import { Menu } from '@ark-ui/react/menu';
 import { Portal } from '@ark-ui/react/portal';
 import { Button, icons } from '../../design-system';
-import { useBoards, useEditor } from '../EditorContext';
+import { useEditor } from '../EditorContext';
 import { BoardTabs } from './BoardTabs';
 import { useViewportControls } from '../hooks/useViewportControls';
 import { isBroken } from '../model/connector';
-import { useBoardFileImport } from '../hooks/useBoardFileImport';
-import { documentFileName, downloadDocument } from '../persistence';
+import { useFileActions } from '../hooks/FileActions';
 import type { CommandId } from '../../settings/keybindings/commands';
 import { formatBindingText } from '../../settings/keybindings/keys';
 import { useKeybindings } from '../../settings/keybindings/KeybindingsContext';
 import { css, cx } from 'styled-system/css';
 import { menu } from 'styled-system/recipes';
-
-// Loaded on first open so its parser and layout code stay out of the startup bundle.
-const SchemaImportDialog = lazy(() => import('./SchemaImportDialog').then((m) => ({ default: m.SchemaImportDialog })));
-const SchemaExportDialog = lazy(() => import('./SchemaExportDialog').then((m) => ({ default: m.SchemaExportDialog })));
 
 const menuClasses = menu();
 
@@ -43,17 +38,11 @@ const problemsClass = css({ color: 'text.danger' });
 
 export function Toolbar({ onOpenSettings }: { onOpenSettings: (section?: string) => void }) {
   const { state, dispatch } = useEditor();
-  const { boards, activeId } = useBoards();
-  const boardName = boards.find((b) => b.id === activeId)?.name ?? '';
   const { zoom, zoomIn, zoomOut, zoomTo100, zoomToFit } = useViewportControls();
-  const boardFile = useBoardFileImport('import-file');
+  const files = useFileActions();
   const { bindings } = useKeybindings();
-  const [schemaOpen, setSchemaOpen] = useState(false);
-  const [schemaRequested, setSchemaRequested] = useState(false);
-  const [exportOpen, setExportOpen] = useState(false);
-  const [exportRequested, setExportRequested] = useState(false);
   // Opened once the menu has closed, so the menu's focus return doesn't pull focus out of the dialog.
-  const openWhenMenuCloses = useRef<'import' | 'export' | 'settings' | 'guide' | null>(null);
+  const openWhenMenuCloses = useRef<'importSchema' | 'exportSchema' | 'settings' | 'guide' | null>(null);
   const broken = state.nodes.filter((n) => n.type === 'connector' && isBroken(n));
 
   // The user's own first binding, shown like the browser's menus do; `data-binding` keeps tests platform-neutral.
@@ -71,17 +60,10 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: (section?: string)
   const afterMenuCloses = () => {
     const next = openWhenMenuCloses.current;
     openWhenMenuCloses.current = null;
-    if (next === 'import') {
-      setSchemaRequested(true);
-      setSchemaOpen(true);
-    } else if (next === 'export') {
-      setExportRequested(true);
-      setExportOpen(true);
-    } else if (next === 'settings') {
-      onOpenSettings();
-    } else if (next === 'guide') {
-      onOpenSettings('getting-started');
-    }
+    if (next === 'importSchema') files.importSchema();
+    else if (next === 'exportSchema') files.exportSchema();
+    else if (next === 'settings') onOpenSettings();
+    else if (next === 'guide') onOpenSettings('getting-started');
   };
   const fileMenuButton = (kind: 'import' | 'export', label: string) => (
     <Menu.Trigger asChild>
@@ -147,25 +129,14 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: (section?: string)
             </Button>
           )}
         </span>
-        {schemaRequested && (
-          <Suspense fallback={null}>
-            <SchemaImportDialog open={schemaOpen} onOpenChange={setSchemaOpen} />
-          </Suspense>
-        )}
-        {exportRequested && (
-          <Suspense fallback={null}>
-            <SchemaExportDialog open={exportOpen} onOpenChange={setExportOpen} />
-          </Suspense>
-        )}
-        {boardFile.field}
         <Menu.Root
           lazyMount
           unmountOnExit
           positioning={{ placement: 'bottom-end' }}
           onSelect={({ value }) => {
             // The file picker opens straight away: browsers only allow it during the click that asked for it.
-            if (value === 'import-board') boardFile.pick();
-            else openWhenMenuCloses.current = 'import';
+            if (value === 'import-board') files.importBoard();
+            else openWhenMenuCloses.current = 'importSchema';
           }}
           onExitComplete={afterMenuCloses}
         >
@@ -175,9 +146,11 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: (section?: string)
               <Menu.Content className={menuClasses.content}>
                 <Menu.Item value="import-schema" className={menuClasses.item} data-testid="import-schema">
                   Schema (SQL, DBML, SQLite)…
+                  {shortcut('file.importSchema')}
                 </Menu.Item>
                 <Menu.Item value="import-board" className={menuClasses.item} data-testid="import-board">
                   Board file (.json)…
+                  {shortcut('file.importBoard')}
                 </Menu.Item>
               </Menu.Content>
             </Menu.Positioner>
@@ -188,8 +161,8 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: (section?: string)
           unmountOnExit
           positioning={{ placement: 'bottom-end' }}
           onSelect={({ value }) => {
-            if (value === 'export-board') downloadDocument(state.nodes, documentFileName(boardName));
-            else openWhenMenuCloses.current = 'export';
+            if (value === 'export-board') files.exportBoard();
+            else openWhenMenuCloses.current = 'exportSchema';
           }}
           onExitComplete={afterMenuCloses}
         >
@@ -199,9 +172,11 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: (section?: string)
               <Menu.Content className={menuClasses.content}>
                 <Menu.Item value="export-schema" className={menuClasses.item} data-testid="export-schema">
                   Schema as SQL or DBML…
+                  {shortcut('file.exportSchema')}
                 </Menu.Item>
                 <Menu.Item value="export-board" className={menuClasses.item} data-testid="export-board">
                   Board file (.json)
+                  {shortcut('file.exportBoard')}
                 </Menu.Item>
               </Menu.Content>
             </Menu.Positioner>

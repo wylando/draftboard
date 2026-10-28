@@ -13,7 +13,18 @@ import { usePreferences } from './preferences/PreferencesContext';
 import { Block, mutedClass, Terms } from './sectionParts';
 import { NO_RELATIONS, Sample } from './SymbolsSection';
 
-const listClass = css({ margin: '0', paddingInlineStart: '4', display: 'grid', gap: '3' });
+const listClass = css({ margin: '0', padding: '0', listStyle: 'none', display: 'grid', gap: '3' });
+const numberClass = css({
+  flex: 'none',
+  display: 'grid',
+  placeItems: 'center',
+  width: '[1.5rem]',
+  height: '[1.5rem]',
+  borderRadius: 'full',
+  bg: 'bg.selected',
+  textStyle: 'body.mediumStrong',
+  fontVariantNumeric: 'tabular-nums',
+});
 const stepClass = css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '3' });
 const stepTextClass = css({ flex: '1', flexBasis: '[16rem]', minWidth: '0' });
 const IDENTITY_VIEWPORT = { x: 0, y: 0, zoom: 1 };
@@ -82,10 +93,11 @@ function Picture({ nodes, outline }: { nodes: DesignNode[]; outline?: (routedNod
   );
 }
 
-function Step({ children, picture }: { children: React.ReactNode; picture: React.ReactNode }) {
+function Step({ n, children, picture }: { n: number; children: React.ReactNode; picture: React.ReactNode }) {
   return (
     <li>
       <div className={stepClass}>
+        <span className={numberClass} data-testid="guide-step-number">{n}</span>
         <div className={stepTextClass}>{children}</div>
         {picture}
       </div>
@@ -118,17 +130,17 @@ export function GettingStartedSection() {
 
       <Block title="First schema" testId="guide-first-schema">
         <ol className={listClass}>
-          <Step picture={<Picture nodes={[customers]} />}>
+          <Step n={1} picture={<Picture nodes={[customers]} />}>
             Add a table: press <Shortcut binding={bindings['tool.table'][0]} /> and click the canvas, or import SQL, DBML or a SQLite file from the Import menu.
           </Step>
-          <Step picture={<Picture nodes={[{ ...orders, x: 0 }]} />}>Select the table and edit its name, columns and indexes in the Design panel.</Step>
-          <Step picture={<Picture nodes={[customers, orders, ordersToCustomers]} />}>
+          <Step n={2} picture={<Picture nodes={[{ ...orders, x: 0 }]} />}>Select the table and edit its name, columns and indexes in the Design panel.</Step>
+          <Step n={3} picture={<Picture nodes={[customers, orders, ordersToCustomers]} />}>
             Press <Shortcut binding={bindings['tool.connector'][0]} /> and drag from one column to another to link them.
           </Step>
-          <Step picture={<Picture nodes={[customers, orders, ordersToCustomers]} outline={linksAnd(customers.id)} />}>
+          <Step n={4} picture={<Picture nodes={[customers, orders, ordersToCustomers]} outline={linksAnd(customers.id)} />}>
             Select one table to see its links outlined, along with the tables they reach.
           </Step>
-          <Step picture={<Picture nodes={[customers, orders, items, ordersToCustomers, itemsToOrders]} outline={linksAnd(orders.id)} />}>
+          <Step n={5} picture={<Picture nodes={[customers, orders, items, ordersToCustomers, itemsToOrders]} outline={linksAnd(orders.id)} />}>
             Select two tables to see the estimated fastest route of joins between them.
           </Step>
         </ol>

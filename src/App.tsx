@@ -2,6 +2,7 @@ import { css } from 'styled-system/css';
 import { DialogProvider } from './design-system';
 import { useHashRoute } from './app/useHashRoute';
 import { EditorProvider, useBoards, useEditor } from './editor/EditorContext';
+import { FileActionsProvider, useFileActions } from './editor/hooks/FileActions';
 import { SectionFoldsProvider } from './editor/SectionFoldsContext';
 import { Canvas } from './editor/components/Canvas';
 import { EditorBody } from './editor/components/EditorBody';
@@ -23,7 +24,8 @@ function Editor({ onOpenSettings }: { onOpenSettings: (section?: string) => void
   const { state, dispatch } = useEditor();
   const { activeId } = useBoards();
   const controls = useViewportControls();
-  useKeyboardShortcuts({ state, dispatch, ...controls, openSettings: onOpenSettings });
+  const files = useFileActions();
+  useKeyboardShortcuts({ state, dispatch, ...controls, openSettings: onOpenSettings, files });
   return (
     <div className={editorClass}>
       <Toolbar onOpenSettings={onOpenSettings} />
@@ -57,7 +59,9 @@ export function App() {
             {route === 'settings' ? (
               <SettingsPage key={section ?? ''} section={section} onClose={() => navigate('editor')} />
             ) : (
-              <Editor onOpenSettings={(target) => navigate('settings', target)} />
+              <FileActionsProvider>
+                <Editor onOpenSettings={(target) => navigate('settings', target)} />
+              </FileActionsProvider>
             )}
           </DialogProvider>
         </EditorProvider>
