@@ -11,7 +11,7 @@ export const TABLE_ACCENTS = ['#dbeafe', '#dcfce7', '#fef3c7', '#fce7f3', '#ede9
 /** What a table draws with besides its own fill, stroke and accent; `onDark*` for dark fills and accents. */
 export const TABLE_COLORS = {
   text: '#1e1e1e',
-  muted: '#757575',
+  muted: '#595959',
   onDark: '#ffffff',
   onDarkMuted: '#b3b3b3',
   badge: '#0a6dc2',
@@ -22,7 +22,7 @@ export const TABLE_COLORS = {
 export const TABLE_HEADER_HEIGHT = 36;
 export const TABLE_ROW_HEIGHT = 28;
 /** Design choice: table typography and spacing in world px, shared by the canvas and the in-place editor. */
-export const TABLE_STYLE = { radius: 8, pad: 12, gap: 8, nameSize: 13, columnSize: 12, typeSize: 11, badgeSize: 9, badgeWidth: 26 } as const;
+export const TABLE_STYLE = { radius: 8, pad: 12, gap: 8, nameSize: 13, columnSize: 12, typeSize: 12, badgeSize: 10, badgeWidth: 26 } as const;
 
 /** Design choice: narrower than this, a row can't show a badge, a short name and a type. */
 export const MIN_TABLE_WIDTH = 120;

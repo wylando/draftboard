@@ -20,6 +20,7 @@ import type { Anchor, Box, DesignNode, TableNode, TextNode, Viewport } from '../
 import { CANVAS_FONT_FAMILY, measureText } from '../textMetrics';
 import { usePreferences } from '../../settings/preferences/PreferencesContext';
 import { CanvasGrid } from './CanvasGrid';
+import { detailLevel, overviewScale } from '../tableDetail';
 import { FrameLabel, NodeView, RelationsContext, type Relations } from './NodeView';
 import { RoutePopup } from './RoutePopup';
 import { SelectionOverlay } from './SelectionOverlay';
@@ -200,6 +201,7 @@ export function Canvas() {
   const nextWindow = nextCullWindow(cullWindow, viewWorldBox(viewport, state.canvasSize));
   if (nextWindow !== cullWindow) setCullWindow(nextWindow);
   const editingTableId = tableCell?.tableId;
+  const detail = detailLevel(viewport.zoom);
   const inWindow = useMemo(() => renderedIds(nodes, nextWindow, []), [nodes, nextWindow]);
   // A marquee changes the selection every frame. Keeping `mounted` the same set while every pinned layer is
   // already in the window spares each mounted NodeView a re-render.
@@ -297,7 +299,7 @@ export function Canvas() {
         >
           <RelationsContext.Provider value={relations}>
             {(childrenOf.get(null) ?? []).filter((n) => mounted.has(n.id)).map((n) => (
-              <NodeView key={n.id} node={n} childrenOf={childrenOf} mounted={mounted} editingId={editingId} />
+              <NodeView key={n.id} node={n} childrenOf={childrenOf} mounted={mounted} editingId={editingId} detail={detail} scale={detail === 'overview' ? overviewScale(viewport.zoom) : 1} fullDetailId={editingTableId ?? null} />
             ))}
           </RelationsContext.Provider>
           {nodes.filter((n) => mounted.has(n.id)).map((n) => (

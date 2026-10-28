@@ -2,6 +2,7 @@ import { createContext, memo, useContext } from 'react';
 import { TABLE_COLORS, TABLE_HEADER_HEIGHT, TABLE_ROW_HEIGHT, TABLE_STYLE } from '../model/table';
 import { isBroken } from '../model/connector';
 import type { Cardinality, ConnectorNode, DesignNode, Point, TableNode } from '../model/types';
+import { COMPACT_BADGE_SIZE, COMPACT_COLUMN_SIZE, OVERVIEW_NAME_PX, type TableDetail } from '../tableDetail';
 import { CANVAS_FONT_FAMILY, CANVAS_MONO_FAMILY, measureText, TEXT_LINE_HEIGHT } from '../textMetrics';
 import { css } from 'styled-system/css';
 import { token } from 'styled-system/tokens';
@@ -136,8 +137,15 @@ function fitText(text: string, max: number, size: number, family: string, weight
  * keeps what the name leaves (at least half the row) and the name the rest,
  * each cut short with an ellipsis rather than overlapping.
  */
-function TableShape({ node }: { node: TableNode }) {
+function TableShape({ node, detail, scale }: { node: TableNode; detail: TableDetail; scale: number }) {
   const { width: w, height: h } = node;
+  const compact = detail === 'compact';
+  const overview = detail === 'overview';
+  // Constant on-screen size, but never taller than the card's body.
+  const overviewSize = Math.min(OVERVIEW_NAME_PX / scale, (h - TABLE_HEADER_HEIGHT) * 0.6);
+  const nameSize = compact ? COMPACT_COLUMN_SIZE : TABLE_STYLE.nameSize;
+  const columnSize = compact ? COMPACT_COLUMN_SIZE : TABLE_STYLE.columnSize;
+  const badgeSize = compact ? COMPACT_BADGE_SIZE : TABLE_STYLE.badgeSize;
   const clipId = `table-clip-${node.id}`;
   const indexed = new Set(node.indexes.flatMap((i) => i.columnIds));
   const foreign = useContext(RelationsContext).foreignKeys.get(node.id);
@@ -148,7 +156,7 @@ function TableShape({ node }: { node: TableNode }) {
   const text = { fontFamily: CANVAS_FONT_FAMILY, dominantBaseline: 'central', className: noSelectClass } as const;
   const nameX = TABLE_STYLE.pad + TABLE_STYLE.badgeWidth;
   const rowSpace = w - TABLE_STYLE.pad - nameX;
-  const idxWidth = measureText('idx', TABLE_STYLE.badgeSize, CANVAS_FONT_FAMILY).width + TABLE_STYLE.gap;
+  const idxWidth = measureText('idx', badgeSize, CANVAS_FONT_FAMILY).width + TABLE_STYLE.gap;
   return (
     <>
       <clipPath id={clipId}>
@@ -157,30 +165,51 @@ function TableShape({ node }: { node: TableNode }) {
       <g clipPath={`url(#${clipId})`}>
         <rect data-testid="table-body" width={w} height={h} fill={node.fill} />
         <rect data-testid="table-header" width={w} height={TABLE_HEADER_HEIGHT} fill={node.accent} />
-        <text
-          {...text}
-          data-testid="table-name"
-          x={TABLE_STYLE.pad}
-          y={TABLE_HEADER_HEIGHT / 2}
-          fontSize={TABLE_STYLE.nameSize}
-          fontWeight={600}
-          fill={headerDark ? TABLE_COLORS.onDark : TABLE_COLORS.text}
-        >
-          {fitText(node.name, w - 2 * TABLE_STYLE.pad, TABLE_STYLE.nameSize, CANVAS_FONT_FAMILY, 600)}
-        </text>
+        {overview ? (
+          <>
+            {/* A light wash of the accent, so a name-only card still reads as its table. */}
+            <rect width={w} height={h - TABLE_HEADER_HEIGHT} y={TABLE_HEADER_HEIGHT} fill={node.accent} opacity={0.15} />
+            <text
+              {...text}
+              data-testid="table-name"
+              x={w / 2}
+              y={TABLE_HEADER_HEIGHT + (h - TABLE_HEADER_HEIGHT) / 2}
+              textAnchor="middle"
+              fontSize={overviewSize}
+              fontWeight={600}
+              fill={ink}
+            >
+              {fitText(node.name, w - 2 * TABLE_STYLE.pad, overviewSize, CANVAS_FONT_FAMILY, 600)}
+            </text>
+          </>
+        ) : (
+          <text
+            {...text}
+            data-testid="table-name"
+            x={TABLE_STYLE.pad}
+            y={TABLE_HEADER_HEIGHT / 2}
+            fontSize={nameSize}
+            fontWeight={600}
+            fill={headerDark ? TABLE_COLORS.onDark : TABLE_COLORS.text}
+          >
+            {fitText(node.name, w - 2 * TABLE_STYLE.pad, nameSize, CANVAS_FONT_FAMILY, 600)}
+          </text>
+        )}
         {node.columns.map((c, i) => {
           const y = TABLE_HEADER_HEIGHT + i * TABLE_ROW_HEIGHT;
           const mid = y + TABLE_ROW_HEIGHT / 2;
           const isForeign = foreign?.has(c.id) ?? false;
           // One slot: a key that is also foreign shows both letters (PFK, UFK).
           const key = c.primaryKey ? 'P' : c.unique ? 'U' : '';
-          const badge = isForeign ? `${key}FK` : c.primaryKey ? 'PK' : c.unique ? 'UQ' : null;
-          const isIndexed = indexed.has(c.id);
+          const fullBadge = isForeign ? `${key}FK` : c.primaryKey ? 'PK' : c.unique ? 'UQ' : null;
+          // Compact keeps only what says a column is a key of the relationships.
+          const badge = compact && !fullBadge?.includes('PK') && !fullBadge?.includes('FK') ? null : fullBadge;
+          const isIndexed = !compact && indexed.has(c.id);
           const nameSpace = rowSpace - TABLE_STYLE.gap - (isIndexed ? idxWidth : 0);
-          const nameWidth = measureText(c.name, TABLE_STYLE.columnSize, CANVAS_FONT_FAMILY).width;
-          const type = fitText(`${c.dataType}${c.nullable ? '?' : ''}`, Math.max(rowSpace / 2, nameSpace - nameWidth), TABLE_STYLE.typeSize, CANVAS_MONO_FAMILY);
+          const nameWidth = measureText(c.name, columnSize, CANVAS_FONT_FAMILY).width;
+          const type = compact ? '' : fitText(`${c.dataType}${c.nullable ? '?' : ''}`, Math.max(rowSpace / 2, nameSpace - nameWidth), TABLE_STYLE.typeSize, CANVAS_MONO_FAMILY);
           const typeWidth = measureText(type, TABLE_STYLE.typeSize, CANVAS_MONO_FAMILY).width;
-          const name = fitText(c.name, nameSpace - typeWidth, TABLE_STYLE.columnSize, CANVAS_FONT_FAMILY);
+          const name = fitText(c.name, nameSpace - typeWidth, columnSize, CANVAS_FONT_FAMILY);
           return (
             <g key={c.id} data-testid="table-column" data-column-id={c.id}>
               {/* The whole row is hit, not just its glyphs, so a click or double-click anywhere in it finds the column. */}
@@ -189,46 +218,50 @@ function TableShape({ node }: { node: TableNode }) {
               {i > 0 && node.strokeWidth > 0 && (
                 <line data-testid="row-divider" x1={0} x2={w} y1={y} y2={y} stroke={node.stroke} strokeWidth={Math.min(node.strokeWidth, 1)} />
               )}
-              {badge && (
+              {!overview && badge && (
                 <text
                   {...text}
                   data-testid="column-badge"
                   x={TABLE_STYLE.pad}
                   y={mid}
-                  fontSize={TABLE_STYLE.badgeSize}
+                  fontSize={badgeSize}
                   fontWeight={700}
                   fill={bodyDark ? TABLE_COLORS.onDarkBadge : TABLE_COLORS.badge}
                 >
                   {badge}
                 </text>
               )}
-              <text {...text} data-testid="column-name" x={nameX} y={mid} fontSize={TABLE_STYLE.columnSize} fill={ink}>
-                {name}
-              </text>
-              {isIndexed && (
+              {!overview && (
+                <text {...text} data-testid="column-name" x={nameX} y={mid} fontSize={columnSize} fill={ink}>
+                  {name}
+                </text>
+              )}
+              {!overview && isIndexed && (
                 <text
                   {...text}
                   data-testid="column-index"
-                  x={nameX + measureText(name, TABLE_STYLE.columnSize, CANVAS_FONT_FAMILY).width + 6}
+                  x={nameX + measureText(name, columnSize, CANVAS_FONT_FAMILY).width + 6}
                   y={mid}
-                  fontSize={TABLE_STYLE.badgeSize}
+                  fontSize={badgeSize}
                   fill={muted}
                 >
                   idx
                 </text>
               )}
-              <text
-                {...text}
-                data-testid="column-type"
-                x={w - TABLE_STYLE.pad}
-                y={mid}
-                textAnchor="end"
-                fontFamily={CANVAS_MONO_FAMILY}
-                fontSize={TABLE_STYLE.typeSize}
-                fill={muted}
-              >
-                {type}
-              </text>
+              {!compact && !overview && (
+                <text
+                  {...text}
+                  data-testid="column-type"
+                  x={w - TABLE_STYLE.pad}
+                  y={mid}
+                  textAnchor="end"
+                  fontFamily={CANVAS_MONO_FAMILY}
+                  fontSize={TABLE_STYLE.typeSize}
+                  fill={muted}
+                >
+                  {type}
+                </text>
+              )}
             </g>
           );
         })}
@@ -315,7 +348,7 @@ function ConnectorShape({ node }: { node: ConnectorNode }) {
   );
 }
 
-function Shape({ node }: { node: DesignNode }) {
+function Shape({ node, detail, scale }: { node: DesignNode; detail: TableDetail; scale: number }) {
   const stroke = node.strokeWidth > 0 ? node.stroke : 'none';
   const { width: w, height: h } = node;
 
@@ -349,7 +382,7 @@ function Shape({ node }: { node: DesignNode }) {
       );
     }
     case 'table':
-      return <TableShape node={node} />;
+      return <TableShape node={node} detail={detail} scale={scale} />;
     case 'connector':
       return <ConnectorShape node={node} />;
     case 'text':
@@ -384,6 +417,12 @@ interface NodeViewProps {
   mounted: ReadonlySet<string>;
   /** Text node being edited in place; drawn by the editor instead. */
   editingId: string | null;
+  /** Level of detail tables draw at; changes only at zoom thresholds, so a wheel tick leaves memoised layers alone. */
+  detail: TableDetail;
+  /** `overviewScale` of the zoom while `detail` is overview, else 1, so it stays steady outside overview. */
+  scale: number;
+  /** Table being edited in its cells; always full detail, since the editor sits over its full-size cells. */
+  fullDetailId: string | null;
 }
 
 /**
@@ -391,8 +430,9 @@ interface NodeViewProps {
  * The shape's `<g>` carries the node's data attributes; the wrapper has none,
  * so hit-testing always finds the innermost layer under the pointer.
  */
-export const NodeView = memo(function NodeView({ node, childrenOf, mounted, editingId }: NodeViewProps) {
+export const NodeView = memo(function NodeView({ node, childrenOf, mounted, editingId, detail, scale, fullDetailId }: NodeViewProps) {
   if (!node.visible) return null;
+  const shown = node.id === fullDetailId ? 'full' : detail;
   // Structure comes from the full child list, so culling every child doesn't change the container's DOM or opacity.
   const children = childrenOf.get(node.id) ?? [];
   const own = (
@@ -405,8 +445,9 @@ export const NodeView = memo(function NodeView({ node, childrenOf, mounted, edit
       transform={nodeTransform(node)}
       opacity={children.length === 0 ? node.opacity : undefined}
       visibility={node.id === editingId ? 'hidden' : undefined}
+      data-detail={node.type === 'table' ? shown : undefined}
     >
-      <Shape node={node} />
+      <Shape node={node} detail={shown} scale={scale} />
     </g>
   );
   if (children.length === 0) return own;
@@ -423,7 +464,7 @@ export const NodeView = memo(function NodeView({ node, childrenOf, mounted, edit
       )}
       <g clipPath={clipId ? `url(#${clipId})` : undefined}>
         {children.filter((c) => mounted.has(c.id)).map((c) => (
-          <NodeView key={c.id} node={c} childrenOf={childrenOf} mounted={mounted} editingId={editingId} />
+          <NodeView key={c.id} node={c} childrenOf={childrenOf} mounted={mounted} editingId={editingId} detail={detail} scale={scale} fullDetailId={fullDetailId} />
         ))}
       </g>
     </g>
