@@ -91,7 +91,11 @@ export function collectSchema(nodes: readonly DesignNode[], selectedIds: readonl
     if (!from || !to) {
       // Only links that leave the export are worth a word; lines between other shapes aren't relationships.
       const missing = from ? anyTable.get(toId ?? '') : to ? anyTable.get(fromId ?? '') : undefined;
-      if (missing && n.isForeignKey) skippedLinks.push({ ends, reason: `"${missing.name}" isn't included`, missingTableId: missing.id });
+      if (missing && n.isForeignKey) {
+        // Adding a table with no columns would export nothing, so don't offer it.
+        if (missing.columns.length === 0) skippedLinks.push({ ends, reason: `"${missing.name}" has no columns` });
+        else skippedLinks.push({ ends, reason: `"${missing.name}" isn't included`, missingTableId: missing.id });
+      }
       continue;
     }
     if (n.from.kind === 'column' && n.to.kind === 'column') {
@@ -123,6 +127,8 @@ export function collectSchema(nodes: readonly DesignNode[], selectedIds: readonl
       }
       if (manyToMany.some((m) => (m.a === from && m.b === to) || (m.a === to && m.b === from))) continue;
       manyToMany.push({ a: from, b: to });
+    } else {
+      skippedLinks.push({ ends, reason: 'links a table to a column; link two columns to export a foreign key' });
     }
   }
   return { scope, tables, foreignKeys, manyToMany, warnings, skippedLinks };

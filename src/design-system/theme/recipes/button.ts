@@ -37,7 +37,7 @@ export const buttonRecipe = defineRecipe({
         borderColor: 'transparent',
         bg: 'bg.danger',
         color: 'text.onBrand',
-        _hover: { opacity: '0.9' },
+        _hover: { bg: 'bg.dangerHover' },
       },
       ghost: {
         borderColor: 'transparent',

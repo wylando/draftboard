@@ -9,7 +9,7 @@ import type { ImportedSchema, ImportWarning } from './types';
 /** Gap in world px between existing content and the imported block (design choice). */
 const IMPORT_GAP = 160;
 
-/** What the preview shows and what Add to canvas dispatches. */
+/** What the preview shows and what the import dispatches. */
 export interface ImportPlan {
   schema: ImportedSchema;
   /** Tables then connectors, ready for the `importNodes` action. */

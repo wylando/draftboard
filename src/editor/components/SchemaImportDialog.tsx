@@ -115,6 +115,8 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
   const guesses = useMemo(() => (baseSchema ? inferRelations(baseSchema) : []), [baseSchema]);
   const [dest, setDest] = useState<Destination>('add');
   const [busy, setBusy] = useState(false);
+  // Names are planned around what the destination already holds: this board's layers, or nothing for a fresh or replaced one.
+  const nodesFor = (d: Destination) => (d === 'add' ? state.nodes : []);
   // Bumped on close, Back and each preview, so a parse, Add or Replace that finishes after any of them is dropped.
   const run = useRef(0);
 
@@ -155,7 +157,7 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
     setBusy(true);
     try {
       const relations = [...baseSchema.relations, ...guesses.filter((_, i) => next.has(i))];
-      const replanned = await planImport({ ...baseSchema, relations }, state.nodes);
+      const replanned = await planImport({ ...baseSchema, relations }, nodesFor(dest));
       if (mine === run.current) {
         setPlan(replanned);
         setTicked(next);
@@ -176,14 +178,14 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
 
   const toggleAllGuesses = (on: boolean) => applyTicks(on ? new Set(guesses.keys()) : new Set());
 
-  const parseWith = async (src: Source, forced?: SqlKind) => {
+  const parseWith = async (src: Source, against: DesignNode[], forced?: SqlKind) => {
     const title = src.bytes ? "Can't read this file" : "Can't read this schema";
     const format = forced ?? detectFormat(src, preferences.sqlDialect);
     // sql.js, its wasm and the DBML compiler are large, so they load only on their own paths.
     if (format === 'sqlite-db') {
       const { parseSqliteDb } = await import('../schemaImport/fromSqlite');
       // A detected database always came from a file, which keeps its bytes in `data`.
-      return { dialect: format, plan: await planImport(await parseSqliteDb(src.data ?? new Uint8Array()), state.nodes) };
+      return { dialect: format, plan: await planImport(await parseSqliteDb(src.data ?? new Uint8Array()), against) };
     }
     if (src.text.includes('\0')) {
       await alert({ title, description: "This file isn't text." });
@@ -192,13 +194,13 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
     if (format === 'dbml') {
       const [{ parseDbml }, { mapSchemaTypes }] = await Promise.all([import('../schemaImport/fromDbml'), import('../schemaImport/mapTypes')]);
       const schema = await parseDbml(src.text);
-      return { dialect: format, schema, plan: await planImport(mapSchemaTypes(schema, preferences.sqlDialect), state.nodes) };
+      return { dialect: format, schema, plan: await planImport(mapSchemaTypes(schema, preferences.sqlDialect), against) };
     }
     if (format === 'sqlite') {
       const { parseSqliteSql } = await import('../schemaImport/fromSqlite');
-      return { dialect: format, plan: await planImport(await parseSqliteSql(src.text), state.nodes) };
+      return { dialect: format, plan: await planImport(await parseSqliteSql(src.text), against) };
     }
-    return { dialect: format, plan: await planImport(await parseSql(src.text, format), state.nodes) };
+    return { dialect: format, plan: await planImport(await parseSql(src.text, format), against) };
   };
 
   const preview = async (src: Source, forced?: SqlKind) => {
@@ -206,15 +208,16 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
     const mine = ++run.current;
     setBusy(true);
     try {
-      const result = await parseWith(src, forced);
+      // The destination is chosen once, on reaching the preview; re-parsing for another dialect keeps the user's pick.
+      const target = plan ? dest : state.nodes.length > 0 ? 'new' : 'add';
+      const result = await parseWith(src, nodesFor(target), forced);
       if (result && mine === run.current) {
         showPlan(result.plan);
         setPlanDialect(result.dialect);
         setPlanSource(src);
         setDbmlSchema(result.dialect === 'dbml' ? result.schema : null);
         setTypeDialect(preferences.sqlDialect);
-        // A board with layers is left alone by default; an empty one is just filled.
-        setDest(state.nodes.length > 0 ? 'new' : 'add');
+        setDest(target);
       }
     } catch {
       if (mine === run.current) {
@@ -231,7 +234,7 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
     setBusy(true);
     try {
       const { mapSchemaTypes } = await import('../schemaImport/mapTypes');
-      const mapped = await planImport(mapSchemaTypes(dbmlSchema, next), state.nodes);
+      const mapped = await planImport(mapSchemaTypes(dbmlSchema, next), nodesFor(dest));
       if (mine === run.current) {
         showPlan(mapped);
         setTypeDialect(next);
@@ -270,6 +273,24 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
     if (bounds) dispatch({ type: 'setViewport', viewport: fitBox(bounds, state.canvasSize) });
   };
 
+  const changeDest = async (next: Destination) => {
+    if (next === dest || !plan || !baseSchema || busy) return;
+    const mine = ++run.current;
+    setBusy(true);
+    try {
+      const relations = [...baseSchema.relations, ...guesses.filter((_, i) => ticked.has(i))];
+      const replanned = await planImport({ ...baseSchema, relations }, nodesFor(next));
+      if (mine === run.current) {
+        setPlan(replanned);
+        setDest(next);
+      }
+    } catch {
+      if (mine === run.current) await alert({ title: "Can't read this schema", description: 'Something went wrong while updating the preview.' });
+    } finally {
+      if (mine === run.current) setBusy(false);
+    }
+  };
+
   const submit = async () => {
     if (!plan || busy) return;
     if (dest === 'add') {
@@ -291,17 +312,10 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
         });
         if (!ok || mine !== run.current) return;
       }
-      // Planned against an empty document: nothing to rename around, and the block starts at the origin.
-      const fresh = await planImport(plan.schema, []);
-      if (mine !== run.current) return;
-      if (dest === 'replace') dispatch({ type: 'loadDocument', nodes: fresh.nodes });
-      else boardsDispatch({ type: 'importBoard', nodes: fresh.nodes, name: planSource?.name.replace(/\.[^.]*$/, '') });
-      showImported(fresh.nodes);
+      if (dest === 'replace') dispatch({ type: 'loadDocument', nodes: plan.nodes });
+      else boardsDispatch({ type: 'importBoard', nodes: plan.nodes, name: planSource?.name.replace(/\.[^.]*$/, '') });
+      showImported(plan.nodes);
       close(false);
-    } catch {
-      if (mine === run.current) {
-        await alert({ title: "Can't read this schema", description: 'Something went wrong while building the tables.' });
-      }
     } finally {
       if (mine === run.current) setBusy(false);
     }
@@ -474,6 +488,21 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
             {dialectChips}
           </div>
         )}
+        <RadioGroup.Root
+          className={radios.root}
+          value={dest}
+          onValueChange={({ value }) => value && void changeDest(value as Destination)}
+          data-testid="import-destination"
+        >
+          <RadioGroup.Label className={labelClass}>Put the tables</RadioGroup.Label>
+          {DESTINATIONS.map((d) => (
+            <RadioGroup.Item key={d.id} value={d.id} className={radios.item} data-testid={`import-dest-${d.id}`}>
+              <RadioGroup.ItemControl className={radios.itemControl} />
+              <RadioGroup.ItemText className={radios.itemText}>{d.label}</RadioGroup.ItemText>
+              <RadioGroup.ItemHiddenInput />
+            </RadioGroup.Item>
+          ))}
+        </RadioGroup.Root>
         {tableNodes.length > 0 && (
           <table className={previewTableClass} data-testid="import-tables">
             <thead>
@@ -504,21 +533,6 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
             </tbody>
           </table>
         )}
-        <RadioGroup.Root
-          className={radios.root}
-          value={dest}
-          onValueChange={({ value }) => value && setDest(value as Destination)}
-          data-testid="import-destination"
-        >
-          <RadioGroup.Label className={labelClass}>Put the tables</RadioGroup.Label>
-          {DESTINATIONS.map((d) => (
-            <RadioGroup.Item key={d.id} value={d.id} className={radios.item} data-testid={`import-dest-${d.id}`}>
-              <RadioGroup.ItemControl className={radios.itemControl} />
-              <RadioGroup.ItemText className={radios.itemText}>{d.label}</RadioGroup.ItemText>
-              <RadioGroup.ItemHiddenInput />
-            </RadioGroup.Item>
-          ))}
-        </RadioGroup.Root>
         {guesses.length > 0 && (
           <section
             ref={guessesRef}

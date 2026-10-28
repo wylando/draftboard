@@ -92,15 +92,98 @@ describe('Schema import from SQL', () => {
     cy.get('[data-board-name="shop"]').should('have.attr', 'aria-selected', 'true');
   });
 
-  it('clears the selection and fits the imported layers at no more than 100%', () => {
+  // Every table lies inside the canvas element, which is what fitting the view means.
+  const tablesInsideCanvas = (count: number) =>
+    cy.get('[data-testid=canvas]').should(($c) => {
+      const view = $c[0]!.getBoundingClientRect();
+      const tables = Array.from($c[0]!.querySelectorAll('[data-node-type=table]'));
+      expect(tables).to.have.length(count);
+      for (const t of tables) {
+        const r = t.getBoundingClientRect();
+        expect(r.left, 'left').to.be.gte(view.left);
+        expect(r.right, 'right').to.be.lte(view.right);
+        expect(r.top, 'top').to.be.gte(view.top);
+        expect(r.bottom, 'bottom').to.be.lte(view.bottom);
+      }
+    });
+  const zoom = () => cy.get('[data-testid=world]').then(($w) => Number($w.attr('data-zoom')));
+
+  it('clears the selection and fits the imported tables in view, one undo step', () => {
     cy.drawShape('rect', [100, 100], [200, 200]);
     previewFixture();
     cy.get('[data-testid=import-dest-add]').click();
     cy.get('[data-testid=import-submit]').click();
     cy.get('[data-testid=dialog]').should('not.exist');
-    cy.get('[data-node-type=table]').should('have.length', 3);
     cy.get('[data-testid=selection-overlay] [data-handle]').should('not.exist');
-    cy.get('[data-testid=world]').should(($w) => expect(Number($w.attr('data-zoom'))).to.be.at.most(1));
+    tablesInsideCanvas(3);
+    zoom().should('be.at.most', 1);
+    cy.pressKey('z', { metaKey: true });
+    cy.get('[data-node-type=table]').should('not.exist');
+    cy.get('[data-node-type=rect]').should('have.length', 1);
+  });
+
+  it('zooms out to fit a schema too large for the canvas', () => {
+    const sql = Array.from({ length: 60 }, (_, i) => `CREATE TABLE t${i} (id int PRIMARY KEY${i > 0 ? `, p int REFERENCES t${i - 1}(id)` : ''});`).join('\n');
+    cy.get('[data-testid=app-menu]').click();
+    cy.get('[data-testid=import-schema]').click();
+    cy.get('[data-testid=schema-source]').type(sql, { delay: 0, parseSpecialCharSequences: false });
+    cy.contains('button', 'Preview').click();
+    cy.get('[data-testid=import-submit]').click();
+    cy.get('[data-testid=dialog]').should('not.exist');
+    zoom().should('be.lt', 1);
+  });
+
+  it('fits the view of a new board and shows its tables', () => {
+    cy.drawShape('rect', [100, 100], [200, 200]);
+    previewFixture();
+    cy.get('[data-testid=import-submit]').click();
+    cy.get('[data-board-name="Board 2"]').should('have.attr', 'aria-selected', 'true');
+    tablesInsideCanvas(3);
+  });
+
+  it('applies ticked guessed relationships when importing as a new board', () => {
+    cy.drawShape('rect', [100, 100], [200, 200]);
+    cy.get('[data-testid=app-menu]').click();
+    cy.get('[data-testid=import-schema]').click();
+    cy.fixture('schema/no-fks.sql').then((sql: string) => {
+      cy.get('[data-testid=schema-source]').type(sql, { delay: 0, parseSpecialCharSequences: false });
+    });
+    cy.contains('button', 'Preview').click();
+    cy.get('[data-testid=guess-0] input').check({ force: true });
+    cy.get('[data-testid=import-summary]').should('contain', '1 relationship');
+    cy.get('[data-testid=import-dest-new]').should('have.attr', 'data-state', 'checked');
+    cy.get('[data-testid=import-submit]').click();
+    cy.get('[data-board-name="Board 2"]').should('have.attr', 'aria-selected', 'true');
+    cy.get('[data-node-type=connector]').should('have.length', 1);
+  });
+
+  it('keeps the chosen destination when the dialect is switched, and names tables for that destination', () => {
+    previewFixture();
+    cy.get('[data-testid=import-submit]').click();
+    cy.get('[data-node-type=table]').should('have.length', 3);
+
+    previewFixture();
+    // This board has the tables already, so the default is a new board, where nothing clashes.
+    cy.get('[data-testid=import-dest-new]').should('have.attr', 'data-state', 'checked');
+    cy.get('[data-testid=import-problems]').should('not.exist');
+    cy.get('[data-testid=import-tables]').should('not.contain', 'users 2');
+    cy.get('[data-testid=import-dest-add]').click();
+    cy.get('[data-testid=import-problems]').should('contain', '"users" already exists; imported as "users 2"');
+    cy.get('[data-testid=import-tables]').should('contain', 'users 2');
+
+    cy.get(`${FORMAT} [data-value=sqlite]`).click();
+    pressed('sqlite');
+    cy.get('[data-testid=import-dest-add]').should('have.attr', 'data-state', 'checked');
+    cy.get('[data-testid=import-tables]').should('contain', 'users 2');
+    cy.get('[data-testid=import-dest-replace]').click();
+    cy.get('[data-testid=import-tables]').should('not.contain', 'users 2');
+  });
+
+  it('puts the destination above the table list', () => {
+    previewFixture();
+    cy.get('[data-testid=import-destination]').then(($d) => {
+      cy.get('[data-testid=import-tables]').then(($t) => expect($d[0]!.getBoundingClientRect().bottom).to.be.lte($t[0]!.getBoundingClientRect().top));
+    });
   });
 
   it('keeps the dialect control and counts on one line', () => {
@@ -144,9 +227,12 @@ describe('Schema import from SQL', () => {
     cy.get('[data-node-type=table]').should('have.length', 3);
 
     previewFixture();
+    cy.get('[data-testid=import-dest-add]').click();
     cy.get('[data-testid=import-problems]').should('contain', '"users" already exists; imported as "users 2"');
 
+    // Replacing plans against an empty board, so the clash goes away from the preview.
     cy.get('[data-testid=import-dest-replace]').click();
+    cy.get('[data-testid=import-problems]').should('not.exist');
     cy.get('[data-testid=import-submit]').should('have.text', 'Replace board').and('have.css', 'background-color').and('not.equal', 'rgba(0, 0, 0, 0)');
     cy.get('[data-testid=import-submit]').click();
     cy.get('[role=alertdialog]').should('contain', 'Replace this board?');

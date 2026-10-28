@@ -105,6 +105,29 @@ describe('collectSchema', () => {
   });
 });
 
+describe('collectSchema, links it cannot write', () => {
+  it('says so for a link between a table and a column, instead of dropping it silently', () => {
+    const a = users();
+    const posts = table('posts', [{ name: 'id', primaryKey: true }]);
+    const tables = [a, posts];
+    const mixed = link(tables, whole(posts), col(a, 'id'));
+    expect(collectSchema([...tables, mixed], []).skippedLinks).toEqual([
+      { ends: 'posts → users.id', reason: 'links a table to a column; link two columns to export a foreign key' },
+    ]);
+  });
+
+  it('offers to include a missing table only when it has columns to export', () => {
+    const a = users();
+    const bare = table('bare', []);
+    const full = table('full', [{ name: 'id', primaryKey: true }]);
+    const tables = [a, bare, full];
+    const nodes = [...tables, link(tables, col(a, 'id'), col(full, 'id')), link(tables, col(a, 'id'), whole(bare), { isForeignKey: true })];
+    const links = collectSchema(nodes, [a.id]).skippedLinks;
+    expect(links.map((l) => l.missingTableId)).toEqual([full.id, undefined]);
+    expect(links[1]!.reason).toBe('"bare" has no columns');
+  });
+});
+
 // One design that touches every column and relation feature, read back through the importers.
 function design() {
   const a = table(

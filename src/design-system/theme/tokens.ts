@@ -34,6 +34,10 @@ export const tokens = defineTokens({
     },
     red: {
       500: { value: '#f24822' },
+      /** Ours: white text on it is about 5.3:1, which red.500 (3.7:1) doesn't reach. */
+      600: { value: '#c9331a' },
+      /** Ours: hover for red.600. */
+      700: { value: '#a82a15' },
     },
     /** Ours: a soft amber for warnings. */
     amber: {
