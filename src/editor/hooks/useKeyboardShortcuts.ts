@@ -168,7 +168,8 @@ export function useKeyboardShortcuts(options: Options) {
       let id = binding ? latest.current.commandFor(binding) : undefined;
       // Bindings use the physical key, so a layout that types "?" elsewhere (Shift+- on German) finds nothing above;
       // the typed character then stands in for Shift+/, still through the user's own bindings.
-      if (!id && e.key === '?') id = latest.current.commandFor('Shift+/');
+      // Not with Ctrl/Cmd/Alt: Cmd+Shift+/ is the OS and browser Help shortcut, which must stay theirs.
+      if (!id && e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) id = latest.current.commandFor('Shift+/');
       if (!id) return;
       e.preventDefault();
       // Holding a nudge key should keep nudging, but holding Alt+N shouldn't keep adding boards.

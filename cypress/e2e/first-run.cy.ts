@@ -67,6 +67,8 @@ describe('First run: empty board', () => {
     cy.get('[data-testid=empty-open-file]').click();
     cy.get('@pick').should('have.been.calledOnce');
     cy.get('[data-testid=import-file]').selectFile({ contents: Cypress.Buffer.from(doc), fileName: 'b.json' }, { force: true });
+    // Cleared after each pick, so choosing the same file again still fires a change.
+    cy.get('[data-testid=import-file]').should('have.value', '');
     cy.get(CARD).should('be.visible');
     cy.drawShape('rect', [100, 100], [200, 200]);
     cy.get(CARD).should('not.exist');
@@ -106,6 +108,15 @@ describe('First run: Getting started entry points', () => {
   it('opens from ? on a layout where it is typed with another key', () => {
     cy.pressKey('?', { code: 'Minus', shiftKey: true });
     cy.get('[data-testid=getting-started-section]').should('be.visible');
+  });
+
+  it('leaves Cmd+Shift+/ to the browser instead of opening the guide', () => {
+    cy.window().then((win) => {
+      const event = new win.KeyboardEvent('keydown', { key: '?', code: 'Minus', shiftKey: true, metaKey: true, bubbles: true, cancelable: true });
+      win.document.body.dispatchEvent(event);
+      expect(event.defaultPrevented).to.equal(false);
+    });
+    cy.get('[data-testid=settings-page]').should('not.exist');
   });
 
   it('deep-links to a section and defaults to shortcuts', () => {

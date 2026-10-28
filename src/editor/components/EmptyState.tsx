@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { css } from 'styled-system/css';
 import { Button } from '../../design-system';
 import { usePreferences } from '../../settings/preferences/PreferencesContext';
-import { useEditor } from '../EditorContext';
+import { useLatest } from '../../shared/useLatest';
+import { useBoards, useEditor } from '../EditorContext';
 import { fitBox, rotatedBounds, screenToWorld, unionBoxes } from '../geometry';
 import { useFileActions } from '../hooks/FileActions';
 import { createNode, DEFAULT_SIZE } from '../model/nodes';
@@ -43,6 +44,8 @@ export function EmptyState({ onOpenGuide }: { onOpenGuide: () => void }) {
   const { state, dispatch } = useEditor();
   const { sqlDialect } = usePreferences().preferences;
   const files = useFileActions();
+  const { activeId } = useBoards();
+  const activeIdRef = useLatest(activeId);
   // Ignores a second click while the sample is still being laid out, which would add it twice.
   const [adding, setAdding] = useState(false);
 
@@ -56,9 +59,12 @@ export function EmptyState({ onOpenGuide }: { onOpenGuide: () => void }) {
   const addExample = async () => {
     if (adding) return;
     setAdding(true);
+    const startedOn = activeId;
     try {
       const [{ EXAMPLE_SCHEMA }, { planImport }] = await Promise.all([import('../schemaImport/exampleSchema'), import('../schemaImport/importSchema')]);
       const plan = await planImport(EXAMPLE_SCHEMA, state.nodes);
+      // The user may have switched boards while this loaded; the dispatch would land on that one instead.
+      if (activeIdRef.current !== startedOn) return;
       dispatch({ type: 'importNodes', nodes: plan.nodes });
       const bounds = unionBoxes(plan.nodes.filter((n) => n.type === 'table').map((n) => rotatedBounds(n, n.rotation)));
       if (bounds) dispatch({ type: 'setViewport', viewport: fitBox(bounds, state.canvasSize) });
