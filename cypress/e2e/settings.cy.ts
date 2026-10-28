@@ -43,7 +43,7 @@ describe('Settings: keyboard shortcuts', () => {
   it('rebinds Rectangle from R to B and the canvas uses the new key', () => {
     record('tool.rect', 'b', 'KeyB');
     chip('tool.rect', 'B').should('exist');
-    row('tool.rect').find('[data-binding="R"]').parent().find('[data-testid=remove-binding]').click();
+    chip('tool.rect', 'R').find('[data-testid=remove-binding]').click();
     chip('tool.rect', 'R').should('not.exist');
 
     cy.get('[data-testid=close-settings]').click();
@@ -56,6 +56,22 @@ describe('Settings: keyboard shortcuts', () => {
     cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'select');
     cy.pressKey('b', { code: 'KeyB' });
     cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'rect');
+  });
+
+  it('shows remove inside the key chip and Add only on hover or focus, both keyboard reachable', () => {
+    row('tool.rect').find('[data-testid="record-tool.rect"]').should('have.css', 'opacity', '0');
+    chip('tool.rect', 'R').find('[data-testid=remove-binding]').should('have.css', 'opacity', '0');
+
+    chip('tool.rect', 'R').find('[data-testid=remove-binding]').should('have.attr', 'aria-label').and('match', /^Remove .+ from Rectangle$/);
+    chip('tool.rect', 'R').find('[data-testid=remove-binding]').focus();
+    chip('tool.rect', 'R').find('[data-testid=remove-binding]').should('have.css', 'opacity', '1');
+    row('tool.rect').find('[data-testid="record-tool.rect"]').should('have.css', 'opacity', '1');
+
+    // Cypress can't press Enter on a button for real; a focused <button> is what makes the browser do it.
+    cy.focused().should('have.attr', 'data-testid', 'remove-binding').and('match', 'button').click();
+    chip('tool.rect', 'R').should('not.exist');
+    // With nothing assigned the Add control stays visible: it is the only way in.
+    row('tool.rect').find('[data-testid="record-tool.rect"]').should('have.css', 'opacity', '1');
   });
 
   it('keeps custom bindings after a reload', () => {

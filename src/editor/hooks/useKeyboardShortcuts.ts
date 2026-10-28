@@ -1,12 +1,12 @@
 import { useEffect } from 'react';
-import { useDialogs } from '../../design-system';
+import { notify, useDialogs } from '../../design-system';
 import type { CommandId } from '../../settings/keybindings/commands';
 import { bindingFromEvent } from '../../settings/keybindings/keys';
 import { useKeybindings } from '../../settings/keybindings/KeybindingsContext';
 import { useLatest } from '../../shared/useLatest';
 import { useBoards } from '../EditorContext';
 import type { EditorAction, EditorState } from '../model/editorReducer';
-import { byIdOf, isEffectivelyVisible } from '../model/tree';
+import { byIdOf, isEffectivelyVisible, topLevelIds } from '../model/tree';
 import { useCloseBoard } from './useCloseBoard';
 
 const NUDGE = 1;
@@ -39,10 +39,18 @@ interface BoardControls {
   closeBoard: (id: string) => void;
 }
 
+/** Layers a selection command acts on: a selected container counts once, not with its children. */
+const selectedLayers = (state: EditorState) => topLevelIds(byIdOf(state.nodes), state.selection).length;
+
 /** What each command does in the editor. Keys come from the user's bindings. */
 function runCommand(id: CommandId, o: Options, b: BoardControls): void {
   const { state, dispatch } = o;
   const nudge = (dx: number, dy: number) => dispatch({ type: 'nudgeSelection', dx, dy });
+  const undo = { label: 'Undo', onClick: () => dispatch({ type: 'undo' }) };
+  // A command that found nothing to act on stays silent.
+  const confirmed = (verb: string, count: number, action?: typeof undo) => {
+    if (count > 0) notify(`${verb} ${count} ${count === 1 ? 'layer' : 'layers'}`, action);
+  };
   switch (id) {
     case 'tool.select':
       return dispatch({ type: 'setTool', tool: 'select' });
@@ -67,15 +75,28 @@ function runCommand(id: CommandId, o: Options, b: BoardControls): void {
     case 'edit.redo':
       return dispatch({ type: 'redo' });
     case 'edit.copy':
-      return dispatch({ type: 'copySelection' });
+      dispatch({ type: 'copySelection' });
+      return confirmed('Copied', selectedLayers(state));
     case 'edit.cut':
-      return dispatch({ type: 'cutSelection' });
-    case 'edit.paste':
-      return dispatch({ type: 'pasteClipboard' });
+      dispatch({ type: 'cutSelection' });
+      return confirmed('Cut', selectedLayers(state));
+    case 'edit.paste': {
+      const inClipboard = new Set(state.clipboard.map((n) => n.id));
+      const pasted = state.clipboard.filter((n) => n.parentId === null || !inClipboard.has(n.parentId)).length;
+      dispatch({ type: 'pasteClipboard' });
+      return pasted === 0 ? notify('Nothing to paste') : confirmed('Pasted', pasted);
+    }
     case 'edit.duplicate':
-      return dispatch({ type: 'duplicateSelection' });
-    case 'edit.delete':
-      return dispatch({ type: 'deleteSelection' });
+      dispatch({ type: 'duplicateSelection' });
+      return confirmed('Duplicated', selectedLayers(state));
+    case 'edit.delete': {
+      // A picked column goes on its own (see deleteSelection in the reducer).
+      const column = state.selectedColumn !== null;
+      const count = selectedLayers(state);
+      dispatch({ type: 'deleteSelection' });
+      if (column) return notify('Deleted column', undo);
+      return confirmed('Deleted', count, undo);
+    }
     case 'edit.selectAll': {
       // Select siblings of the current selection (top level if nothing is selected).
       const byId = byIdOf(state.nodes);

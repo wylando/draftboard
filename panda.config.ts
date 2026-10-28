@@ -18,6 +18,7 @@ import {
   splitterRecipe,
   semanticTokens,
   tabsRecipe,
+  toastRecipe,
   textStyles,
   toggleSwitchRecipe,
   tokens,
@@ -61,6 +62,7 @@ export default defineConfig({
       accordion: accordionRecipe,
       combobox: comboboxRecipe,
       popup: popupRecipe,
+      toast: toastRecipe,
     },
     keyframes: {
       popupIn: {

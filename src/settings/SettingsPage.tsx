@@ -46,7 +46,7 @@ const mainClass = css({
   paddingInline: '6',
   '& h1': { margin: '0', marginBottom: '2', fontSize: 'bodyLarge', lineHeight: 'bodyLarge', fontWeight: 'strong' },
 });
-const innerClass = css({ maxWidth: 'content', marginInline: 'auto' });
+const innerClass = css({ maxWidth: 'content' });
 
 export function SettingsPage({ onClose }: { onClose: () => void }) {
   const [section, setSection] = useState<SectionId>('shortcuts');
