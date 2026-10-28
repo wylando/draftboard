@@ -51,6 +51,15 @@ export const COMMANDS = {
   'arrange.group': { label: 'Group selection', category: 'arrange', defaults: ['Mod+G'], description: 'Put the selected layers in a new group, which moves and resizes them together.' },
   'arrange.ungroup': { label: 'Ungroup', category: 'arrange', defaults: ['Mod+Shift+G'], description: 'Remove the selected groups and keep their layers where they are.' },
   'arrange.back': { label: 'Send to back', category: 'arrange', defaults: ['Mod+Alt+['], description: 'Move the selection to the bottom of the layer order.' },
+  // No defaults: browsers and OSes use most Alt/Mod letter combos. Bind one in Settings, or use the Design panel buttons.
+  'arrange.alignLeft': { label: 'Align left', category: 'arrange', defaults: [], description: 'Line the selected layers up with the left edge of the selection.' },
+  'arrange.alignCenterX': { label: 'Align horizontal centers', category: 'arrange', defaults: [], description: 'Center the selected layers on the selection’s horizontal middle.' },
+  'arrange.alignRight': { label: 'Align right', category: 'arrange', defaults: [], description: 'Line the selected layers up with the right edge of the selection.' },
+  'arrange.alignTop': { label: 'Align top', category: 'arrange', defaults: [], description: 'Line the selected layers up with the top edge of the selection.' },
+  'arrange.alignCenterY': { label: 'Align vertical centers', category: 'arrange', defaults: [], description: 'Center the selected layers on the selection’s vertical middle.' },
+  'arrange.alignBottom': { label: 'Align bottom', category: 'arrange', defaults: [], description: 'Line the selected layers up with the bottom edge of the selection.' },
+  'arrange.distributeH': { label: 'Distribute horizontally', category: 'arrange', defaults: [], description: 'Give three or more layers equal horizontal gaps; the outermost two stay put.' },
+  'arrange.distributeV': { label: 'Distribute vertically', category: 'arrange', defaults: [], description: 'Give three or more layers equal vertical gaps; the outermost two stay put.' },
 
   'view.zoomIn': { label: 'Zoom in', category: 'view', defaults: ['Mod+='], description: 'Double the zoom around the canvas center.' },
   'view.zoomOut': { label: 'Zoom out', category: 'view', defaults: ['Mod+-'], description: 'Halve the zoom around the canvas center.' },

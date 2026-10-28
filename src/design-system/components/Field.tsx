@@ -18,6 +18,8 @@ interface FieldShellProps {
   /** Shown under the field; also marks the input invalid and describes it. */
   error?: ReactNode;
   children: ReactNode;
+  /** Tooltip over the whole field, for fields whose visible label is only a letter or an icon. */
+  title?: string;
   /** Makes the label a scrub handle (NumberInput). */
   onLabelPointerDown?: (e: ReactPointerEvent<HTMLSpanElement>) => void;
   onClick?: (e: MouseEvent<HTMLLabelElement>) => void;
@@ -27,11 +29,11 @@ interface FieldShellProps {
  * Ark's Field wires the label, aria-invalid and aria-describedby to the input.
  * The whole box is the label, so clicking anywhere in it focuses the input.
  */
-function FieldShell({ label, error, children, onLabelPointerDown, onClick }: FieldShellProps) {
+function FieldShell({ label, error, children, title, onLabelPointerDown, onClick }: FieldShellProps) {
   const invalid = error !== undefined && error !== null;
   return (
     <Field.Root className={classes.root} invalid={invalid}>
-      <Field.Label className={classes.control} onClick={onClick}>
+      <Field.Label className={classes.control} title={title} onClick={onClick}>
         {label !== undefined && (
           <span className={classes.label} data-scrub={onLabelPointerDown ? '' : undefined} onPointerDown={onLabelPointerDown}>
             {label}
@@ -67,8 +69,13 @@ function blurOnEnter(e: KeyboardEvent<HTMLInputElement>) {
 const formatNumber = (v: number) => String(Math.round(v * 100) / 100);
 
 export interface NumberInputProps {
+  /** Visible prefix inside the field: a letter or an icon. */
   label?: ReactNode;
+  /** Full name, for the accessible name and tooltip when `label` is only a glyph. */
+  name?: string;
   value: number;
+  /** The selected layers disagree: the field is empty with a "Mixed" placeholder, and any typed value applies to all. */
+  mixed?: boolean;
   /** A typed edit, committed on Enter/blur. */
   onCommit: (value: number) => void;
   /**
@@ -104,19 +111,22 @@ interface Scrub {
   started: boolean;
 }
 
-export function NumberInput({ label, value, onCommit, onScrubChange, onScrubStart, min, max, testId }: NumberInputProps) {
-  const [draft, setDraft] = useDraft(value, formatNumber);
+export function NumberInput({ label, name, value, mixed, onCommit, onScrubChange, onScrubStart, min, max, testId }: NumberInputProps) {
+  const [draft, setDraft] = useDraft<number | null>(mixed ? null : value, (v) => (v === null ? '' : formatNumber(v)));
   const clamp = (v: number) => Math.min(max ?? Infinity, Math.max(min ?? -Infinity, v));
 
+  const shown = mixed ? '' : formatNumber(value);
   const commit = () => {
+    // An untouched Mixed field must not turn into a 0 for every layer.
+    if (mixed && draft.trim() === '') return;
     const parsed = Number(draft);
     if (!Number.isFinite(parsed)) {
-      setDraft(formatNumber(value));
+      setDraft(shown);
       return;
     }
     const clamped = clamp(parsed);
-    if (clamped !== value) onCommit(clamped);
-    else setDraft(formatNumber(value));
+    if (mixed || clamped !== value) onCommit(clamped);
+    else setDraft(shown);
   };
 
   const scrub = useRef<Scrub | null>(null);
@@ -177,6 +187,7 @@ export function NumberInput({ label, value, onCommit, onScrubChange, onScrubStar
   return (
     <FieldShell
       label={label}
+      title={name}
       onLabelPointerDown={scrubbable ? onLabelPointerDown : undefined}
       onClick={(e) => {
         if (!suppressClick.current) return;
@@ -187,6 +198,8 @@ export function NumberInput({ label, value, onCommit, onScrubChange, onScrubStar
       <Field.Input
         className={classes.input}
         inputMode="decimal"
+        aria-label={name}
+        placeholder={mixed ? 'Mixed' : undefined}
         value={draft}
         data-testid={testId}
         onChange={(e) => setDraft(e.target.value)}
@@ -251,8 +264,10 @@ export interface ColorInputProps {
   value: string;
   onCommit: (value: string) => void;
   testId?: string;
-  /** Accessible name for the hex field, where no visible label names it. */
+  /** Accessible name and tooltip for the hex field; no visible label names it. */
   label?: string;
+  /** The selected layers disagree: the hex field is empty with a "Mixed" placeholder, and any colour applies to all. */
+  mixed?: boolean;
 }
 
 /**
@@ -261,35 +276,37 @@ export interface ColorInputProps {
  * so the swatch keeps a local draft and commits once on the native `change`
  * event, giving one undo step per color pick.
  */
-export function ColorInput({ value, onCommit, testId, label }: ColorInputProps) {
-  const [draft, setDraft] = useDraft(value, (v: string) => v.replace('#', '').toUpperCase());
+export function ColorInput({ value, onCommit, testId, label, mixed }: ColorInputProps) {
+  const [draft, setDraft] = useDraft<string | null>(mixed ? null : value, (v) => (v === null ? '' : v.toUpperCase()));
   const [swatch, setSwatch] = useDraft(value, (v: string) => v);
   const swatchRef = useRef<HTMLInputElement>(null);
   const commitRef = useLatest(onCommit);
   const valueRef = useLatest(value);
+  const mixedRef = useLatest(mixed);
 
   useEffect(() => {
     const el = swatchRef.current;
     if (!el) return;
     const onNativeChange = () => {
-      if (el.value !== valueRef.current) commitRef.current(el.value);
+      if (mixedRef.current || el.value !== valueRef.current) commitRef.current(el.value);
     };
     el.addEventListener('change', onNativeChange);
     return () => el.removeEventListener('change', onNativeChange);
-  }, [commitRef, valueRef]);
+  }, [commitRef, valueRef, mixedRef]);
 
   const commitText = () => {
     const match = HEX.exec(draft.trim());
     if (match?.[1]) {
       const next = `#${match[1].toLowerCase()}`;
-      if (next !== value) onCommit(next);
+      if (mixed || next !== value) onCommit(next);
+      else setDraft(value.toUpperCase());
     } else {
-      setDraft(value.replace('#', '').toUpperCase());
+      setDraft(mixed ? '' : value.toUpperCase());
     }
   };
 
   return (
-    <FieldShell>
+    <FieldShell title={label}>
       <input
         ref={swatchRef}
         type="color"
@@ -303,6 +320,7 @@ export function ColorInput({ value, onCommit, testId, label }: ColorInputProps) 
         className={classes.input}
         value={draft}
         aria-label={label}
+        placeholder={mixed ? 'Mixed' : undefined}
         data-testid={testId}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commitText}
