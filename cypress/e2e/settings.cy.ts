@@ -217,6 +217,7 @@ describe('Settings: symbols', () => {
     for (const kind of ['one', 'zeroOrOne', 'many', 'oneOrMany']) {
       cy.get(`[data-testid=symbol-cardinality-${kind}] [data-testid=connector-marker][data-cardinality=${kind}] path`).should('exist');
     }
+    cy.get('[data-testid=symbols-many-to-many]').should('contain', 'whole tables').and('contain', 'junction table');
     // A 'none' end on a table still offers a (blank) marker to click.
     cy.get('[data-testid=symbol-cardinality-none] [data-testid=connector-marker][data-cardinality=none]').should('exist').find('path').should('not.exist');
 

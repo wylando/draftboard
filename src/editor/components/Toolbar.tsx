@@ -89,15 +89,17 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
             </Button>
           )}
         </span>
-        <Button variant="toolbar" onClick={() => fileInput.current?.click()}>
-          Import
-        </Button>
-        {/* One menu for both schema dialogs, so the top bar leaves the board tabs their room. */}
+        {/* One menu for every import and export, so the top bar leaves the board tabs their room. */}
         <Menu.Root
           lazyMount
           unmountOnExit
           positioning={{ placement: 'bottom-end' }}
-          onSelect={({ value }) => (openWhenMenuCloses.current = value === 'export' ? 'export' : 'import')}
+          onSelect={({ value }) => {
+            // The file picker opens straight away: browsers only allow it during the click that asked for it.
+            if (value === 'import-board') fileInput.current?.click();
+            else if (value === 'export-board') downloadDocument(state.nodes);
+            else openWhenMenuCloses.current = value === 'export-schema' ? 'export' : 'import';
+          }}
           onExitComplete={() => {
             const next = openWhenMenuCloses.current;
             openWhenMenuCloses.current = null;
@@ -111,17 +113,24 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
           }}
         >
           <Menu.Trigger asChild>
-            <Button variant="toolbar" data-testid="schema-menu">
-              Schema
+            <Button variant="toolbar" data-testid="file-menu">
+              File
             </Button>
           </Menu.Trigger>
           <Portal>
             <Menu.Positioner className={menuClasses.positioner}>
               <Menu.Content className={menuClasses.content}>
-                <Menu.Item value="import" className={menuClasses.item} data-testid="import-schema">
+                <Menu.Item value="import-board" className={menuClasses.item} data-testid="import-board">
+                  Import board (JSON)…
+                </Menu.Item>
+                <Menu.Item value="export-board" className={menuClasses.item} data-testid="export-board">
+                  Export board (JSON)
+                </Menu.Item>
+                <Menu.Separator className={menuClasses.separator} />
+                <Menu.Item value="import-schema" className={menuClasses.item} data-testid="import-schema">
                   Import schema…
                 </Menu.Item>
-                <Menu.Item value="export" className={menuClasses.item} data-testid="export-schema">
+                <Menu.Item value="export-schema" className={menuClasses.item} data-testid="export-schema">
                   Export schema…
                 </Menu.Item>
               </Menu.Content>
@@ -138,9 +147,6 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
             <SchemaExportDialog open={exportOpen} onOpenChange={setExportOpen} />
           </Suspense>
         )}
-        <Button variant="toolbar" onClick={() => downloadDocument(state.nodes)}>
-          Export
-        </Button>
         <input
           ref={fileInput}
           type="file"

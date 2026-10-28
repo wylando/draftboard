@@ -132,8 +132,13 @@ export function SymbolsSection() {
           The marker at a table’s end says how many of that table’s rows match one row at the other end. Click a marker
           on the canvas to cycle it: one, zero or one, many, one or many, then no marker. A link between two columns
           starts as many at the foreign-key column’s table and one at the table it references; a link between two
-          whole tables starts as one at the table you drew from and many at the other. Only links between whole tables
-          can be many at both ends, so otherwise those steps are skipped.
+          whole tables starts as one at the table you drew from and many at the other.
+        </p>
+        <p className={mutedClass} data-testid="symbols-many-to-many">
+          Many-to-many: only links between whole tables can be many at both ends, so on a link between columns those
+          steps are skipped. A column link is one column referring to another, and a single column can’t hold a
+          many-to-many. Schema export writes a many-to-many as a junction table in SQL (both tables need a primary key)
+          and as a &lt;&gt; ref in DBML.
         </p>
         {CARDINALITIES.map(({ kind, term, text }) => {
           const id = `symbol-sample-${kind}`;
