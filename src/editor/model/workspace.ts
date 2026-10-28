@@ -28,7 +28,13 @@ export type WorkspaceAction =
   /** `toIndex` is clamped. The active board stays active. */
   | { type: 'moveBoard'; id: string; toIndex: number }
   /** Inserts a copy right after the board, named like a copied layer ("Board 1" → "Board 2"), and activates it. */
-  | { type: 'duplicateBoard'; id: string };
+  | { type: 'duplicateBoard'; id: string }
+  /**
+   * Inserts a board holding `nodes` right after the active one and activates it. Undo history starts
+   * empty, so closing the board is how to back the import out. `name` is used if free (ignoring case),
+   * else the next free "Board N".
+   */
+  | { type: 'importBoard'; nodes: DesignNode[]; name?: string };
 
 /** Saved boards may be missing a name or repeat one; the first board keeps it. */
 export function initialWorkspace(saved: SavedBoard[], activeId?: string): WorkspaceState {
@@ -154,6 +160,18 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
       const board: Board = { id: createId(), name, editor: carryShared(activeOf(state).editor, editor) };
       const boards = [...state.boards];
       boards.splice(index + 1, 0, board);
+      return { boards, activeId: board.id };
+    }
+
+    case 'importBoard': {
+      const taken = new Set(state.boards.map((b) => nameKey(b.name)));
+      const wanted = action.name?.trim();
+      let name = wanted && !taken.has(nameKey(wanted)) ? wanted : '';
+      for (let n = 1; !name; n += 1) if (!taken.has(nameKey(`Board ${n}`))) name = `Board ${n}`;
+      const current = activeOf(state);
+      const board: Board = { id: createId(), name, editor: carryShared(current.editor, initialEditorState(action.nodes)) };
+      const boards = [...state.boards];
+      boards.splice(boards.indexOf(current) + 1, 0, board);
       return { boards, activeId: board.id };
     }
   }

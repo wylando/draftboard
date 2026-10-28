@@ -93,13 +93,14 @@ describe('collectSchema', () => {
       ['profile', 'user_id', 'users', 'id', true],
     ]);
     expect(schema.manyToMany.map((m) => [m.a.name, m.b.name])).toEqual([['posts', 'tags']]);
-    expect(schema.warnings).toEqual([
-      'Table "empty" has no columns; skipped',
-      'Connector "not fk" links two columns but isn\'t a foreign key; skipped',
-      'Connector "one to many" links whole tables but isn\'t many-to-many; link columns to export a foreign key',
-      'Connector "unkeyed" is many-to-many, but "notes" has no primary key; skipped',
-      'Connector "leaving" leads to "outside", which isn\'t exported; skipped',
-      'Connector "loose" references "users"."bio", which isn\'t unique or the primary key; skipped',
+    expect(schema.warnings).toEqual(['Table "empty" has no columns; skipped']);
+    // Named by their ends, never by the connector layer's name.
+    expect(schema.skippedLinks).toEqual([
+      { ends: 'posts.editor_id → users.id', reason: "isn't a foreign key" },
+      { ends: 'users → tags', reason: "links whole tables but isn't many-to-many; link columns to export a foreign key" },
+      { ends: 'tags → notes', reason: '"notes" has no primary key' },
+      { ends: 'posts.editor_id → outside.id', reason: '"outside" isn\'t included', missingTableId: outside.id },
+      { ends: 'posts.editor_id → users.bio', reason: '"users"."bio" isn\'t unique or the primary key' },
     ]);
   });
 });

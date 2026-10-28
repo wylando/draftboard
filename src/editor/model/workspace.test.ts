@@ -274,6 +274,39 @@ describe('duplicateBoard', () => {
   });
 });
 
+describe('importBoard', () => {
+  const tables = () => {
+    const t1 = createNode('table', { x: 0, y: 0, width: 200, height: 100 }, []);
+    const t2 = createNode('table', { x: 400, y: 0, width: 200, height: 100 }, [t1]);
+    return [t1, t2];
+  };
+
+  it('inserts a board after the active one with the nodes, activates it, and starts with empty history and no selection', () => {
+    const two_ = two();
+    const s = run(two_, { type: 'switchBoard', id: two_.boards[0]!.id });
+    const next = run(s, { type: 'importBoard', nodes: tables(), name: 'shop' });
+    expect(next.boards.map((b) => b.name)).toEqual(['Board 1', 'shop', 'Board 2']);
+    expect(next.activeId).toBe(next.boards[1]!.id);
+    const e = active(next).editor;
+    expect(e.nodes).toHaveLength(2);
+    expect(e.past).toEqual([]);
+    expect(e.selection).toEqual([]);
+  });
+
+  it('names it the next free "Board N" without a name, and avoids a taken name ignoring case', () => {
+    const plain = run(initialWorkspace([]), { type: 'importBoard', nodes: tables() });
+    expect(plain.boards.map((b) => b.name)).toEqual(['Board 1', 'Board 2']);
+    const taken = run(initialWorkspace([]), { type: 'importBoard', nodes: tables(), name: 'BOARD 1' });
+    expect(taken.boards[1]!.name).toBe('Board 2');
+  });
+
+  it('carries the canvas size and clipboard from the board it was started on', () => {
+    const s = run(initialWorkspace([]), editor({ type: 'setCanvasSize', size: { width: 900, height: 700 } }));
+    const e = active(run(s, { type: 'importBoard', nodes: tables() })).editor;
+    expect(e.canvasSize).toEqual({ width: 900, height: 700 });
+  });
+});
+
 describe('sameSavedParts', () => {
   it('ignores viewport, selection and tool changes', () => {
     const base = run(initialWorkspace([]), editor({ type: 'addNode', node: rect() }));

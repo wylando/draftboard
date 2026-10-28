@@ -94,6 +94,7 @@ export function ShortcutsSection() {
               title: 'Reset all shortcuts?',
               description: 'Every command goes back to its default keys. Your custom shortcuts are removed.',
               confirmLabel: 'Reset all',
+              destructive: true,
             });
             if (confirmed) resetAll();
           }}

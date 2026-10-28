@@ -11,7 +11,7 @@ const importFixture = () => {
     cy.get('[data-testid=schema-source]').type(sql, { delay: 0, parseSpecialCharSequences: false });
   });
   cy.contains('button', 'Preview').click();
-  cy.get('[data-testid=import-add]').click();
+  cy.get('[data-testid=import-submit]').click();
   cy.get('[data-node-type=table]').should('have.length', 3);
 };
 
@@ -20,12 +20,18 @@ describe('Schema export', () => {
 
   it('previews SQL for the selected tables, or the whole board, and switches to DBML', () => {
     importFixture();
-    // The import selects what it added; select just users by its layer row.
+    // The import leaves nothing selected; select just users by its layer row.
     cy.contains('[data-testid=layers-panel] [role=treeitem]', 'users').click();
     cy.get('[data-testid=app-menu]').click();
     cy.get('[data-testid=export-schema]').click();
-    cy.get('[data-testid=export-scope]').should('contain', '1 table from the selection');
+    cy.get('[data-testid=export-scope] [data-value=selection]').should('contain', 'Selection (1 table)').and('have.attr', 'data-state', 'on');
+    cy.get('[data-testid=export-scope] [data-value=board]').should('contain', 'Whole board (3 tables)');
     cy.get(PREVIEW).should('contain.value', 'CREATE TABLE "users"').and('not.contain.value', '"posts"');
+    // The scope control switches the output without touching the selection.
+    cy.get('[data-testid=export-scope] [data-value=board]').click();
+    cy.get(PREVIEW).should('contain.value', 'CREATE TABLE "posts"');
+    cy.get('[data-testid=export-scope] [data-value=selection]').click();
+    cy.get(PREVIEW).should('not.contain.value', '"posts"');
     cy.get('[data-testid=dialog]').type('{esc}');
     cy.get('[data-testid=dialog]').should('not.exist');
 
@@ -34,6 +40,7 @@ describe('Schema export', () => {
     cy.get('[data-testid=app-menu]').click();
     cy.get('[data-testid=export-schema]').click();
     cy.get('[data-testid=export-scope]').should('contain', '3 tables on this board');
+    cy.get('[data-testid=export-scope] [data-value]').should('not.exist');
     cy.get(PREVIEW)
       .should('contain.value', 'CREATE TABLE "comments"')
       .and('contain.value', 'ALTER TABLE "posts" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id");');
@@ -44,6 +51,30 @@ describe('Schema export', () => {
     cy.get('[data-testid=export-format] [data-value=dbml]').click();
     cy.get('[data-testid=export-dialect]').should('not.exist');
     cy.get(PREVIEW).should('contain.value', 'Table users {').and('contain.value', 'Ref: posts.user_id > users.id');
+  });
+
+  it('names left-out relationships by their ends, above the preview, and can include the linked tables', () => {
+    importFixture();
+    cy.contains('[data-testid=layers-panel] [role=treeitem]', 'posts').click();
+    cy.get('[data-testid=app-menu]').click();
+    cy.get('[data-testid=export-schema]').click();
+    cy.get('[data-testid=export-notice]').should('contain', 'relationships left out').and('contain', 'posts.user_id → users.id');
+    cy.get('[data-testid=export-notice]').should('not.contain', 'Connector');
+    // Above the preview in the document.
+    cy.get('[data-testid=export-notice]').then(($n) => {
+      cy.get(PREVIEW).then(($p) => expect($n[0]!.getBoundingClientRect().bottom).to.be.lte($p[0]!.getBoundingClientRect().top));
+    });
+    cy.get('[data-testid=export-include-linked]').click();
+    cy.get('[data-testid=export-scope] [data-value=selection]').should('contain', 'Selection (3 tables)');
+    cy.get(PREVIEW).should('contain.value', 'CREATE TABLE "users"').and('contain.value', 'CREATE TABLE "comments"');
+    cy.get('[data-testid=export-notice]').should('not.exist');
+  });
+
+  it('wraps long preview lines instead of clipping them', () => {
+    importFixture();
+    cy.get('[data-testid=app-menu]').click();
+    cy.get('[data-testid=export-schema]').click();
+    cy.get(PREVIEW).should('have.css', 'white-space', 'pre-wrap');
   });
 
   it('copies the preview and downloads it as a file named after the board', () => {

@@ -1,11 +1,12 @@
 import { Field } from '@ark-ui/react/field';
+import { RadioGroup } from '@ark-ui/react/radio-group';
 import { Tabs } from '@ark-ui/react/tabs';
 import { ToggleGroup } from '@ark-ui/react/toggle-group';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Button, Checkbox, Dialog, DialogClose, useDialogs } from '../../design-system';
 import { usePreferences } from '../../settings/preferences/PreferencesContext';
-import { useEditor } from '../EditorContext';
-import type { DesignNode } from '../model/types';
+import { useBoards, useEditor } from '../EditorContext';
+import type { ConnectorNode, DesignNode, TableNode } from '../model/types';
 import { fitBox, rotatedBounds, unionBoxes } from '../geometry';
 import { SQL_DIALECTS } from '../model/table';
 import type { ImportedSchema } from '../schemaImport/types';
@@ -13,11 +14,12 @@ import { inferRelations } from '../schemaImport/inferRelations';
 import { planImport, type ImportPlan } from '../schemaImport/importSchema';
 import { parseSql } from '../schemaImport/fromSql';
 import { detectFormat } from '../schemaImport/detectFormat';
-import { css } from 'styled-system/css';
-import { chipGroup, tabs } from 'styled-system/recipes';
+import { css, cx } from 'styled-system/css';
+import { chipGroup, radioGroup, tabs } from 'styled-system/recipes';
 
 const tabsClasses = tabs({ orientation: 'horizontal' });
 const chips = chipGroup();
+const radios = radioGroup();
 const rowClass = css({ display: 'flex', alignItems: 'center', gap: '2' });
 const fileNameClass = css({ color: 'text.secondary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' });
 const hintTextClass = css({ color: 'text.secondary', textStyle: 'body.small' });
@@ -33,6 +35,13 @@ interface Source {
   /** The whole file, kept only for a SQLite database (its `text` is empty then). */
   data?: Uint8Array;
 }
+
+type Destination = 'add' | 'new' | 'replace';
+const DESTINATIONS: { id: Destination; label: string }[] = [
+  { id: 'add', label: 'Add to this board' },
+  { id: 'new', label: 'New board' },
+  { id: 'replace', label: 'Replace this board' },
+];
 
 /** Guesses listed before "Show more"; a wide schema can have dozens. */
 const GUESSES_SHOWN = 8;
@@ -54,9 +63,23 @@ const textareaClass = css({
   bg: 'bg.secondary',
   _focus: { outline: 'none', borderColor: 'border.selected', bg: 'bg' },
 });
-const summaryClass = css({ display: 'flex', gap: '3', textStyle: 'body.mediumStrong' });
+// Never wraps: the dialect chips and the counts share one line at the dialog's width.
+const summaryClass = css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '2', flexWrap: 'nowrap', textStyle: 'body.mediumStrong' });
+const summaryChipsClass = css({ flexWrap: 'nowrap' });
+const countsTextClass = css({ whiteSpace: 'nowrap', minWidth: '0', overflow: 'hidden', textOverflow: 'ellipsis' });
+const previewTableClass = css({
+  width: 'full',
+  tableLayout: 'fixed',
+  borderCollapse: 'collapse',
+  textStyle: 'body.medium',
+  '& th': { textAlign: 'start', color: 'text.secondary', paddingBlock: '1', paddingInlineEnd: '2' },
+  '& td': { paddingBlock: '1', paddingInlineEnd: '2', borderTopWidth: '1px', borderTopStyle: 'solid', borderTopColor: 'border' },
+  '& th, & td': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+});
+const narrowColClass = css({ width: '[64px]' });
+const keyColClass = css({ width: '[96px]' });
+const numberCellClass = css({ textAlign: 'end', fontVariantNumeric: 'tabular-nums' });
 const listClass = css({ margin: '0', paddingInlineStart: '4' });
-const countsClass = css({ display: 'flex', gap: '3' });
 const headingClass = css({ margin: '0', textStyle: 'body.mediumStrong' });
 const hintClass = css({ margin: '0', color: 'text.secondary' });
 const skippedClass = css({ color: 'text.secondary' });
@@ -64,6 +87,7 @@ const problemsClass = css({ color: 'text.danger' });
 
 export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { state, dispatch } = useEditor();
+  const { dispatch: boardsDispatch } = useBoards();
   const { preferences } = usePreferences();
   const { alert, confirm } = useDialogs();
   const [text, setText] = useState('');
@@ -89,6 +113,7 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
   const guessesTitleId = useId();
   const guessesHintId = useId();
   const guesses = useMemo(() => (baseSchema ? inferRelations(baseSchema) : []), [baseSchema]);
+  const [dest, setDest] = useState<Destination>('add');
   const [busy, setBusy] = useState(false);
   // Bumped on close, Back and each preview, so a parse, Add or Replace that finishes after any of them is dropped.
   const run = useRef(0);
@@ -188,6 +213,8 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
         setPlanSource(src);
         setDbmlSchema(result.dialect === 'dbml' ? result.schema : null);
         setTypeDialect(preferences.sqlDialect);
+        // A board with layers is left alone by default; an empty one is just filled.
+        setDest(state.nodes.length > 0 ? 'new' : 'add');
       }
     } catch {
       if (mine === run.current) {
@@ -238,38 +265,38 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
     }
   };
 
-  const showTables = (nodes: DesignNode[]) => {
-    const tables = nodes.filter((n) => n.type === 'table');
-    const bounds = unionBoxes(tables.map((n) => rotatedBounds(n, n.rotation)));
+  const showImported = (nodes: DesignNode[]) => {
+    const bounds = unionBoxes(nodes.map((n) => rotatedBounds(n, n.rotation)));
     if (bounds) dispatch({ type: 'setViewport', viewport: fitBox(bounds, state.canvasSize) });
   };
 
-  const add = () => {
-    if (!plan) return;
-    dispatch({ type: 'importNodes', nodes: plan.nodes });
-    showTables(plan.nodes);
-    close(false);
-  };
-
-  const replace = async () => {
+  const submit = async () => {
     if (!plan || busy) return;
+    if (dest === 'add') {
+      dispatch({ type: 'importNodes', nodes: plan.nodes });
+      showImported(plan.nodes);
+      close(false);
+      return;
+    }
     const mine = run.current;
     setBusy(true);
     try {
       // Loading clears undo history, so replacing anything, even an emptied canvas with history, can't be taken back.
-      if (state.nodes.length > 0 || state.past.length > 0) {
+      if (dest === 'replace' && (state.nodes.length > 0 || state.past.length > 0)) {
         const ok = await confirm({
-          title: 'Replace the current design?',
-          description: 'Importing replaces everything on the canvas and clears undo history. Export first to keep a copy.',
-          confirmLabel: 'Replace',
+          title: 'Replace this board?',
+          description: 'Importing replaces everything on this board and clears its undo history. Export first to keep a copy.',
+          confirmLabel: 'Replace board',
+          destructive: true,
         });
         if (!ok || mine !== run.current) return;
       }
       // Planned against an empty document: nothing to rename around, and the block starts at the origin.
       const fresh = await planImport(plan.schema, []);
       if (mine !== run.current) return;
-      dispatch({ type: 'loadDocument', nodes: fresh.nodes });
-      showTables(fresh.nodes);
+      if (dest === 'replace') dispatch({ type: 'loadDocument', nodes: fresh.nodes });
+      else boardsDispatch({ type: 'importBoard', nodes: fresh.nodes, name: planSource?.name.replace(/\.[^.]*$/, '') });
+      showImported(fresh.nodes);
       close(false);
     } catch {
       if (mine === run.current) {
@@ -360,9 +387,37 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
     );
   }
 
-  // Count what Add creates: the parser can report relations that the import then skips.
-  const tableNodes = plan.nodes.filter((n) => n.type === 'table');
-  const relations = plan.nodes.filter((n) => n.type === 'connector').length;
+  // Count what the import creates: the parser can report relations that the import then skips.
+  const tableNodes = plan.nodes.filter((n): n is TableNode => n.type === 'table');
+  const connectors = plan.nodes.filter((n): n is ConnectorNode => n.type === 'connector');
+  const relations = connectors.length;
+  const outgoing = new Map<string, number>();
+  for (const c of connectors) {
+    const id = c.from.kind === 'column' ? c.from.tableId : c.from.kind === 'node' ? c.from.nodeId : null;
+    if (id) outgoing.set(id, (outgoing.get(id) ?? 0) + 1);
+  }
+  // Not disabled while re-parsing: that would drop keyboard focus from the pressed item.
+  const dialectChips = (
+    <ToggleGroup.Root
+      className={cx(chips.root, summaryChipsClass)}
+      aria-label={planDialect === 'dbml' ? 'Column types' : 'Dialect'}
+      data-testid="import-format"
+      value={[planDialect === 'dbml' ? typeDialect : planDialect]}
+      deselectable={false}
+      onValueChange={({ value }) => {
+        const next = value[0] as SqlKind | undefined;
+        if (!next) return;
+        if (planDialect === 'dbml') void remapTypes(next);
+        else if (planSource) void preview(planSource, next);
+      }}
+    >
+      {(['postgres', 'mysql', 'sqlite'] as const).map((d) => (
+        <ToggleGroup.Item key={d} value={d} className={chips.item} data-value={d}>
+          {SQL_DIALECTS[d].label}
+        </ToggleGroup.Item>
+      ))}
+    </ToggleGroup.Root>
+  );
   const skipped = plan.warnings.filter((w) => w.message.startsWith('Skipped'));
   const problems = plan.warnings.filter((w) => !w.message.startsWith('Skipped'));
   const warningItems = (list: typeof plan.warnings) => [
@@ -377,71 +432,93 @@ export function SchemaImportDialog({ open, onOpenChange }: { open: boolean; onOp
       onOpenChange={close}
       bodyKey="preview"
       title="Import schema"
-      description="Add to canvas keeps your layers and renames clashing tables. Replace document loads only these tables, with their own names."
+      description="Review the tables, then choose where they go."
       actions={
         <>
-          {/* Focus lands on Add, or on Back when there is nothing to add. */}
+          {/* Focus lands on Import, or on Back when there is nothing to import. */}
           <Button key="back" autoFocus={tableNodes.length === 0} disabled={busy} onClick={back}>
             Back
           </Button>
-          {/* Keys make these fresh mounts, which is what lets autoFocus fire. */}
-          <Button key="replace" data-testid="import-replace" disabled={tableNodes.length === 0 || busy} onClick={() => void replace()}>
-            Replace document…
-          </Button>
+          {/* A key makes this a fresh mount, which is what lets autoFocus fire. */}
           <Button
-            key="add"
-            variant="primary"
-            data-testid="import-add"
+            key="submit"
+            variant={dest === 'replace' ? 'danger' : 'primary'}
+            data-testid="import-submit"
             autoFocus={tableNodes.length > 0}
             disabled={tableNodes.length === 0 || busy}
-            onClick={add}
+            onClick={() => void submit()}
           >
-            Add to canvas
+            {dest === 'replace' ? 'Replace board' : 'Import'}
           </Button>
         </>
       }
     >
       <div className={bodyClass}>
         <div className={summaryClass} data-testid="import-summary">
-          <div className={rowClass}>
-            {planDialect === 'dbml' && <span>DBML</span>}
-            <span>{planDialect === 'dbml' ? 'Column types' : 'Dialect'}</span>
-            {planDialect === 'sqlite-db' ? (
-              <span>SQLite database</span>
-            ) : (
-              /* Not disabled while re-parsing: that would drop keyboard focus from the pressed item. */
-              <ToggleGroup.Root
-                className={chips.root}
-                aria-label={planDialect === 'dbml' ? 'Column types' : 'Dialect'}
-                data-testid="import-format"
-                value={[planDialect === 'dbml' ? typeDialect : planDialect]}
-                deselectable={false}
-                onValueChange={({ value }) => {
-                  const next = value[0] as SqlKind | undefined;
-                  if (!next) return;
-                  if (planDialect === 'dbml') void remapTypes(next);
-                  else if (planSource) void preview(planSource, next);
-                }}
-              >
-                {(['postgres', 'mysql', 'sqlite'] as const).map((d) => (
-                  <ToggleGroup.Item key={d} value={d} className={chips.item} data-value={d}>
-                    {SQL_DIALECTS[d].label}
-                  </ToggleGroup.Item>
-                ))}
-              </ToggleGroup.Root>
-            )}
-          </div>
+          {planDialect === 'sqlite-db' ? (
+            <span>SQLite database</span>
+          ) : planDialect === 'dbml' ? (
+            <span>DBML</span>
+          ) : (
+            dialectChips
+          )}
           {/* A live region, so a tick's change to the relationship count is announced. */}
-          <div role="status" aria-live="polite" data-testid="import-counts" className={countsClass}>
-            <span>{tableNodes.length === 1 ? '1 table' : `${tableNodes.length} tables`}</span>
-            <span>{relations === 1 ? '1 relationship' : `${relations} relationships`}</span>
+          <div role="status" aria-live="polite" data-testid="import-counts" className={countsTextClass}>
+            {tableNodes.length === 1 ? '1 table' : `${tableNodes.length} tables`} ·{' '}
+            {relations === 1 ? '1 relationship' : `${relations} relationships`}
           </div>
         </div>
-        <ul className={listClass}>
-          {tableNodes.map((t) => (
-            <li key={t.id}>{t.name}</li>
+        {planDialect === 'dbml' && (
+          <div className={rowClass}>
+            <span>Column types</span>
+            {dialectChips}
+          </div>
+        )}
+        {tableNodes.length > 0 && (
+          <table className={previewTableClass} data-testid="import-tables">
+            <thead>
+              <tr>
+                <th>Table</th>
+                <th className={cx(numberCellClass, narrowColClass)}>Columns</th>
+                <th className={keyColClass}>Primary key</th>
+                <th className={cx(numberCellClass, narrowColClass)} title="Outgoing relationships">Relations</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tableNodes.slice(0, MAX_LISTED).map((t) => {
+                const pk = t.columns.filter((c) => c.primaryKey).map((c) => c.name).join(', ');
+                return (
+                  <tr key={t.id}>
+                    <td title={t.name}>{t.name}</td>
+                    <td className={numberCellClass}>{t.columns.length}</td>
+                    <td title={pk}>{pk || '—'}</td>
+                    <td className={numberCellClass}>{outgoing.get(t.id) ?? 0}</td>
+                  </tr>
+                );
+              })}
+              {tableNodes.length > MAX_LISTED && (
+                <tr>
+                  <td colSpan={4}>…and {(tableNodes.length - MAX_LISTED).toLocaleString('en-US')} more</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        )}
+        <RadioGroup.Root
+          className={radios.root}
+          value={dest}
+          onValueChange={({ value }) => value && setDest(value as Destination)}
+          data-testid="import-destination"
+        >
+          <RadioGroup.Label className={labelClass}>Put the tables</RadioGroup.Label>
+          {DESTINATIONS.map((d) => (
+            <RadioGroup.Item key={d.id} value={d.id} className={radios.item} data-testid={`import-dest-${d.id}`}>
+              <RadioGroup.ItemControl className={radios.itemControl} />
+              <RadioGroup.ItemText className={radios.itemText}>{d.label}</RadioGroup.ItemText>
+              <RadioGroup.ItemHiddenInput />
+            </RadioGroup.Item>
           ))}
-        </ul>
+        </RadioGroup.Root>
         {guesses.length > 0 && (
           <section
             ref={guessesRef}

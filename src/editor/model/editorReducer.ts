@@ -372,7 +372,7 @@ function reduce(state: EditorState, action: EditorAction): EditorState {
       return {
         ...s,
         nodes: normalizeTree([...s.nodes, ...action.nodes.map((n) => ({ ...n, parentId: null }))]),
-        selection: action.nodes.filter((n) => n.type === 'table').map((n) => n.id),
+        selection: [],
       };
     }
 

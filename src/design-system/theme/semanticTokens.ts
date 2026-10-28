@@ -14,6 +14,8 @@ export const semanticTokens = defineSemanticTokens({
       selectedChild: { value: '{colors.blue.100}' },
       brand: { value: '{colors.blue.500}' },
       brandHover: { value: '{colors.blue.600}' },
+      /** Buttons that destroy work. */
+      danger: { value: '{colors.red.500}' },
       toolbar: { value: '{colors.grey.900}' },
       toolbarHover: { value: '{colors.grey.600}' },
       /** The top bar sits a step lighter than the open board tab, which shares the tool dock's colour. */
