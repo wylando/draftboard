@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nextCullWindow, viewWorldBox } from './geometry';
+import { nextCullWindow, placePopup, viewWorldBox } from './geometry';
 import type { Box } from './model/types';
 
 const view: Box = { x: 1000, y: 500, width: 800, height: 600 };
@@ -55,5 +55,54 @@ describe('nextCullWindow', () => {
     const first = nextCullWindow(null, empty);
     expect(first).toEqual(empty);
     expect(nextCullWindow(first, view)).toEqual(nextCullWindow(null, view));
+  });
+});
+
+describe('placePopup', () => {
+  const bounds: Box = { x: 0, y: 0, width: 1000, height: 800 };
+  const size = { width: 200, height: 100 };
+  const gap = 10;
+  const box = (x: number, y: number, width: number, height: number): Box => ({ x, y, width, height });
+  const clearOf = (at: { x: number; y: number }, b: Box) =>
+    at.x + size.width <= b.x - gap || at.x >= b.x + b.width + gap || at.y + size.height <= b.y - gap || at.y >= b.y + b.height + gap;
+
+  it('goes below, centred, when there is room', () => {
+    expect(placePopup([box(400, 100, 100, 50)], size, bounds, gap)).toEqual({ x: 350, y: 160 });
+  });
+
+  it('goes above when below would leave the bounds', () => {
+    expect(placePopup([box(400, 700, 100, 50)], size, bounds, gap)).toEqual({ x: 350, y: 590 });
+  });
+
+  it('goes right when above and below are out, and left when right is out too', () => {
+    const short: Box = { x: 0, y: 0, width: 1000, height: 300 };
+    expect(placePopup([box(400, 100, 100, 100)], size, short, gap)).toEqual({ x: 510, y: 100 });
+    expect(placePopup([box(700, 100, 100, 100)], size, short, gap)).toEqual({ x: 490, y: 100 });
+  });
+
+  it('shifts along the cross axis to stay inside the bounds', () => {
+    expect(placePopup([box(900, 100, 90, 50)], size, bounds, gap)).toEqual({ x: 800, y: 160 });
+  });
+
+  it('skips a spot that would cover another box in the avoid list', () => {
+    const avoid = [box(400, 100, 100, 50), box(300, 170, 400, 5)];
+    const at = placePopup(avoid, size, bounds, gap);
+    expect(at).not.toEqual({ x: 350, y: 160 });
+    for (const b of avoid) expect(clearOf(at, b)).toBe(true);
+  });
+
+  it('falls back to the clear corner nearest the route', () => {
+    // Union is wide enough that every side is out of bounds; top-left is covered.
+    expect(placePopup([box(0, 100, 100, 100), box(900, 700, 100, 100)], size, bounds, gap)).toEqual({ x: 0, y: 700 });
+  });
+
+  it('takes the corner farthest from the route when no corner is clear', () => {
+    const wide: Box = { x: 0, y: 0, width: 1200, height: 900 };
+    const avoid = [box(0, 0, 100, 100), box(900, 0, 100, 100), box(0, 700, 100, 100), box(950, 790, 50, 20)];
+    expect(placePopup(avoid, size, wide, gap)).toEqual({ x: 1000, y: 800 });
+  });
+
+  it('sits in the top-right corner when there is nothing to avoid', () => {
+    expect(placePopup([], size, bounds, gap)).toEqual({ x: 800, y: 0 });
   });
 });

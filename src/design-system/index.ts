@@ -12,5 +12,7 @@ export { Dialog, DialogClose } from './components/Dialog';
 export type { DialogProps } from './components/Dialog';
 export { DialogProvider, useDialogs } from './components/DialogProvider';
 export type { AlertOptions, ConfirmOptions, DialogsApi } from './components/DialogProvider';
+export { CanvasPopup } from './components/CanvasPopup';
+export type { CanvasPopupProps } from './components/CanvasPopup';
 export { icons } from './icons';
 export type { IconName } from './icons';
