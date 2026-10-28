@@ -5,14 +5,18 @@ describe('Viewport: zoom and pan', () => {
 
   it('zooms in and out with toolbar buttons', () => {
     zoomLabel().should('have.text', '100%');
+    cy.get('[data-testid=zoom-level]').click();
     cy.get('[data-testid=zoom-in]').click();
     zoomLabel().should('have.text', '200%');
+    cy.get('[data-testid=zoom-level]').click();
     cy.get('[data-testid=zoom-out]').click();
+    cy.get('[data-testid=zoom-level]').click();
     cy.get('[data-testid=zoom-out]').click();
     zoomLabel().should('have.text', '50%');
   });
 
   it('resets to 100% with Shift+0', () => {
+    cy.get('[data-testid=zoom-level]').click();
     cy.get('[data-testid=zoom-in]').click();
     zoomLabel().should('have.text', '200%');
     cy.pressKey(')', { code: 'Digit0', shiftKey: true });
@@ -39,6 +43,7 @@ describe('Viewport: zoom and pan', () => {
   });
 
   it('draws in world coordinates when zoomed', () => {
+    cy.get('[data-testid=zoom-level]').click();
     cy.get('[data-testid=zoom-in]').click(); // 200% around canvas center
     zoomLabel().should('have.text', '200%');
     cy.get('[data-testid=canvas]').then(($c) => {

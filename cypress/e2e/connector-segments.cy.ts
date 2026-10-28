@@ -218,10 +218,16 @@ describe('Reshaping an elbow connector by dragging its segments', () => {
   it('hides segment handles that are too short to grab at low zoom', () => {
     linked();
     cy.get('[data-connector-segment]').should('exist');
-    for (let i = 0; i < 3; i++) cy.get('[data-testid=zoom-out]').click();
+    for (let i = 0; i < 3; i++) {
+      cy.get('[data-testid=zoom-level]').click();
+      cy.get('[data-testid=zoom-out]').click();
+    }
     cy.get('[data-testid=zoom-level]').should('contain', '13%');
     cy.get('[data-connector-segment]').should('not.exist');
-    for (let i = 0; i < 3; i++) cy.get('[data-testid=zoom-in]').click();
+    for (let i = 0; i < 3; i++) {
+      cy.get('[data-testid=zoom-level]').click();
+      cy.get('[data-testid=zoom-in]').click();
+    }
     cy.get('[data-connector-segment]').should('exist');
   });
 

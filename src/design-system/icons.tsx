@@ -52,6 +52,19 @@ export const icons = {
       <path d="M6 4l4 4-4 4" />
     </Icon>
   ),
+  chevronDown: () => (
+    <Icon>
+      <path d="M4 6l4 4 4-4" />
+    </Icon>
+  ),
+  /** The app mark: two tables joined by a connector. */
+  logo: () => (
+    <Icon>
+      <rect x="1.5" y="1.5" width="6" height="5" rx="1" />
+      <rect x="8.5" y="9.5" width="6" height="5" rx="1" />
+      <path d="M4.5 6.5v5.5h4" />
+    </Icon>
+  ),
   rect: () => (
     <Icon>
       <rect x="2.5" y="2.5" width="11" height="11" rx="0.5" />

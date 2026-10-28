@@ -53,6 +53,7 @@ describe('Smart guides', () => {
   });
 
   it('keeps the snap distance at 6 screen px when zoomed in', () => {
+    cy.get('[data-testid=zoom-level]').click();
     cy.get('[data-testid=zoom-in]').click();
     cy.get('[data-testid=zoom-level]').should('have.text', '200%');
     // Zooming about the canvas center can push the rects off screen, and only layers on
@@ -115,6 +116,7 @@ describe('Smart guides', () => {
     cy.canvasPointer('pointerdown', [800, 600]);
     cy.canvasPointer('pointercancel', [0, 0]);
     // A later render proves the cancel has been handled before checking nothing came of it.
+    cy.get('[data-testid=zoom-level]').click();
     cy.get('[data-testid=zoom-in]').click();
     cy.get('[data-testid=zoom-level]').should('have.text', '200%');
     cy.get('[data-node-type=rect]').should('have.length', 2);
@@ -175,6 +177,7 @@ describe('Smart guides', () => {
   });
 
   it('can be turned off in Settings, and stays off after a reload', () => {
+    cy.get('[data-testid=app-menu]').click();
     cy.get('[data-testid=open-settings]').click();
     cy.get('[data-testid=nav-canvas]').click();
     cy.get('[data-testid=snap-to-layers]').should('have.attr', 'data-state', 'checked').click();
