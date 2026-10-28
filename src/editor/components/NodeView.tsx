@@ -2,7 +2,7 @@ import { createContext, memo, useContext } from 'react';
 import { TABLE_COLORS, TABLE_HEADER_HEIGHT, TABLE_ROW_HEIGHT, TABLE_STYLE } from '../model/table';
 import { isBroken } from '../model/connector';
 import type { Cardinality, ConnectorNode, DesignNode, Point, TableNode } from '../model/types';
-import { COMPACT_BADGE_SIZE, COMPACT_COLUMN_SIZE, OVERVIEW_NAME_PX, type TableDetail } from '../tableDetail';
+import { compactSizes, ellipsize, overviewLabel, type TableDetail } from '../tableDetail';
 import { CANVAS_FONT_FAMILY, CANVAS_MONO_FAMILY, measureText, TEXT_LINE_HEIGHT } from '../textMetrics';
 import { css } from 'styled-system/css';
 import { token } from 'styled-system/tokens';
@@ -117,17 +117,59 @@ function isDark(color: string): boolean {
 
 /** `text`, cut short with an ellipsis if it is wider than `max` world px. */
 function fitText(text: string, max: number, size: number, family: string, weight = 400): string {
-  const width = (t: string) => measureText(t, size, family, weight).width;
-  if (width(text) <= max) return text;
-  // Binary search for the longest prefix that fits with its ellipsis.
-  let lo = 0;
-  let hi = text.length - 1;
-  while (lo < hi) {
-    const mid = Math.ceil((lo + hi) / 2);
-    if (width(`${text.slice(0, mid)}…`) <= max) lo = mid;
-    else hi = mid - 1;
-  }
-  return lo > 0 ? `${text.slice(0, lo)}…` : '';
+  return ellipsize(text, max, (t) => measureText(t, size, family, weight).width);
+}
+
+/** The name of an overview card on a pill, centred at (x, y) and free to reach past a small card. */
+function OverviewName({
+  name,
+  lines,
+  size,
+  scale,
+  x,
+  y,
+  fill,
+  stroke,
+  ink,
+}: {
+  name: string;
+  lines: string[];
+  size: number;
+  scale: number;
+  x: number;
+  y: number;
+  fill: string;
+  stroke: string;
+  ink: string;
+}) {
+  const lineHeight = size * 1.2;
+  const textWidth = Math.max(...lines.map((l) => measureText(l, size, CANVAS_FONT_FAMILY, 600).width));
+  const padX = 4 / scale;
+  const padY = 2 / scale;
+  const height = lines.length * lineHeight + 2 * padY;
+  return (
+    <g data-testid="table-name-pill" className={noSelectClass}>
+      <title>{name}</title>
+      <rect
+        x={x - textWidth / 2 - padX}
+        y={y - height / 2}
+        width={textWidth + 2 * padX}
+        height={height}
+        rx={4 / scale}
+        fill={fill}
+        stroke={stroke}
+        strokeWidth={1 / scale}
+        opacity={0.95}
+      />
+      <text data-testid="table-name" x={x} textAnchor="middle" dominantBaseline="central" fontFamily={CANVAS_FONT_FAMILY} fontSize={size} fontWeight={600} fill={ink}>
+        {lines.map((line, i) => (
+          <tspan key={i} x={x} y={y + (i - (lines.length - 1) / 2) * lineHeight}>
+            {line}
+          </tspan>
+        ))}
+      </text>
+    </g>
+  );
 }
 
 /**
@@ -141,11 +183,14 @@ function TableShape({ node, detail, scale }: { node: TableNode; detail: TableDet
   const { width: w, height: h } = node;
   const compact = detail === 'compact';
   const overview = detail === 'overview';
-  // Constant on-screen size, but never taller than the card's body.
-  const overviewSize = Math.min(OVERVIEW_NAME_PX / scale, (h - TABLE_HEADER_HEIGHT) * 0.6);
-  const nameSize = compact ? COMPACT_COLUMN_SIZE : TABLE_STYLE.nameSize;
-  const columnSize = compact ? COMPACT_COLUMN_SIZE : TABLE_STYLE.columnSize;
-  const badgeSize = compact ? COMPACT_BADGE_SIZE : TABLE_STYLE.badgeSize;
+  // Sized for the screen, not the card: a small card's label may be taller than it is.
+  const label = overview
+    ? overviewLabel(node.name, w - 2 * TABLE_STYLE.pad, scale, (t, size) => measureText(t, size, CANVAS_FONT_FAMILY, 600).width)
+    : null;
+  const sizes = compactSizes(scale);
+  const nameSize = compact ? sizes.column : TABLE_STYLE.nameSize;
+  const columnSize = compact ? sizes.column : TABLE_STYLE.columnSize;
+  const badgeSize = compact ? sizes.badge : TABLE_STYLE.badgeSize;
   const clipId = `table-clip-${node.id}`;
   const indexed = new Set(node.indexes.flatMap((i) => i.columnIds));
   const foreign = useContext(RelationsContext).foreignKeys.get(node.id);
@@ -165,23 +210,9 @@ function TableShape({ node, detail, scale }: { node: TableNode; detail: TableDet
       <g clipPath={`url(#${clipId})`}>
         <rect data-testid="table-body" width={w} height={h} fill={node.fill} />
         <rect data-testid="table-header" width={w} height={TABLE_HEADER_HEIGHT} fill={node.accent} />
-        {overview ? (
-          <>
-            {/* A light wash of the accent, so a name-only card still reads as its table. */}
-            <rect width={w} height={h - TABLE_HEADER_HEIGHT} y={TABLE_HEADER_HEIGHT} fill={node.accent} opacity={0.15} />
-            <text
-              {...text}
-              data-testid="table-name"
-              x={w / 2}
-              y={TABLE_HEADER_HEIGHT + (h - TABLE_HEADER_HEIGHT) / 2}
-              textAnchor="middle"
-              fontSize={overviewSize}
-              fontWeight={600}
-              fill={ink}
-            >
-              {fitText(node.name, w - 2 * TABLE_STYLE.pad, overviewSize, CANVAS_FONT_FAMILY, 600)}
-            </text>
-          </>
+        {label ? (
+          // A light wash of the accent, so a name-only card still reads as its table.
+          <rect width={w} height={h - TABLE_HEADER_HEIGHT} y={TABLE_HEADER_HEIGHT} fill={node.accent} opacity={0.15} />
         ) : (
           <text
             {...text}
@@ -266,6 +297,9 @@ function TableShape({ node, detail, scale }: { node: TableNode; detail: TableDet
           );
         })}
       </g>
+      {label && (
+        <OverviewName name={node.name} lines={label.lines} size={label.size} scale={scale} x={w / 2} y={h / 2} fill={node.fill} stroke={node.stroke} ink={ink} />
+      )}
       <line x1={0} x2={w} y1={TABLE_HEADER_HEIGHT} y2={TABLE_HEADER_HEIGHT} stroke={node.stroke} strokeWidth={node.strokeWidth} />
       <rect width={w} height={h} rx={TABLE_STYLE.radius} fill="none" stroke={node.strokeWidth > 0 ? node.stroke : 'none'} strokeWidth={node.strokeWidth} />
     </>
@@ -419,7 +453,7 @@ interface NodeViewProps {
   editingId: string | null;
   /** Level of detail tables draw at; changes only at zoom thresholds, so a wheel tick leaves memoised layers alone. */
   detail: TableDetail;
-  /** `overviewScale` of the zoom while `detail` is overview, else 1, so it stays steady outside overview. */
+  /** `overviewScale` of the zoom below full detail, else 1, so it stays steady while tables are at full detail. */
   scale: number;
   /** Table being edited in its cells; always full detail, since the editor sits over its full-size cells. */
   fullDetailId: string | null;

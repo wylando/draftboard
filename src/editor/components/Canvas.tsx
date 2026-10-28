@@ -299,7 +299,7 @@ export function Canvas() {
         >
           <RelationsContext.Provider value={relations}>
             {(childrenOf.get(null) ?? []).filter((n) => mounted.has(n.id)).map((n) => (
-              <NodeView key={n.id} node={n} childrenOf={childrenOf} mounted={mounted} editingId={editingId} detail={detail} scale={detail === 'overview' ? overviewScale(viewport.zoom) : 1} fullDetailId={editingTableId ?? null} />
+              <NodeView key={n.id} node={n} childrenOf={childrenOf} mounted={mounted} editingId={editingId} detail={detail} scale={detail === 'full' ? 1 : overviewScale(viewport.zoom)} fullDetailId={editingTableId ?? null} />
             ))}
           </RelationsContext.Provider>
           {nodes.filter((n) => mounted.has(n.id)).map((n) => (
