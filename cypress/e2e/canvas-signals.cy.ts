@@ -54,7 +54,6 @@ describe('Canvas signals', () => {
       cy.canvasClick([800, 650]);
       cy.get('[data-dimmed]').should('not.exist');
       cy.get('[data-testid=route-step]').should('not.exist');
-      expect(link).to.be.a('string');
     });
 
     it('numbers the tables of a join route, Start to End, on the table corners', () => {
@@ -139,6 +138,24 @@ describe('Handle hit areas', () => {
     cy.prop('h').should('have.value', '170');
   });
 
+  it('still moves a small selected layer by its body, and rotates from just outside a corner', () => {
+    cy.canvasClick([800, 650]);
+    cy.drawShape('rect', [600, 400], [640, 440]);
+    cy.prop('w').should('have.value', '40');
+    // Fractions of the 40px box: inside the corner and edge grab areas' reach would resize instead.
+    for (const [fx, fy] of [[0.3, 0.5], [0.25, 0.25], [0.7, 0.7]] as const) {
+      cy.prop('x').invoke('val').then((x) => {
+        cy.canvasDrag([600 + 40 * fx + (Number(x) - 600), 400 + 40 * fy], [600 + 40 * fx + (Number(x) - 600) + 20, 400 + 40 * fy]);
+        cy.prop('x').should('have.value', String(Number(x) + 20));
+      });
+      cy.prop('w').should('have.value', '40');
+    }
+    cy.prop('rotation').should('have.value', '0');
+    // Just outside the box's top-left corner (x is now 660; the corner grab area starts 4px out).
+    cy.canvasDrag([652, 392], [630, 410]);
+    cy.prop('rotation').should('not.have.value', '0');
+  });
+
   it('hides edge handles on a layer too small to hold them', () => {
     cy.canvasClick([800, 650]);
     cy.drawShape('rect', [600, 400], [620, 420]);
@@ -149,7 +166,7 @@ describe('Handle hit areas', () => {
 });
 
 describe('Connector handle hit areas', () => {
-  it('grabs a connector end from 10px away', () => {
+  it('grabs a connector end from 8px away', () => {
     cy.visitEmpty();
     placeTable([100, 100]);
     placeTable([500, 300]);
@@ -161,7 +178,7 @@ describe('Connector handle hit areas', () => {
       cy.get('[data-testid=canvas]').then(($canvas) => {
         const o = $canvas[0]!.getBoundingClientRect();
         const [x, y] = [r.left + r.width / 2 - o.left, r.top + r.height / 2 - o.top];
-        cy.canvasDrag([x + 10, y], [800, 650]);
+        cy.canvasDrag([x + 8, y], [800, 650]);
       });
     });
     cy.get('[data-node-type=connector]').first().should('have.attr', 'data-to', 'point');

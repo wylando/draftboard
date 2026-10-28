@@ -127,8 +127,6 @@ describe('Relationships', () => {
     placeTable([350, 100]);
     connect([400, 150], [150, 150]);
     cy.canvasClick([700, 700]);
-    // The selected connector's end handle reaches into Table 2, so wait for it to go before pressing there.
-    cy.get('[data-testid=connector-handle]').should('not.exist');
     cy.canvasClick([356, 150]);
     cy.prop('name').should('have.value', 'Table 2');
     // The 10 px link is one segment: each end's marker gets its own half, so both stay clickable.

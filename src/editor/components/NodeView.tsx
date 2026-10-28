@@ -1,5 +1,6 @@
 import { createContext, memo, useContext, type ReactNode } from 'react';
 import { TABLE_COLORS, TABLE_HEADER_HEIGHT, TABLE_ROW_HEIGHT, TABLE_STYLE } from '../model/table';
+import { isDark } from '../color';
 import { isBroken } from '../model/connector';
 import type { Cardinality, ConnectorNode, DesignNode, Point, TableNode } from '../model/types';
 import { CANVAS_FONT_FAMILY, CANVAS_MONO_FAMILY, measureText, TEXT_LINE_HEIGHT } from '../textMetrics';
@@ -119,18 +120,6 @@ const noSelectClass = css({ userSelect: 'none' });
 const LINE_HIT_WIDTH = 8;
 
 
-/** Whether `color` (#rrggbb) is dark enough that white text reads better on it than black. */
-function isDark(color: string): boolean {
-  const hex = /^#?([0-9a-f]{6})$/i.exec(color)?.[1];
-  if (!hex) return false;
-  const [r, g, b] = [0, 2, 4].map((i) => {
-    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
-    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-  }) as [number, number, number];
-  // At this relative luminance black and white text have equal contrast.
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b < 0.179;
-}
-
 /** `text`, cut short with an ellipsis if it is wider than `max` world px. */
 function fitText(text: string, max: number, size: number, family: string, weight = 400): string {
   const width = (t: string) => measureText(t, size, family, weight).width;
@@ -146,12 +135,12 @@ function fitText(text: string, max: number, size: number, family: string, weight
   return lo > 0 ? `${text.slice(0, lo)}…` : '';
 }
 
-/** Amber dot in the badge slot of a foreign-key row; off the connector, so it never crowds the route. */
-function TypeMismatchMarker({ text, columnId, y }: { text: string; columnId: string; y: number }) {
+/** Amber dot just after a foreign-key row's badge (`x` is its centre, so it clears a wide PFK/UFK badge); off the connector, so it never crowds the route. */
+function TypeMismatchMarker({ text, columnId, x, y }: { text: string; columnId: string; x: number; y: number }) {
   return (
-    <g data-testid="type-mismatch" data-column-id={columnId} role="img" aria-label={text} transform={`translate(${TABLE_STYLE.pad + TABLE_STYLE.badgeWidth - 4} ${y})`}>
+    <g data-testid="type-mismatch" data-column-id={columnId} role="img" aria-label={text} transform={`translate(${x} ${y})`}>
       <title>{text}</title>
-      <circle r={5} fill={WARNING_BG} stroke={WARNING_INK} strokeWidth={1.2} />
+      <circle r={4.5} fill={WARNING_BG} stroke={WARNING_INK} strokeWidth={1.2} />
       <path d="M0 -2.5V0.5M0 2.5V2.6" stroke={WARNING_INK} strokeWidth={1.3} strokeLinecap="round" />
     </g>
   );
@@ -232,7 +221,12 @@ function TableShape({ node }: { node: TableNode }) {
                 </text>
               )}
               {isForeign && relations.typeMismatches.has(`${node.id}:${c.id}`) && (
-                <TypeMismatchMarker text={relations.typeMismatches.get(`${node.id}:${c.id}`) ?? ''} columnId={c.id} y={mid} />
+                <TypeMismatchMarker
+                  text={relations.typeMismatches.get(`${node.id}:${c.id}`) ?? ''}
+                  columnId={c.id}
+                  x={TABLE_STYLE.pad + (badge ? measureText(badge, TABLE_STYLE.badgeSize, CANVAS_FONT_FAMILY).width : 0) + 7}
+                  y={mid}
+                />
               )}
               <text {...text} data-testid="column-name" x={nameX} y={mid} fontSize={TABLE_STYLE.columnSize} fill={ink}>
                 {name}

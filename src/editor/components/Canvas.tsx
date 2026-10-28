@@ -109,6 +109,23 @@ export function Canvas() {
     return () => observer.disconnect();
   }, [dispatch]);
 
+  const byId = useMemo(() => byIdOf(state.nodes), [state.nodes]);
+  const lastPointer = useRef<{ x: number; y: number } | null>(null);
+  // Resolved as a press would resolve it (including Mod for deep select), so the outline names what a click selects.
+  const resolveHovered = (hitId: string | null, deep: boolean) => {
+    const { selection, tool: current } = state;
+    if (!hitId || current !== 'select' || spacePressed) return setHovered(null);
+    setHovered(selectTarget(byId, hitId, enteredScopes(byId, selection, false), deep));
+  };
+  // A key or the end of a pan changes what is under a resting pointer without moving it.
+  const rehit = (deep: boolean) => {
+    const at = lastPointer.current;
+    const el = at ? document.elementFromPoint(at.x, at.y) : null;
+    const inside = el && containerRef.current?.contains(el) && !el.closest('[data-canvas-popup]');
+    resolveHovered(inside ? (el.closest('[data-node-id]')?.getAttribute('data-node-id') ?? null) : null, deep);
+  };
+  const rehitRef = useLatest(rehit);
+
   useEffect(() => {
     const isTyping = (t: EventTarget | null) => t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement;
     const down = (e: KeyboardEvent) => {
@@ -120,10 +137,14 @@ export function Canvas() {
       }
       // Option-typing accents in a field shouldn't flash measurements over the canvas.
       if (e.key === 'Alt' && !isTyping(e.target)) setAltPressed(true);
+      if (e.key === 'Meta' || e.key === 'Control') rehitRef.current(true);
+      if (e.code === 'Space') setHovered(null);
     };
     const up = (e: KeyboardEvent) => {
       if (e.code === 'Space') setSpacePressed(false);
       if (e.key === 'Alt') setAltPressed(false);
+      if (e.key === 'Meta' || e.key === 'Control') rehitRef.current(false);
+      if (e.code === 'Space') rehitRef.current(e.metaKey || e.ctrlKey);
     };
     // Switching windows with Alt held never delivers its keyup here.
     const blur = () => setAltPressed(false);
@@ -135,7 +156,7 @@ export function Canvas() {
       window.removeEventListener('keyup', up);
       window.removeEventListener('blur', blur);
     };
-  }, [dialogOpen]);
+  }, [dialogOpen, rehitRef, setHovered]);
 
   const onEditText = useCallback((id: string) => setEditingId(id), []);
   const { onPointerDown, onDoubleClick } = useCanvasGestures({
@@ -154,7 +175,10 @@ export function Canvas() {
     },
     onRowDrop: setRowDrop,
     onConnect: setConnectPreview,
-    onBusy: setBusy,
+    onBusy: (b) => {
+      setBusy(b);
+      if (!b) rehitRef.current(false);
+    },
   });
 
   const onHover = (e: ReactPointerEvent) => {
@@ -168,17 +192,13 @@ export function Canvas() {
     }
     const hitId = e.buttons === 0 ? (e.target as Element).closest('[data-node-id]')?.getAttribute('data-node-id') : null;
     const { viewport, nodes } = state;
-    // Resolved as a press would resolve it (including Mod for deep select), so the outline names what a click selects.
-    setHovered(
-      hitId && state.tool === 'select'
-        ? selectTarget(byIdOf(nodes), hitId, enteredScopes(byIdOf(nodes), state.selection, false), e.metaKey || e.ctrlKey)
-        : null,
-    );
+    lastPointer.current = { x: e.clientX, y: e.clientY };
+    resolveHovered(hitId ?? null, e.metaKey || e.ctrlKey);
     // Found exactly as a release would find it, so the highlight never disagrees with the result.
     // Only the Connector tool needs it; tracking rows otherwise would re-render on every row crossed.
     const rect = containerRef.current?.getBoundingClientRect();
     const world = screenToWorld({ x: e.clientX - (rect?.left ?? 0), y: e.clientY - (rect?.top ?? 0) }, viewport);
-    const found = state.tool === 'connector' && e.buttons === 0 ? anchorAt(document.elementsFromPoint(e.clientX, e.clientY), world, byIdOf(nodes)) : null;
+    const found = state.tool === 'connector' && e.buttons === 0 ? anchorAt(document.elementsFromPoint(e.clientX, e.clientY), world, byId) : null;
     const anchor = found?.kind === 'point' ? null : found;
     const same = (a: Anchor | null, b: Anchor | null) => a === b || (a !== null && b !== null && sameAnchor(a, b));
     setHover((prev) =>
@@ -223,7 +243,6 @@ export function Canvas() {
     [inWindow, unmountedPins, nodes, nextWindow],
   );
   const childrenOf = useMemo(() => childrenByParent(nodes), [nodes]);
-  const byId = useMemo(() => byIdOf(nodes), [nodes]);
   const relations = useMemo<Relations>(() => {
     const typeMismatches = new Map<string, string>();
     const relationalEnds = new Set<string>();
@@ -283,7 +302,7 @@ export function Canvas() {
       ? { kind: connectAnchor.kind, box: connectBox, columnId: connectAnchor.kind === 'column' ? connectAnchor.columnId : undefined }
       : null;
   const previewRoute = drawing ? routeBetween(drawing.from, drawing.to, drawing.routing, byId) : null;
-  const hovered = hoveredId && !busy && editingId === null && !selectedSet.has(hoveredId) ? byId.get(hoveredId) : undefined;
+  const hovered = hoveredId && tool === 'select' && !spacePressed && !busy && editingId === null && !selectedSet.has(hoveredId) ? byId.get(hoveredId) : undefined;
   const measureId = altPressed && hoverHit && editingId === null ? selectTarget(byId, hoverHit, enteredScopes(byId, selection, false)) : null;
   // A connector's box is only its route's bounds, so it is neither measured from nor to.
   const measureNode = measureId && !selectedSet.has(measureId) ? byId.get(measureId) : undefined;
@@ -312,6 +331,7 @@ export function Canvas() {
       }}
       onPointerMove={onHover}
       onPointerLeave={() => {
+        lastPointer.current = null;
         setHover(null);
         setHovered(null);
       }}

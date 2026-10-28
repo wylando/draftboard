@@ -899,6 +899,10 @@ describe('typesCompatible', () => {
     ['json', 'jsonb'],
     ['uuid', ' UUID '],
     ['citext', 'CITEXT'],
+    ['int unsigned', 'integer unsigned'],
+    ['int(10) unsigned', 'mediumint unsigned'],
+    ['tinyint(1)', 'boolean'],
+    ['tinyint(4)', 'tinyint'],
   ] as const;
   it.each(compatible)('%s fits %s', (a, b) => {
     expect(typesCompatible(a, b)).toBe(true);
@@ -915,6 +919,11 @@ describe('typesCompatible', () => {
     ['numeric', 'float'],
     ['boolean', 'int'],
     ['citext', 'text'],
+    // MySQL rejects a foreign key between signed and unsigned columns.
+    ['int unsigned', 'int'],
+    ['bigint(20) unsigned', 'bigint'],
+    ['tinyint', 'tinyint(1)'],
+    ['tinyint(1)', 'int'],
   ] as const;
   it.each(incompatible)('%s does not fit %s', (a, b) => {
     expect(typesCompatible(a, b)).toBe(false);

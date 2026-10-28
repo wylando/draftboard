@@ -77,11 +77,13 @@ export function foreignKeyColumns(nodes: readonly DesignNode[]): Map<string, Set
 export const normalType = (t: string) => t.trim().toLowerCase().replace(/\s+/g, ' ');
 
 const TYPE_FAMILIES: ReadonlyArray<{ family: string; match: RegExp }> = [
-  { family: 'int32', match: /^(int|integer|int4|mediumint|serial|serial4)(\(\d+\))?( unsigned)?$/ },
-  { family: 'int64', match: /^(bigint|int8|bigserial|serial8)(\(\d+\))?( unsigned)?$/ },
-  { family: 'int16', match: /^(smallint|int2|smallserial|serial2)(\(\d+\))?( unsigned)?$/ },
+  { family: 'int32', match: /^(int|integer|int4|mediumint|serial|serial4)(\(\d+\))?$/ },
+  { family: 'int64', match: /^(bigint|int8|bigserial|serial8)(\(\d+\))?$/ },
+  { family: 'int16', match: /^(smallint|int2|smallserial|serial2)(\(\d+\))?$/ },
+  // MySQL's boolean is tinyint(1); first, so it isn't taken for a one-byte integer.
+  { family: 'boolean', match: /^(bool|boolean|tinyint\(1\))$/ },
+  { family: 'int8', match: /^tinyint(\(\d+\))?$/ },
   { family: 'string', match: /^(text|string|varchar|nvarchar|nchar|char|character|character varying|national character varying)(\(\d+\))?$/ },
-  { family: 'boolean', match: /^(bool|boolean)$/ },
   { family: 'timestamp', match: /^(timestamp|datetime)(\(\d+\))?( without time zone)?$/ },
   { family: 'timestamptz', match: /^(timestamptz|timestamp(\(\d+\))? with time zone)$/ },
   { family: 'numeric', match: /^(numeric|decimal|dec)(\(\d+(, ?\d+)?\))?$/ },
@@ -89,7 +91,13 @@ const TYPE_FAMILIES: ReadonlyArray<{ family: string; match: RegExp }> = [
   { family: 'json', match: /^(json|jsonb)$/ },
 ];
 
-const typeFamily = (t: string) => TYPE_FAMILIES.find((f) => f.match.test(normalType(t)))?.family;
+/** Signedness is part of the family: MySQL refuses a foreign key between `int` and `int unsigned`. */
+function typeFamily(t: string): string | undefined {
+  const normal = normalType(t);
+  const unsigned = normal.endsWith(' unsigned');
+  const family = TYPE_FAMILIES.find((f) => f.match.test(unsigned ? normal.slice(0, -' unsigned'.length) : normal))?.family;
+  return family && unsigned ? `${family} unsigned` : family;
+}
 
 /**
  * Whether a foreign key may join two column types: types are free text, so the same family (serial and int, varchar

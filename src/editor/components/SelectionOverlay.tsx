@@ -1,5 +1,6 @@
 import { boxCenter, HANDLES, rotatedBounds, rotatePoint, unionBoxes, worldToScreen } from '../geometry';
 import type { Guides, SnapGuide, Span } from '../geometry';
+import { isDark } from '../color';
 import { useEditor } from '../EditorContext';
 import { shapePoints } from '../model/connector';
 import { byIdOf } from '../model/tree';
@@ -12,13 +13,17 @@ import { token } from 'styled-system/tokens';
 const SELECTION = token.var('colors.selection');
 const SELECTION_FILL = token.var('colors.selection.fill');
 const HANDLE_FILL = token.var('colors.bg');
+// Pill text is chosen against the user's highlight colour, so it can't follow the theme's own background.
+const PILL_LIGHT = token.var('colors.white');
+const PILL_DARK = token.var('colors.black.800');
 const GUIDE = token.var('colors.selection.guide');
 const GUIDE_TEXT = token.var('colors.selection.guideText');
 
 const HANDLE_SIZE = 8;
 const ROTATE_ZONE_SIZE = 16;
-/** WCAG 2.5.8 target size: handles are drawn at HANDLE_SIZE but grabbed anywhere in a square this big. */
+/** WCAG 2.5.8 target size: handles are drawn at HANDLE_SIZE; an edge's grab area is this long and reaches this far outward. */
 const HIT_SIZE = 24;
+const EDGE_INWARD = 4;
 /** Row grips sit this far left of a selected table, outside it, so a press on a row still moves the table. */
 const ROW_GRIP = { offset: 16, width: 10, height: 16, minHeight: 6 } as const;
 // Row grips and connector end handles are dragged, not clicked.
@@ -192,7 +197,7 @@ export function SelectionOverlay({
         return (
           <g key={t.id} data-testid="route-step" data-route-step={i + 1} data-route-table={t.id} pointerEvents="none" aria-hidden="true">
             <rect x={corner.x - width + 8} y={corner.y - LABEL_HEIGHT / 2} width={width} height={LABEL_HEIGHT} rx={LABEL_HEIGHT / 2} fill={relatedColor} />
-            <text x={corner.x - width / 2 + 8} y={corner.y} fill={HANDLE_FILL} fontSize={LABEL_FONT} fontWeight={700} textAnchor="middle" dominantBaseline="central">
+            <text x={corner.x - width / 2 + 8} y={corner.y} fill={isDark(relatedColor) ? PILL_LIGHT : PILL_DARK} fontSize={LABEL_FONT} fontWeight={700} textAnchor="middle" dominantBaseline="central">
               {label}
             </text>
           </g>
@@ -263,14 +268,15 @@ export function SelectionOverlay({
             const c = boxCenter(single);
             const local = { x: c.x + (h.dx * single.width) / 2, y: c.y + (h.dy * single.height) / 2 };
             const p = worldToScreen(rotatePoint(local, single.rotation, c), viewport);
-            // Corners reach inward but only a little outward, so the rotate zone beyond them stays usable. On a
-            // small layer the reach shrinks, so the corners never swallow the press that moves it.
-            const inward = Math.max(HANDLE_SIZE / 2, Math.min(HIT_SIZE - HANDLE_SIZE / 2, 0.3 * Math.min(single.width, single.height) * viewport.zoom));
-            const span = inward + HANDLE_SIZE / 2;
-            const w = h.dx === 0 ? HIT_SIZE : span;
-            const hh = h.dy === 0 ? HIT_SIZE : span;
-            const left = h.dx === 0 ? p.x - HIT_SIZE / 2 : h.dx < 0 ? p.x - HANDLE_SIZE / 2 : p.x + HANDLE_SIZE / 2 - span;
-            const top = h.dy === 0 ? p.y - HIT_SIZE / 2 : h.dy < 0 ? p.y - HANDLE_SIZE / 2 : p.y + HANDLE_SIZE / 2 - span;
+            // Grab areas reach outward (clear of the layer's body, which must stay draggable) and only a little
+            // inward: edges 4px, corners in proportion to the layer so a small layer keeps a body to move by.
+            const out = HIT_SIZE / 2;
+            const inward = corner ? Math.max(EDGE_INWARD, Math.min(16, 0.2 * Math.min(single.width, single.height) * viewport.zoom)) : EDGE_INWARD;
+            const reach = corner ? HANDLE_SIZE / 2 : out;
+            const wide = h.dx === 0 ? HIT_SIZE : inward + reach;
+            const tall = h.dy === 0 ? HIT_SIZE : inward + reach;
+            const left = h.dx === 0 ? p.x - HIT_SIZE / 2 : h.dx < 0 ? p.x - reach : p.x - inward;
+            const top = h.dy === 0 ? p.y - HIT_SIZE / 2 : h.dy < 0 ? p.y - reach : p.y - inward;
             return (
               <g key={h.id} transform={`rotate(${single.rotation} ${p.x} ${p.y})`}>
                 <rect x={p.x - HANDLE_SIZE / 2} y={p.y - HANDLE_SIZE / 2} width={HANDLE_SIZE} height={HANDLE_SIZE} fill={HANDLE_FILL} stroke={SELECTION} pointerEvents="none" />
@@ -279,8 +285,8 @@ export function SelectionOverlay({
                   data-testid={`handle-${h.id}`}
                   x={left}
                   y={top}
-                  width={w}
-                  height={hh}
+                  width={wide}
+                  height={tall}
                   fill="transparent"
                   style={{ cursor: h.cursor }}
                 />
@@ -413,25 +419,17 @@ export function SelectionOverlay({
         !hideHandles &&
         (['from', 'to'] as const).map((end) => {
           const at = end === 'from' ? connector.points[0] : connector.points[connector.points.length - 1];
-          const next = end === 'from' ? connector.points[1] : connector.points[connector.points.length - 2];
           if (!at) return null;
           const p = worldToScreen(at, viewport);
-          // The cardinality marker lies along the line from this end, so the grab area leans the other way.
-          const n = next ? worldToScreen(next, viewport) : p;
-          const len = Math.hypot(n.x - p.x, n.y - p.y) || 1;
-          const lean = HANDLE_SIZE;
+          // Shrinks on a short connector so the two ends never overlap, and stays centred on the end so a press on
+          // the attached table's edge still reaches the table.
+          const first = worldToScreen(connector.points[0] ?? at, viewport);
+          const last = worldToScreen(connector.points[connector.points.length - 1] ?? at, viewport);
+          const r = Math.max(HANDLE_SIZE / 2 + 1, Math.min(HIT_SIZE / 2 - 3, Math.hypot(last.x - first.x, last.y - first.y) / 2 - 2));
           return (
             <g key={end}>
               <circle cx={p.x} cy={p.y} r={HANDLE_SIZE / 2 + 1} fill={HANDLE_FILL} stroke={SELECTION} pointerEvents="none" />
-              <circle
-                data-connector-end={end}
-                data-testid="connector-handle"
-                className={grabClass}
-                cx={p.x - ((n.x - p.x) / len) * lean}
-                cy={p.y - ((n.y - p.y) / len) * lean}
-                r={HIT_SIZE / 2}
-                fill="transparent"
-              />
+              <circle data-connector-end={end} data-testid="connector-handle" className={grabClass} cx={p.x} cy={p.y} r={r} fill="transparent" />
             </g>
           );
         })}
