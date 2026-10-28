@@ -24,6 +24,13 @@ describe('Top bar', () => {
     for (const id of ['import-board', 'export-board', 'import-schema', 'export-schema']) {
       cy.get(`[data-testid=${id}]`).should('be.visible');
     }
+    // A 1px hairline in the border colour: the browser's own <hr> border once drew a heavy dark rule here.
+    cy.get('[role=menu] [data-part=separator]').first().should(($hr) => {
+      const style = getComputedStyle($hr[0]!);
+      expect(style.borderTopStyle).to.equal('none');
+      expect(style.height).to.equal('1px');
+      expect(style.backgroundColor).to.equal('rgb(230, 230, 230)');
+    });
     cy.get('[data-testid=open-settings]').click();
     cy.get('[data-testid=settings-page]').should('be.visible');
   });
