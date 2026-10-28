@@ -10,6 +10,7 @@ import { css } from 'styled-system/css';
 
 // Loaded on first open so its parser and layout code stay out of the startup bundle.
 const SchemaImportDialog = lazy(() => import('./SchemaImportDialog').then((m) => ({ default: m.SchemaImportDialog })));
+const SchemaExportDialog = lazy(() => import('./SchemaExportDialog').then((m) => ({ default: m.SchemaExportDialog })));
 
 const toolbarClass = css({
   flex: 'none',
@@ -36,6 +37,8 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const dialogs = useDialogs();
   const [schemaOpen, setSchemaOpen] = useState(false);
   const [schemaRequested, setSchemaRequested] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportRequested, setExportRequested] = useState(false);
   const broken = state.nodes.filter((n) => n.type === 'connector' && isBroken(n));
 
   const onImport = async (file: File | undefined) => {
@@ -91,6 +94,17 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
         {schemaRequested && (
           <Suspense fallback={null}>
             <SchemaImportDialog open={schemaOpen} onOpenChange={setSchemaOpen} />
+          </Suspense>
+        )}
+        <Button variant="toolbar" data-testid="export-schema" onClick={() => {
+            setExportRequested(true);
+            setExportOpen(true);
+          }}>
+          Export schema
+        </Button>
+        {exportRequested && (
+          <Suspense fallback={null}>
+            <SchemaExportDialog open={exportOpen} onOpenChange={setExportOpen} />
           </Suspense>
         )}
         <Button variant="toolbar" onClick={() => downloadDocument(state.nodes)}>

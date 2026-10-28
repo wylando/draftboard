@@ -122,7 +122,11 @@ export function serializeDocument(nodes: DesignNode[]): string {
 }
 
 export function downloadDocument(nodes: DesignNode[], filename = 'design.draftboard.json'): void {
-  const blob = new Blob([serializeDocument(nodes)], { type: 'application/json' });
+  downloadText(serializeDocument(nodes), filename, 'application/json');
+}
+
+export function downloadText(text: string, filename: string, type: string): void {
+  const blob = new Blob([text], { type });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

@@ -44,6 +44,8 @@ export const tokens = defineTokens({
     default: {
       value: "'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
     },
+    /** Design choice, not observed in Figma: system monospace for code previews (no web font). */
+    mono: { value: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' },
   },
   fontWeights: {
     default: { value: '400' },
