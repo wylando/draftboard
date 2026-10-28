@@ -1,7 +1,7 @@
 import { semanticTokens } from './semanticTokens';
 import { tokens } from './tokens';
 
-type Tree = { [key: string]: Tree } & { value?: string };
+type Tree = { [key: string]: Tree } & { value?: string | { base: string; _osDark: string } };
 
 function lookup(root: Tree, path: string): Tree {
   let node: Tree = root;
@@ -13,10 +13,13 @@ function lookup(root: Tree, path: string): Tree {
   return node.value === undefined && node.DEFAULT ? node.DEFAULT : node;
 }
 
-/** Resolves a semantic colour (`text.secondary`) to its hex, following `{colors.…}` references. */
-export function semanticColor(path: string): string {
-  let value = lookup(semanticTokens.colors as unknown as Tree, path).value;
-  while (value?.startsWith('{')) value = lookup(tokens.colors as unknown as Tree, value.slice(8, -1)).value;
+export type Mode = 'light' | 'dark';
+
+/** Resolves a semantic colour (`text.secondary`) to its hex in a theme, following `{colors.…}` references. */
+export function semanticColor(path: string, mode: Mode = 'light'): string {
+  const raw = lookup(semanticTokens.colors as unknown as Tree, path).value;
+  let value = typeof raw === 'object' ? (mode === 'dark' ? raw._osDark : raw.base) : raw;
+  while (value?.startsWith('{')) value = lookup(tokens.colors as unknown as Tree, value.slice(8, -1)).value as string;
   if (!value) throw new Error(`${path} has no value`);
   return value;
 }
@@ -36,9 +39,13 @@ function luminance(hex: string, over: string): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-/** WCAG 2.x contrast ratio of `fg` on `bg`; a translucent `fg` is composited over `bg` first. */
-export function contrastRatio(fg: string, bg: string): number {
-  const a = luminance(fg, bg);
-  const b = luminance(bg, '#ffffff');
+/**
+ * WCAG 2.x contrast ratio of `fg` on `bg`. A translucent `bg` is composited over `under` (default white),
+ * then a translucent `fg` over that.
+ */
+export function contrastRatio(fg: string, bg: string, under = '#ffffff'): number {
+  const flat = '#' + channels(bg, under).map((c) => Math.round(c).toString(16).padStart(2, '0')).join('');
+  const a = luminance(fg, flat);
+  const b = luminance(flat, '#ffffff');
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 }

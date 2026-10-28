@@ -6,7 +6,7 @@ import { defineSlotRecipe } from '@pandacss/dev';
  */
 export const popupRecipe = defineSlotRecipe({
   className: 'popup',
-  description: 'Floating canvas popup in the tool dock\'s dark style',
+  description: 'Floating canvas popup in the panel surface, see-through',
   jsx: ['CanvasPopup'],
   slots: ['positioner', 'content', 'header', 'title', 'body', 'section', 'label'],
   base: {

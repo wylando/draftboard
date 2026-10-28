@@ -36,6 +36,13 @@ export const tokens = defineTokens({
       500: { value: '#f24822' },
       /** Ours: error text; red.500 is only 3.67:1 on white. */
       700: { value: '#c4320a' },
+      /** Ours: error text in the dark theme (5.3:1 on grey.800). */
+      400: { value: '#ff7b5f' },
+    },
+    /** Ours: dark-theme selection fills, a deep blue that keeps text.DEFAULT above 4.5:1. */
+    navy: {
+      700: { value: '#17324f' },
+      800: { value: '#10253b' },
     },
     /** Ours: cool greys for secondary text (6.05:1 on white) and control boundaries (3.35:1), which grey.500 misses. */
     slate: {

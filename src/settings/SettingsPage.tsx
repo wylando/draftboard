@@ -27,6 +27,7 @@ const headerClass = css({
   paddingInline: '2',
   bg: 'bg.topBar',
   color: 'text.onToolbar',
+  boxShadow: '[inset 0 -1px 0 0 var(--colors-border)]',
 });
 const titleClass = css({ textStyle: 'heading.page' });
 const tabsClasses = tabs();

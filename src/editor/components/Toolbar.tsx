@@ -29,6 +29,8 @@ const toolbarClass = css({
   paddingInline: '2',
   bg: 'bg.topBar',
   color: 'text.onToolbar',
+  // Under the tabs, so the open tab covers it and joins the canvas below.
+  boxShadow: '[inset 0 -1px 0 0 var(--colors-border)]',
 });
 const rowClass = css({ display: 'flex', alignItems: 'center', gap: '1', flex: 'none', height: 'boardTab' });
 // Takes the space the right-hand group leaves; the tabs sit on the bar's bottom edge and scroll when they run out.

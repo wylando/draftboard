@@ -70,6 +70,8 @@ export default defineConfig({
     },
   },
   globalCss: {
+    // Native controls, scrollbars and colour pickers follow the OS, like the semantic tokens do.
+    ':root': { colorScheme: 'light dark' },
     'html, body, #root': { height: 'full', margin: '0' },
     body: {
       textStyle: 'body.medium',

@@ -1,72 +1,81 @@
 import { defineSemanticTokens } from '@pandacss/dev';
 
 /**
+ * A colour with a light value and a dark one, which applies under the OS's dark preference.
+ * Chrome only: document colours (shapes, tables, user picks) are data and never switch.
+ */
+const pair = (light: string, dark: string) => ({ value: { base: light, _osDark: dark } });
+
+/**
  * Semantic tokens: what components use. Re-theme the app by remapping these.
+ * The chrome (top bar, tabs, dock, popups) is light, like the panels; the dark theme mirrors it.
  */
 export const semanticTokens = defineSemanticTokens({
   colors: {
     bg: {
-      DEFAULT: { value: '{colors.white}' },
-      secondary: { value: '{colors.grey.100}' },
-      hover: { value: '{colors.grey.100}' },
-      selected: { value: '{colors.blue.200}' },
+      DEFAULT: pair('{colors.white}', '{colors.grey.800}'),
+      secondary: pair('{colors.grey.100}', '{colors.grey.900}'),
+      hover: pair('{colors.grey.100}', '{colors.grey.700}'),
+      selected: pair('{colors.blue.200}', '{colors.navy.700}'),
       /** Layers inside a selected frame or group. */
-      selectedChild: { value: '{colors.blue.100}' },
-      brand: { value: '{colors.blue.600}' },
-      brandHover: { value: '{colors.blue.700}' },
-      toolbar: { value: '{colors.grey.900}' },
-      toolbarHover: { value: '{colors.grey.600}' },
-      /** The top bar sits a step lighter than the open board tab, which shares the tool dock's colour. */
-      topBar: { value: '{colors.grey.700}' },
-      /** Board tabs on the top bar: the open one is set darker, the rest sit back until hovered. */
-      tabActive: { value: '{colors.grey.900}' },
-      tabHover: { value: '{colors.grey.800}' },
-      canvas: { value: '{colors.grey.100}' },
-      /** Canvas popups: the dock's dark, slightly see-through so the canvas shows faintly behind (blurred). */
-      popup: { value: '#1e1e1ee6' },
+      selectedChild: pair('{colors.blue.100}', '{colors.navy.800}'),
+      brand: pair('{colors.blue.600}', '{colors.blue.500}'),
+      brandHover: pair('{colors.blue.700}', '{colors.blue.400}'),
+      /** The floating tool dock; it is lifted off the canvas by a hairline and a shadow. */
+      toolbar: pair('{colors.white}', '{colors.grey.800}'),
+      toolbarHover: pair('{colors.grey.200}', '{colors.grey.700}'),
+      /** The top bar shares the panels' surface and rests on a hairline. */
+      topBar: pair('{colors.white}', '{colors.grey.800}'),
+      /** Board tabs on the top bar: the open one takes the canvas's surface, the rest sit back until hovered. */
+      tabActive: pair('{colors.grey.100}', '{colors.grey.900}'),
+      tabHover: pair('{colors.grey.200}', '{colors.grey.700}'),
+      canvas: pair('{colors.grey.100}', '{colors.grey.900}'),
+      /** Canvas popups: the panel surface, slightly see-through so the canvas shows faintly behind (blurred). */
+      popup: pair('#ffffffe6', '#2c2c2ce6'),
       /** Dims the app behind a modal dialog. */
-      backdrop: { value: '#00000066' },
+      backdrop: pair('#00000066', '#000000a6'),
     },
     text: {
-      DEFAULT: { value: '{colors.black.800}' },
-      secondary: { value: '{colors.slate.600}' },
+      DEFAULT: pair('{colors.black.800}', '{colors.grey.100}'),
+      secondary: pair('{colors.slate.600}', '{colors.grey.400}'),
       /** Disabled controls and items; exempt from contrast rules, so deliberately fainter than secondary. */
-      disabled: { value: '{colors.grey.400}' },
-      onBrand: { value: '{colors.white}' },
-      onToolbar: { value: '{colors.white}' },
-      /** Quieter text on the dark toolbar and popups; about 8:1 on grey.900. */
-      onToolbarSecondary: { value: '{colors.grey.400}' },
-      tabInactive: { value: '{colors.grey.400}' },
-      danger: { value: '{colors.red.700}' },
+      disabled: pair('{colors.grey.400}', '{colors.grey.500}'),
+      onBrand: pair('{colors.white}', '{colors.grey.1000}'),
+      /** Text on the top bar, dock and popups. */
+      onToolbar: pair('{colors.black.800}', '{colors.grey.100}'),
+      /** Quieter text on the top bar, dock and popups. */
+      onToolbarSecondary: pair('{colors.slate.600}', '{colors.grey.400}'),
+      tabInactive: pair('{colors.slate.600}', '{colors.grey.400}'),
+      danger: pair('{colors.red.700}', '{colors.red.400}'),
     },
     border: {
-      DEFAULT: { value: '{colors.grey.200}' },
-      strong: { value: '{colors.grey.300}' },
-      selected: { value: '{colors.blue.500}' },
+      DEFAULT: pair('{colors.grey.200}', '{colors.grey.700}'),
+      strong: pair('{colors.grey.300}', '{colors.grey.600}'),
+      selected: pair('{colors.blue.500}', '{colors.blue.500}'),
       /** The 1px boundary of inputs, checkboxes, radios, switches and toggles; `border` stays for decorative dividers. */
-      control: { value: '{colors.slate.400}' },
-      controlHover: { value: '{colors.slate.600}' },
+      control: pair('{colors.slate.400}', '{colors.slate.400}'),
+      controlHover: pair('{colors.slate.600}', '{colors.grey.400}'),
       /** Every keyboard focus ring (2px) and focused field. */
-      focus: { value: '{colors.blue.700}' },
-      /** The focus ring on the dark top bar, tabs and popups, where the dark blue would vanish. */
-      focusOnToolbar: { value: '{colors.blue.400}' },
-      /** Hairlines on the dark toolbar and popups: a popup's rim and its section dividers. */
-      onToolbar: { value: '#ffffff1f' },
+      focus: pair('{colors.blue.700}', '{colors.blue.400}'),
+      /** Kept apart from `focus` for chrome that may differ from the panels; today they match. */
+      focusOnToolbar: pair('{colors.blue.700}', '{colors.blue.400}'),
+      /** Hairlines on the top bar, dock and popups: a popup's rim and its section dividers. */
+      onToolbar: pair('{colors.grey.200}', '{colors.grey.700}'),
       /** Indent guides in the Layers tree. */
-      guide: { value: '{colors.grey.200}' },
+      guide: pair('{colors.grey.200}', '{colors.grey.700}'),
     },
     icon: {
-      DEFAULT: { value: '{colors.black.800}' },
-      secondary: { value: '{colors.slate.600}' },
+      DEFAULT: pair('{colors.black.800}', '{colors.grey.100}'),
+      secondary: pair('{colors.slate.600}', '{colors.grey.400}'),
     },
-    /** A warning sign or note: a soft amber ground with dark ink. */
+    /** A warning sign or note: a soft amber ground with dark ink, in both themes. */
     warning: {
       bg: { value: '{colors.amber.100}' },
       ink: { value: '{colors.black.800}' },
     },
     /** Canvas background grid (Settings → Canvas). */
-    canvasGrid: { value: '{colors.grey.300}' },
-    /** Canvas chrome: selection outline, handles, marquee, smart guides. */
+    canvasGrid: pair('{colors.grey.300}', '{colors.grey.700}'),
+    /** Canvas chrome: selection outline, handles, marquee, smart guides. Blue and red hold ≥3:1 on both canvases. */
     selection: {
       DEFAULT: { value: '{colors.blue.500}' },
       fill: { value: '#0d99ff1a' },

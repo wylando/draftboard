@@ -32,6 +32,9 @@ const dockClass = css({
   borderRadius: 'large',
   bg: 'bg.toolbar',
   color: 'text.onToolbar',
+  borderWidth: '1px',
+  borderStyle: 'solid',
+  borderColor: 'border',
   boxShadow: 'elevation200',
 });
 const groupClass = css({ display: 'flex', alignItems: 'center', gap: '1' });

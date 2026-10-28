@@ -38,7 +38,7 @@ export const buttonRecipe = defineRecipe({
         bg: 'transparent',
         _hover: { bg: 'bg.hover' },
       },
-      /** Ghost button on the dark toolbar. */
+      /** Ghost button on the top bar. */
       toolbar: {
         borderColor: 'transparent',
         bg: 'transparent',
