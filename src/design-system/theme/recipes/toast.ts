@@ -11,10 +11,17 @@ export const toastRecipe = defineSlotRecipe({
   jsx: ['ToastRegion'],
   slots: ['group', 'root', 'title', 'actionTrigger'],
   base: {
-    group: { pointerEvents: 'none' },
+    group: {
+      // Ark fixes the region to the window with inline styles; it belongs to the canvas panel and spans its width.
+      position: 'absolute !important',
+      insetInline: '0 !important',
+      pointerEvents: 'none',
+    },
     root: {
-      // Ark gives it `position: absolute; bottom: 0` inline, so centring is margin-based.
-      insetInline: '0',
+      // Ark gives it `position: absolute; bottom: 0` inline, so centring is margin-based. The insets are the
+      // ones EditorBody sets for the tool dock, so both centre on the editor body when the panels differ.
+      insetInlineStart: 'var(--dock-inset-start, 0px)',
+      insetInlineEnd: 'var(--dock-inset-end, 0px)',
       marginInline: 'auto',
       width: 'fit-content',
       maxWidth: 'full',

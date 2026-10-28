@@ -1,4 +1,5 @@
 import { createToaster, Toaster, Toast } from '@ark-ui/react/toast';
+import { token } from 'styled-system/tokens';
 import { toast } from 'styled-system/recipes';
 
 const toaster = createToaster({
@@ -8,13 +9,18 @@ const toaster = createToaster({
   max: 3,
   overlap: false,
   gap: 8,
-  // Lifts the region above the floating tool dock (the `toolDockClearance` token's value).
-  offsets: '4.5rem',
+  offsets: token.var('spacing.toolDockClearance'),
+  // Ark's default is Alt+T, which moves focus into the region. A key that no event carries turns it off
+  // (an empty list would match every key).
+  hotkey: ['NoHotkey'],
 });
 
-/** Shows a brief message over the canvas. `action` adds a button that also dismisses the toast. */
-export function notify(message: string, action?: { label: string; onClick: () => void }) {
-  toaster.create({ title: message, type: 'info', action });
+/**
+ * Shows a brief message over the canvas. `action` adds a button that also dismisses the toast. A new `id`
+ * replaces the toast that has it, so a held key updates one toast instead of stacking.
+ */
+export function notify(message: string, options: { id?: string; action?: { label: string; onClick: () => void } } = {}) {
+  toaster.create({ title: message, type: 'info', ...options });
 }
 
 /** One region per canvas: mount it inside the positioned canvas panel. */
@@ -24,10 +30,10 @@ export function ToastRegion() {
     <Toaster
       toaster={toaster}
       label="Notifications"
+      // The label Ark builds would end with its hotkey.
+      aria-label="Notifications"
       className={classes.group}
       data-testid="toast-region"
-      // Ark fixes the region to the window; it belongs to the canvas panel and spans its width.
-      style={{ position: 'absolute', insetInline: 0 }}
     >
       {(t) => (
         <Toast.Root key={t.id} className={classes.root} data-testid="toast">

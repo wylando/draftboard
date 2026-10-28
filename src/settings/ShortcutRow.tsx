@@ -11,6 +11,8 @@ const rowClass = css({
   '&:hover [data-quiet=add], &:focus-within [data-quiet]': { opacity: '1' },
   '& [data-chip]:hover [data-quiet=remove]': { opacity: '1' },
   '& [data-quiet=add]:focus-visible': { opacity: '1' },
+  // No hover to reveal them on touch.
+  '@media (hover: none)': { '& [data-quiet]': { opacity: '1' } },
   display: 'grid',
   gridTemplateColumns: '1fr auto',
   alignItems: 'center',

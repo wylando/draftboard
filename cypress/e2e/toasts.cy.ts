@@ -8,11 +8,11 @@ describe('Toasts', () => {
 
   it('confirms a copy and reports a paste with nothing to paste', () => {
     cy.pressKey('v', { ...MOD_KEYS, code: 'KeyV' });
-    toast().should('contain', 'Nothing to paste');
+    cy.contains('[data-testid=toast]', 'Nothing to paste').should('exist');
 
     cy.drawShape('rect', [100, 100], [200, 200]);
     cy.pressKey('c', { ...MOD_KEYS, code: 'KeyC' });
-    toast().should('contain', 'Copied 1 layer');
+    cy.contains('[data-testid=toast]', 'Copied 1 layer').should('exist');
   });
 
   it('says nothing when the command does nothing', () => {
@@ -28,20 +28,56 @@ describe('Toasts', () => {
   it('pastes, duplicates and cuts with counts', () => {
     cy.drawShape('rect', [100, 100], [200, 200]);
     cy.pressKey('d', { ...MOD_KEYS, code: 'KeyD' });
-    toast().should('contain', 'Duplicated 1 layer');
+    cy.contains('[data-testid=toast]', 'Duplicated 1 layer').should('exist');
     cy.pressKey('x', { ...MOD_KEYS, code: 'KeyX' });
-    toast().should('contain', 'Cut 1 layer');
+    cy.contains('[data-testid=toast]', 'Cut 1 layer').should('exist');
     cy.pressKey('v', { ...MOD_KEYS, code: 'KeyV' });
-    toast().should('contain', 'Pasted 1 layer');
+    cy.contains('[data-testid=toast]', 'Pasted 1 layer').should('exist');
   });
 
   it('offers Undo after a delete, and Undo restores the layer', () => {
     cy.drawShape('rect', [100, 100], [200, 200]);
     cy.pressKey('Backspace');
     cy.get('[data-node-type=rect]').should('not.exist');
-    toast().should('contain', 'Deleted 1 layer');
+    cy.contains('[data-testid=toast]', 'Deleted 1 layer').should('exist');
     cy.get('[data-testid=toast-action]').click();
     cy.get('[data-node-type=rect]').should('have.length', 1);
+  });
+
+  it('Undo only takes back the delete it announced', () => {
+    cy.drawShape('rect', [100, 100], [200, 200]);
+    cy.drawShape('rect', [300, 100], [400, 200]);
+    cy.pressKey('Backspace');
+    cy.contains('[data-testid=toast]', 'Deleted 1 layer').should('exist');
+    cy.get('[data-node-type=rect]').should('have.length', 1);
+    // Another edit lands in between; Undo must not now undo that one instead.
+    cy.drawShape('rect', [100, 300], [200, 400]);
+    cy.get('[data-node-type=rect]').should('have.length', 2);
+    cy.get('[data-testid=toast-action]').click();
+    cy.get('[data-node-type=rect]').should('have.length', 2);
+  });
+
+  it('toasts for the Design panel buttons too', () => {
+    cy.drawShape('rect', [100, 100], [200, 200]);
+    cy.get('[data-testid=delete-selection]').click();
+    cy.contains('[data-testid=toast]', 'Deleted 1 layer').should('exist');
+  });
+
+  it('a held key updates one toast instead of stacking', () => {
+    cy.drawShape('rect', [100, 100], [200, 200]);
+    cy.pressKey('c', { ...MOD_KEYS, code: 'KeyC' });
+    cy.pressKey('c', { ...MOD_KEYS, code: 'KeyC', repeat: true });
+    cy.pressKey('c', { ...MOD_KEYS, code: 'KeyC', repeat: true });
+    toast().should('have.length', 1);
+  });
+
+  it('Alt+T does not move focus into the toast region', () => {
+    cy.drawShape('rect', [100, 100], [200, 200]);
+    cy.pressKey('c', { ...MOD_KEYS, code: 'KeyC' });
+    toast().should('be.visible');
+    cy.pressKey('t', { altKey: true, code: 'KeyT' });
+    cy.get('[data-testid=toast-region]').should('not.have.focus');
+    cy.get('[data-testid=toast-region]').should('not.contain.html', 'Alt+T');
   });
 
   it('is a polite live region that leaves focus alone and fades away by itself', () => {
