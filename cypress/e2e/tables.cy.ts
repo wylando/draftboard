@@ -78,19 +78,38 @@ describe('Tables', () => {
   });
 
   it('turns the chevron on a row that opens in place, for columns and indexes alike', () => {
+    // The down chevron's path; open, it is turned over by 180 degrees (matrix a = -1), not quarter-turned.
+    const DOWN_CHEVRON = 'M4 6l4 4 4-4';
+    const flipped = (el: JQuery<HTMLElement>) => new DOMMatrix(getComputedStyle(el[0]!).transform).a;
     placeTable();
     cy.get('[data-testid=add-index]').click();
     cy.get('[data-testid=index-row]').should('have.attr', 'aria-expanded', 'true');
-    cy.get('[data-testid=index-row] [data-part=item-indicator]').should('have.attr', 'data-state', 'open').and('have.css', 'transform').and('not.eq', 'none');
+    cy.get('[data-testid=index-row] [data-part=item-indicator]').should('have.attr', 'data-state', 'open').and(($i) => expect(flipped($i)).to.be.closeTo(-1, 0.001));
+    cy.get('[data-testid=index-row] [data-part=item-indicator] path').should('have.attr', 'd', DOWN_CHEVRON);
     cy.get('[data-testid=index-row]').click();
     cy.get('[data-testid=index-row]').should('have.attr', 'aria-expanded', 'false');
     cy.get('[data-testid=index-row] [data-part=item-indicator]').should('have.attr', 'data-state', 'closed').and('have.css', 'transform', 'none');
 
     // Folded, a chevron points down; open, it has turned over.
     columnRow(0).find('[data-part=item-indicator]').should('have.attr', 'data-state', 'closed').and('have.css', 'transform', 'none');
+    columnRow(0).find('[data-part=item-indicator] path').should('have.attr', 'd', DOWN_CHEVRON);
     columnRow(0).click();
     columnRow(0).should('have.attr', 'aria-expanded', 'true');
-    columnRow(0).find('[data-part=item-indicator]').should('have.attr', 'data-state', 'open').and('have.css', 'transform').and('not.eq', 'none');
+    columnRow(0).find('[data-part=item-indicator]').should('have.attr', 'data-state', 'open').and(($i) => expect(flipped($i)).to.be.closeTo(-1, 0.001));
+  });
+
+  it('after naming a new column with Enter, focus moves to Add column so the next one is a keypress away', () => {
+    placeTable();
+    cy.get('[data-testid=add-column]').click();
+    cy.focused().should('have.attr', 'data-testid', 'column-name').type('email{enter}');
+    columnRow(1).should('contain', 'email');
+    // Cypress's simulated Enter does not activate any button in this app (an unrelated Add index probe fails the same way),
+    // so the keypress itself is left to the browser; this pins that focus is there and that a second add still opens a named row.
+    cy.get('[data-testid=add-column]').should('have.focus');
+    cy.get('[data-testid=column-row]').should('have.length', 2);
+    cy.get('[data-testid=add-column]').click();
+    cy.get('[data-testid=column-row]').should('have.length', 3);
+    cy.get('[data-testid=column-editor] [data-testid=column-name]').should('have.focus').and('have.value', 'column_1');
   });
 
   it('Add column stays in place: each click adds a row, opens it and selects its name', () => {

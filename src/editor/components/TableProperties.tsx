@@ -70,6 +70,7 @@ function ColumnEditor({
   picked,
   autoSelect,
   onAutoSelected,
+  onNameEnter,
 }: {
   table: TableNode;
   column: Column;
@@ -78,6 +79,8 @@ function ColumnEditor({
   picked: boolean;
   autoSelect?: boolean;
   onAutoSelected?: () => void;
+  /** Enter in the name field, after it has committed. */
+  onNameEnter?: (editor: HTMLElement) => void;
 }) {
   const root = useRef<HTMLDivElement>(null);
   // Here, not in the list: Ark mounts a row's editor a render after it opens, and the editor is what must be seen.
@@ -89,7 +92,14 @@ function ColumnEditor({
   const [nameError, setNameError] = useState<string | null>(null);
   const update = (patch: Partial<Omit<Column, 'id'>>) => edit({ kind: 'updateColumn', columnId: column.id, patch });
   return (
-    <div ref={root} className={editorClass} data-testid="column-editor">
+    <div
+      ref={root}
+      className={editorClass}
+      data-testid="column-editor"
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && e.target instanceof HTMLElement && e.target.dataset.testid === 'column-name') onNameEnter?.(e.currentTarget);
+      }}
+    >
       <div className={twoColumnGrid}>
         <TextInput
           value={column.name}
@@ -318,6 +328,7 @@ export function TableProperties({ table }: { table: TableNode }) {
   const [openColumns, setOpenColumns] = useState<string[]>([]);
   const [showAllColumns, setShowAllColumns] = useState(false);
   const [newColumn, setNewColumn] = useState<string | null>(null);
+  const [lastAdded, setLastAdded] = useState<string | null>(null);
   // Cleared once the new name field has taken focus, so a later remount (redo, the list unfolding) doesn't take it again.
   const columnEditor = (c: Column) => (
     <ColumnEditor
@@ -327,6 +338,16 @@ export function TableProperties({ table }: { table: TableNode }) {
       picked={c.id === picked}
       autoSelect={c.id === newColumn}
       onAutoSelected={() => setNewColumn(null)}
+      // Design choice: Enter on a just-added column's name hands focus to Add column, so adding several is keyboard-only.
+      onNameEnter={
+        c.id === lastAdded
+          ? (editor) => {
+              const add = editor.closest('[data-testid=section-columns]')?.querySelector<HTMLElement>('[data-testid=add-column]');
+              // Deferred: focusing inside this keydown would send the same Enter's keypress to the button and add a second column.
+              setTimeout(() => add?.focus());
+            }
+          : undefined
+      }
     />
   );
   // Design choice: a column picked on the canvas opens in its place, showing the whole list if it was hidden.
@@ -442,6 +463,7 @@ export function TableProperties({ table }: { table: TableNode }) {
             const column = createColumn('', dialect.defaultType);
             edit({ kind: 'addColumn', column });
             setNewColumn(column.id);
+            setLastAdded(column.id);
             // Design choice: only the new column stays open, so repeated adds don't pile up open editors.
             setOpenColumns([column.id]);
             if (table.columns.length + 1 > LISTED_COLUMNS) setShowAllColumns(true);
