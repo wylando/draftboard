@@ -65,14 +65,25 @@ describe.each(MODES)('contrast of the %s theme (WCAG 2.2)', (mode) => {
     expect(ratio('selection.guide', 'bg.canvas', mode)).toBeGreaterThanOrEqual(3);
   });
 
-  // The light canvas's selection blue (2.7:1) is the existing canvas colour, left alone; the dark theme is held to 3:1.
-  it.skipIf(mode === 'light')('keeps the selection and relationship highlight at 3:1 on the dark canvas', () => {
+  it('keeps the selection colour at 3:1 on the canvas', () => {
     expect(ratio('selection', 'bg.canvas', mode)).toBeGreaterThanOrEqual(3);
+  });
+
+  // The relationship highlight is a user preference (a light blue by default), so only the dark canvas is held to it.
+  it.skipIf(mode === 'light')('keeps the default relationship highlight at 3:1 on the dark canvas', () => {
     expect(contrastRatio(DEFAULT_PREFERENCES.relationHighlight, semanticColor('bg.canvas', mode))).toBeGreaterThanOrEqual(3);
   });
 
   it('keeps guide labels readable on the guide colour', () => {
     expect(ratio('selection.guideText', 'selection.guide', mode)).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+describe('dark dock', () => {
+  it('lifts the dock and its hover state off the dark canvas and off each other', () => {
+    expect(semanticColor('bg.toolbar', 'dark')).not.toBe(semanticColor('bg.canvas', 'dark'));
+    expect(semanticColor('bg.toolbarHover', 'dark')).not.toBe(semanticColor('bg.toolbar', 'dark'));
+    expect(ratio('bg.toolbar', 'bg.canvas', 'dark')).toBeGreaterThanOrEqual(1.3);
   });
 });
 

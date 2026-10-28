@@ -21,9 +21,9 @@ export const semanticTokens = defineSemanticTokens({
       selectedChild: pair('{colors.blue.100}', '{colors.navy.800}'),
       brand: pair('{colors.blue.600}', '{colors.blue.500}'),
       brandHover: pair('{colors.blue.700}', '{colors.blue.400}'),
-      /** The floating tool dock; it is lifted off the canvas by a hairline and a shadow. */
-      toolbar: pair('{colors.white}', '{colors.grey.800}'),
-      toolbarHover: pair('{colors.grey.200}', '{colors.grey.700}'),
+      /** The floating tool dock; a hairline and shadow lift it off the light canvas, a lighter grey off the dark one. */
+      toolbar: pair('{colors.white}', '{colors.grey.700}'),
+      toolbarHover: pair('{colors.grey.200}', '{colors.grey.600}'),
       /** The top bar shares the panels' surface and rests on a hairline. */
       topBar: pair('{colors.white}', '{colors.grey.800}'),
       /** Board tabs on the top bar: the open one takes the canvas's surface, the rest sit back until hovered. */
@@ -75,9 +75,9 @@ export const semanticTokens = defineSemanticTokens({
     },
     /** Canvas background grid (Settings → Canvas). */
     canvasGrid: pair('{colors.grey.300}', '{colors.grey.700}'),
-    /** Canvas chrome: selection outline, handles, marquee, smart guides. Blue and red hold ≥3:1 on both canvases. */
+    /** Canvas chrome: selection outline, handles, marquee, smart guides. Selection and guides hold ≥3:1 on both canvases. */
     selection: {
-      DEFAULT: { value: '{colors.blue.500}' },
+      DEFAULT: pair('{colors.blue.600}', '{colors.blue.500}'),
       fill: { value: '#0d99ff1a' },
       /** Smart guides while a layer snaps; set apart from the selection blue they cross. */
       guide: { value: '{colors.red.500}' },
