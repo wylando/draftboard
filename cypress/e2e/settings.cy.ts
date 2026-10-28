@@ -51,8 +51,7 @@ describe('Settings: keyboard shortcuts', () => {
     cy.pressKey('r', { code: 'KeyR' });
     // data-tool is already "select", so wait for a later update to render
     // first; otherwise this passes even if R still picks Rectangle.
-    cy.get('[data-testid=zoom-level]').click();
-    cy.get('[data-testid=zoom-in]').click();
+    cy.zoomMenu('zoom-in');
     cy.get('[data-testid=zoom-level]').should('have.text', '200%');
     cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'select');
     cy.pressKey('b', { code: 'KeyB' });

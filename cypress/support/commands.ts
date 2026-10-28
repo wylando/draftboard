@@ -33,6 +33,8 @@ declare global {
       /** Select a tool via its toolbar button, then drag on the canvas. */
       drawShape(tool: string, from: Pt, to: Pt): Chainable<void>;
       /** Dispatch a keydown (and keyup) on the window. */
+      /** Open the top bar's zoom menu and pick an item (`zoom-in`, `zoom-out`, `zoom-fit`, `zoom-100`). */
+      zoomMenu(item: 'zoom-in' | 'zoom-out' | 'zoom-fit' | 'zoom-100'): Chainable<void>;
       pressKey(key: string, opts?: { code?: string; shiftKey?: boolean; metaKey?: boolean; altKey?: boolean; repeat?: boolean }): Chainable<void>;
       /** Read a node's committed property value from the properties panel. */
       prop(name: string): Chainable<JQuery<HTMLInputElement>>;
@@ -118,6 +120,11 @@ Cypress.Commands.add('drawShape', (tool, from, to) => {
   // Creation and the switch back to Move render together, so this also
   // guarantees the new node (and its properties panel) is on screen.
   cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'select');
+});
+
+Cypress.Commands.add('zoomMenu', (item) => {
+  cy.get('[data-testid=zoom-level]').click();
+  cy.get(`[data-testid=${item}]`).click();
 });
 
 Cypress.Commands.add('pressKey', (key, opts = {}) => {

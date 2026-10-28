@@ -33,11 +33,33 @@ describe('Top bar', () => {
     cy.get('[data-testid=zoom-in] [data-binding="Mod+="]').should('exist');
     cy.get('[data-testid=zoom-in]').click();
     cy.get('[data-testid=zoom-level]').should('have.text', '200%');
-    cy.get('[data-testid=zoom-level]').click();
-    cy.get('[data-testid=zoom-100]').click();
+    cy.zoomMenu('zoom-100');
     cy.get('[data-testid=zoom-level]').should('have.text', '100%');
-    cy.get('[data-testid=zoom-level]').click();
-    cy.get('[data-testid=zoom-out]').click();
+    cy.zoomMenu('zoom-out');
     cy.get('[data-testid=zoom-level]').should('have.text', '50%');
+
+    cy.drawShape('rect', [300, 300], [500, 400]);
+    cy.zoomMenu('zoom-fit');
+    cy.get('[data-testid=zoom-level]').should('not.have.text', '50%');
+  });
+
+  // The tabs' room mustn't shift with each zoom step.
+  it('keeps the zoom button one width at any zoom', () => {
+    cy.get('[data-testid=zoom-level]').invoke('outerWidth').then((width) => {
+      for (let i = 0; i < 8; i++) cy.zoomMenu('zoom-in');
+      cy.get('[data-testid=zoom-level]').should('have.text', '25600%').invoke('outerWidth').should('equal', width);
+      for (let i = 0; i < 12; i++) cy.zoomMenu('zoom-out');
+      cy.get('[data-testid=zoom-level]').should('have.text', '6%').invoke('outerWidth').should('equal', width);
+    });
+  });
+
+  it('lets Space choose a menu item without arming canvas panning', () => {
+    cy.get('[data-testid=zoom-level]').click();
+    // No keyup follows: a canvas that took the keydown would stay in pan mode.
+    // Ark keeps focus on the menu itself and only highlights items, so that's where keys land.
+    cy.get('[role=menu]').should('have.focus').trigger('keydown', { key: ' ', code: 'Space' });
+    cy.get('body').type('{esc}');
+    cy.get('[data-testid=zoom-in]').should('not.exist');
+    cy.get('[data-testid=canvas]').should('not.have.css', 'cursor', 'grab');
   });
 });

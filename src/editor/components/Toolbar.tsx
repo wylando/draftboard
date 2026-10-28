@@ -34,7 +34,7 @@ const rowClass = css({ display: 'flex', alignItems: 'center', gap: '1', flex: 'n
 // Takes the space the right-hand group leaves; the tabs sit on the bar's bottom edge and scroll when they run out.
 const leftGroupClass = css({ display: 'flex', alignItems: 'flex-end', gap: '1', flex: '1', minWidth: '0', alignSelf: 'stretch' });
 const menuButtonClass = css({ display: 'flex', alignItems: 'center', gap: '1' });
-const zoomClass = css({ minWidth: 'zoomLabel', justifyContent: 'center' });
+const zoomClass = css({ width: 'zoomLabel', justifyContent: 'center', fontVariantNumeric: 'tabular-nums' });
 const shortcutClass = css({ marginInlineStart: 'auto', paddingInlineStart: '4', color: 'text.secondary' });
 const problemsClass = css({ color: 'text.danger' });
 
@@ -116,7 +116,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
             }}
           >
             <Menu.Trigger asChild>
-              <Button variant="toolbar" className={menuButtonClass} data-testid="app-menu" aria-label="Draftboard menu" title="Draftboard">
+              <Button variant="toolbar" className={menuButtonClass} data-testid="app-menu" aria-label="Draftboard menu" title="Draftboard menu">
                 <icons.logo />
                 <icons.chevronDown />
               </Button>
@@ -198,7 +198,14 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
           }}
         >
           <Menu.Trigger asChild>
-            <Button variant="toolbar" className={cx(menuButtonClass, zoomClass)} data-testid="zoom-level" title="Zoom">
+            <Button
+              variant="toolbar"
+              className={cx(menuButtonClass, zoomClass)}
+              data-testid="zoom-level"
+              // The visible percentage stays in the name, so speech and voice control both match what's shown.
+              aria-label={`Zoom ${Math.round(zoom * 100)}%`}
+              title="Zoom"
+            >
               {Math.round(zoom * 100)}%
               <icons.chevronDown />
             </Button>

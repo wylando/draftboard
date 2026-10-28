@@ -140,8 +140,7 @@ describe('Connectors', () => {
     cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'rect');
     cy.canvasPointer('pointerup', [650, 650]);
     // A later render proves both releases were handled before checking nothing came of them.
-    cy.get('[data-testid=zoom-level]').click();
-    cy.get('[data-testid=zoom-in]').click();
+    cy.zoomMenu('zoom-in');
     cy.get('[data-testid=zoom-level]').should('have.text', '200%');
     cy.get('[data-node-type=connector]').should('not.exist');
   });

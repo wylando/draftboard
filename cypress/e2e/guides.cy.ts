@@ -53,8 +53,7 @@ describe('Smart guides', () => {
   });
 
   it('keeps the snap distance at 6 screen px when zoomed in', () => {
-    cy.get('[data-testid=zoom-level]').click();
-    cy.get('[data-testid=zoom-in]').click();
+    cy.zoomMenu('zoom-in');
     cy.get('[data-testid=zoom-level]').should('have.text', '200%');
     // Zooming about the canvas center can push the rects off screen, and only layers on
     // screen are snap targets: scroll so the world origin sits at (20, 20).
@@ -116,8 +115,7 @@ describe('Smart guides', () => {
     cy.canvasPointer('pointerdown', [800, 600]);
     cy.canvasPointer('pointercancel', [0, 0]);
     // A later render proves the cancel has been handled before checking nothing came of it.
-    cy.get('[data-testid=zoom-level]').click();
-    cy.get('[data-testid=zoom-in]').click();
+    cy.zoomMenu('zoom-in');
     cy.get('[data-testid=zoom-level]').should('have.text', '200%');
     cy.get('[data-node-type=rect]').should('have.length', 2);
     cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'rect');

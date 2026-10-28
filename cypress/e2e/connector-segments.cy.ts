@@ -219,14 +219,12 @@ describe('Reshaping an elbow connector by dragging its segments', () => {
     linked();
     cy.get('[data-connector-segment]').should('exist');
     for (let i = 0; i < 3; i++) {
-      cy.get('[data-testid=zoom-level]').click();
-      cy.get('[data-testid=zoom-out]').click();
+      cy.zoomMenu('zoom-out');
     }
     cy.get('[data-testid=zoom-level]').should('contain', '13%');
     cy.get('[data-connector-segment]').should('not.exist');
     for (let i = 0; i < 3; i++) {
-      cy.get('[data-testid=zoom-level]').click();
-      cy.get('[data-testid=zoom-in]').click();
+      cy.zoomMenu('zoom-in');
     }
     cy.get('[data-connector-segment]').should('exist');
   });
