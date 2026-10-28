@@ -14,7 +14,7 @@ const rowClass = css({
   borderBottomStyle: 'solid',
   borderBottomColor: 'border',
 });
-const labelClass = css({ textStyle: 'body.largeStrong' });
+const labelClass = css({ textStyle: 'heading.section' });
 const descriptionClass = css({ color: 'text.secondary' });
 const controlsClass = css({ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', gap: '1' });
 const chipClass = css({ display: 'inline-flex', alignItems: 'center', gap: '1' });

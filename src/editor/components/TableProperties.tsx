@@ -47,16 +47,16 @@ const swatchClass = css({
   padding: '0',
   borderWidth: '1px',
   borderStyle: 'solid',
-  borderColor: 'border.strong',
+  borderColor: 'border.control',
   borderRadius: 'small',
   cursor: 'pointer',
   '&[data-state=on]': { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.selected', outlineOffset: '[1px]' },
-  _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.selected', outlineOffset: '[1px]' },
+  _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.focus', outlineOffset: '[1px]' },
 });
 const rowNameClass = css({ flex: '1', minWidth: '0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' });
 const rowTypeClass = css({ maxWidth: '[50%]', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'text.secondary' });
-const rowBadgeClass = css({ flex: 'none', textStyle: 'body.small', color: 'text.secondary' });
-const newColumnLabel = css({ margin: '0', textStyle: 'body.small', color: 'text.secondary' });
+const rowBadgeClass = css({ flex: 'none', textStyle: 'body.medium', color: 'text.secondary' });
+const newColumnLabel = css({ margin: '0', textStyle: 'body.medium', color: 'text.secondary' });
 const flagsRowClass = css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '2' });
 
 type Flag = 'primaryKey' | 'nullable' | 'unique';

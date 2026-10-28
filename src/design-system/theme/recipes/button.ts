@@ -18,7 +18,7 @@ export const buttonRecipe = defineRecipe({
     cursor: 'pointer',
     whiteSpace: 'nowrap',
     _disabled: { opacity: '0.4', cursor: 'default' },
-    _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.selected', outlineOffset: '1px' },
+    _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.focus', outlineOffset: '1px' },
   },
   variants: {
     variant: {
@@ -44,6 +44,7 @@ export const buttonRecipe = defineRecipe({
         bg: 'transparent',
         color: 'text.onToolbar',
         _hover: { bg: 'bg.toolbarHover' },
+        _focusVisible: { outlineColor: 'border.focusOnToolbar' },
       },
     },
   },

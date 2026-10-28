@@ -17,12 +17,12 @@ export const iconButtonRecipe = defineRecipe({
     cursor: 'pointer',
     '&[data-state=on]': { bg: 'bg.brand', color: 'text.onBrand' },
     _disabled: { opacity: '0.4', cursor: 'default' },
-    _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.selected', outlineOffset: '1px' },
+    _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.focus', outlineOffset: '1px' },
   },
   variants: {
     tone: {
       light: { color: 'icon', _hover: { bg: 'bg.hover' } },
-      dark: { color: 'text.onToolbar', _hover: { bg: 'bg.toolbarHover' } },
+      dark: { color: 'text.onToolbar', _hover: { bg: 'bg.toolbarHover' }, _focusVisible: { outlineColor: 'border.focusOnToolbar' } },
     },
   },
   defaultVariants: { tone: 'light' },

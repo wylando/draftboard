@@ -364,7 +364,8 @@ describe('Schema import from SQL', () => {
         cy.get('[data-testid=schema-source]').type(long, { delay: 0, parseSpecialCharSequences: false });
       });
       cy.contains('button', 'Preview').click();
-      cy.contains('Guessed relationships (9)').should('be.visible');
+      // The larger text pushes the heading below the fold of this short window.
+      cy.contains('Guessed relationships (9)').scrollIntoView().should('be.visible');
       cy.get('[data-testid^=guess-][data-testid!=guess-group][data-testid!=guess-all]').should('have.length', 8);
       cy.contains('button', 'Show more').click();
       cy.get('[data-testid^=guess-][data-testid!=guess-group][data-testid!=guess-all]').should('have.length', 9);

@@ -28,7 +28,7 @@ const headerClass = css({
   bg: 'bg.topBar',
   color: 'text.onToolbar',
 });
-const titleClass = css({ textStyle: 'body.largeStrong' });
+const titleClass = css({ textStyle: 'heading.page' });
 const tabsClasses = tabs();
 const bodyClass = css({ flex: '1' });
 const navClass = css({
@@ -44,7 +44,8 @@ const mainClass = css({
   overflowY: 'auto',
   paddingBlock: '6',
   paddingInline: '6',
-  '& h1': { margin: '0', marginBottom: '2', fontSize: 'bodyLarge', lineHeight: 'bodyLarge', fontWeight: 'strong' },
+  textStyle: 'body.large',
+  '& h1': { margin: '0', marginBottom: '2', textStyle: 'heading.title' },
 });
 const innerClass = css({ maxWidth: 'content', marginInline: 'auto' });
 

@@ -27,7 +27,7 @@ export const accordionRecipe = defineSlotRecipe({
       font: 'inherit',
       textAlign: 'start',
       cursor: 'pointer',
-      _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.selected', outlineOffset: '1px' },
+      _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.focus', outlineOffset: '1px' },
     },
     itemIndicator: {
       display: 'flex',

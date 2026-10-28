@@ -20,7 +20,7 @@ const tabsClasses = tabs({ orientation: 'horizontal' });
 const chips = chipGroup();
 const rowClass = css({ display: 'flex', alignItems: 'center', gap: '2' });
 const fileNameClass = css({ color: 'text.secondary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' });
-const hintTextClass = css({ color: 'text.secondary', textStyle: 'body.small' });
+const hintTextClass = css({ color: 'text.secondary', textStyle: 'body.medium' });
 
 /** What the preview was parsed as. `sqlite-db` is a binary database file, which has no SQL text to re-parse. */
 type SqlKind = 'postgres' | 'mysql' | 'sqlite';
@@ -49,15 +49,15 @@ const textareaClass = css({
   resize: 'vertical',
   borderWidth: '1px',
   borderStyle: 'solid',
-  borderColor: 'border',
+  borderColor: 'border.control',
   borderRadius: 'medium',
-  bg: 'bg.secondary',
-  _focus: { outline: 'none', borderColor: 'border.selected', bg: 'bg' },
+  bg: 'bg',
+  _focus: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.focus', borderColor: 'border.focus' },
 });
-const summaryClass = css({ display: 'flex', gap: '3', textStyle: 'body.mediumStrong' });
+const summaryClass = css({ display: 'flex', gap: '3', textStyle: 'body.largeStrong' });
 const listClass = css({ margin: '0', paddingInlineStart: '4' });
 const countsClass = css({ display: 'flex', gap: '3' });
-const headingClass = css({ margin: '0', textStyle: 'body.mediumStrong' });
+const headingClass = css({ margin: '0', textStyle: 'heading.section' });
 const hintClass = css({ margin: '0', color: 'text.secondary' });
 const skippedClass = css({ color: 'text.secondary' });
 const problemsClass = css({ color: 'text.danger' });

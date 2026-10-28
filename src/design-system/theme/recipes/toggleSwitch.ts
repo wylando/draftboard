@@ -23,21 +23,24 @@ export const toggleSwitchRecipe = defineSlotRecipe({
       width: 'switchWidth',
       height: 'switchHeight',
       paddingInline: '[2px]',
+      borderWidth: '1px',
+      borderStyle: 'solid',
+      borderColor: 'border.control',
       borderRadius: 'full',
-      bg: 'border.strong',
+      bg: 'bg.secondary',
       transition: 'background-color 0.15s ease',
-      '&[data-state=checked]': { bg: 'bg.brand' },
-      '&[data-focus-visible]': { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.selected', outlineOffset: '1px' },
+      '&[data-state=checked]': { bg: 'bg.brand', borderColor: 'bg.brand' },
+      '&[data-focus-visible]': { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.focus', outlineOffset: '1px' },
     },
     thumb: {
       width: 'switchThumb',
       height: 'switchThumb',
       borderRadius: 'full',
-      bg: 'bg',
-      boxShadow: 'elevation100',
-      transition: 'transform 0.15s ease',
-      // Track width minus thumb width minus both 2px paddings.
-      '&[data-state=checked]': { transform: 'translateX(calc(token(sizes.switchWidth) - token(sizes.switchThumb) - 4px))' },
+      // Dark when off so it reads against the pale track; white on the brand track when on.
+      bg: 'border.control',
+      transition: 'transform 0.15s ease, background-color 0.15s ease',
+      // Track width minus thumb width minus the 2px paddings and 1px borders.
+      '&[data-state=checked]': { bg: 'text.onBrand', transform: 'translateX(calc(token(sizes.switchWidth) - token(sizes.switchThumb) - 6px))' },
     },
     label: {
       textStyle: 'body.largeStrong',

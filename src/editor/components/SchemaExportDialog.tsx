@@ -16,7 +16,7 @@ const chips = chipGroup();
 const bodyClass = css({ display: 'grid', gap: '2', minWidth: '0' });
 const rowClass = css({ display: 'flex', alignItems: 'center', gap: '2', flexWrap: 'wrap' });
 const labelClass = css({ color: 'text.secondary' });
-const scopeClass = css({ margin: '0', textStyle: 'body.mediumStrong' });
+const scopeClass = css({ margin: '0', textStyle: 'body.largeStrong' });
 const previewClass = css({
   width: 'full',
   height: '[320px]',
@@ -26,10 +26,10 @@ const previewClass = css({
   whiteSpace: 'pre',
   borderWidth: '1px',
   borderStyle: 'solid',
-  borderColor: 'border',
+  borderColor: 'border.control',
   borderRadius: 'medium',
-  bg: 'bg.secondary',
-  _focus: { outline: 'none', borderColor: 'border.selected', bg: 'bg' },
+  bg: 'bg',
+  _focus: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.focus', borderColor: 'border.focus' },
 });
 const listClass = css({ margin: '0', paddingInlineStart: '4', color: 'text.secondary' });
 const statusClass = css({ color: 'text.secondary', marginInlineEnd: 'auto' });

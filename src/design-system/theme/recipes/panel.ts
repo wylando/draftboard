@@ -29,7 +29,7 @@ export const sectionRecipe = defineSlotRecipe({
     title: {
       margin: '0',
       marginBottom: '2',
-      textStyle: 'body.mediumStrong',
+      textStyle: 'heading.section',
       '[data-state=closed] > &': { marginBottom: '0' },
     },
     trigger: {
@@ -45,7 +45,7 @@ export const sectionRecipe = defineSlotRecipe({
       font: 'inherit',
       textAlign: 'start',
       cursor: 'pointer',
-      _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.selected', outlineOffset: '1px' },
+      _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.focus', outlineOffset: '1px' },
     },
     indicator: {
       display: 'flex',

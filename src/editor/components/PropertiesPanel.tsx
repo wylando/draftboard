@@ -127,7 +127,7 @@ function SingleNodeProperties({ node }: { node: DesignNode }) {
   );
 }
 
-const subLabel = css({ margin: '0', textStyle: 'body.small', color: 'text.secondary' });
+const subLabel = css({ margin: '0', textStyle: 'body.medium', color: 'text.secondary' });
 
 export function PropertiesPanel() {
   const { dispatch } = useEditor();

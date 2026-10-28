@@ -44,6 +44,18 @@ describe('Boards', () => {
       });
   });
 
+  it('always shows a 24px close button on the open tab, and hides it on the others until hover', () => {
+    newBoard();
+    activeTab('Board 2');
+    closeButton('Board 2')
+      .should('have.css', 'opacity', '1')
+      .and(($b) => {
+        const { width, height } = $b[0]!.getBoundingClientRect();
+        expect(Math.min(width, height), 'close button size').to.be.at.least(24);
+      });
+    closeButton('Board 1').should('have.css', 'opacity', '0');
+  });
+
   it('starts with one board, and a new board is empty and separate from the others', () => {
     activeTab('Board 1').should('not.have.attr', 'aria-controls');
     closeButton('Board 1').should('not.exist');

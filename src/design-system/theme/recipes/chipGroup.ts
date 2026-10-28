@@ -20,7 +20,8 @@ export const chipGroupRecipe = defineSlotRecipe({
       paddingInline: '2',
       borderWidth: '1px',
       borderStyle: 'solid',
-      borderColor: 'border',
+      minHeight: 'target',
+      borderColor: 'border.control',
       borderRadius: 'medium',
       bg: 'bg',
       color: 'text.secondary',
@@ -28,7 +29,7 @@ export const chipGroupRecipe = defineSlotRecipe({
       cursor: 'pointer',
       _hover: { bg: 'bg.hover' },
       '&[data-state=on]': { borderColor: 'border.selected', bg: 'bg.selected', color: 'text' },
-      _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.selected', outlineOffset: '1px' },
+      _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.focus', outlineOffset: '1px' },
     },
   },
 });

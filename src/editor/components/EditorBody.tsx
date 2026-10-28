@@ -59,7 +59,7 @@ const headerClass = css({
   '[data-side=left] > &': { paddingInlineStart: '4' },
   '[data-side=right] > &': { paddingInlineEnd: '4' },
 });
-const titleClass = css({ flex: '1', margin: '0', textStyle: 'body.mediumStrong' });
+const titleClass = css({ flex: '1', margin: '0', textStyle: 'heading.section' });
 const canvasPanelClass = css({ position: 'relative' });
 // Over the canvas but a sibling of it: the canvas starts gestures on pointer-down.
 const chipClass = css({

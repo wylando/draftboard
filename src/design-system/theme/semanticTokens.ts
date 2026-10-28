@@ -12,8 +12,8 @@ export const semanticTokens = defineSemanticTokens({
       selected: { value: '{colors.blue.200}' },
       /** Layers inside a selected frame or group. */
       selectedChild: { value: '{colors.blue.100}' },
-      brand: { value: '{colors.blue.500}' },
-      brandHover: { value: '{colors.blue.600}' },
+      brand: { value: '{colors.blue.600}' },
+      brandHover: { value: '{colors.blue.700}' },
       toolbar: { value: '{colors.grey.900}' },
       toolbarHover: { value: '{colors.grey.600}' },
       /** The top bar sits a step lighter than the open board tab, which shares the tool dock's colour. */
@@ -29,18 +29,27 @@ export const semanticTokens = defineSemanticTokens({
     },
     text: {
       DEFAULT: { value: '{colors.black.800}' },
-      secondary: { value: '{colors.black.500}' },
+      secondary: { value: '{colors.slate.600}' },
+      /** Disabled controls and items; exempt from contrast rules, so deliberately fainter than secondary. */
+      disabled: { value: '{colors.grey.400}' },
       onBrand: { value: '{colors.white}' },
       onToolbar: { value: '{colors.white}' },
       /** Quieter text on the dark toolbar and popups; about 8:1 on grey.900. */
       onToolbarSecondary: { value: '{colors.grey.400}' },
       tabInactive: { value: '{colors.grey.400}' },
-      danger: { value: '{colors.red.500}' },
+      danger: { value: '{colors.red.700}' },
     },
     border: {
       DEFAULT: { value: '{colors.grey.200}' },
       strong: { value: '{colors.grey.300}' },
       selected: { value: '{colors.blue.500}' },
+      /** The 1px boundary of inputs, checkboxes, radios, switches and toggles; `border` stays for decorative dividers. */
+      control: { value: '{colors.slate.400}' },
+      controlHover: { value: '{colors.slate.600}' },
+      /** Every keyboard focus ring (2px) and focused field. */
+      focus: { value: '{colors.blue.700}' },
+      /** The focus ring on the dark top bar, tabs and popups, where the dark blue would vanish. */
+      focusOnToolbar: { value: '{colors.blue.400}' },
       /** Hairlines on the dark toolbar and popups: a popup's rim and its section dividers. */
       onToolbar: { value: '#ffffff1f' },
       /** Indent guides in the Layers tree. */
@@ -48,7 +57,7 @@ export const semanticTokens = defineSemanticTokens({
     },
     icon: {
       DEFAULT: { value: '{colors.black.800}' },
-      secondary: { value: '{colors.black.500}' },
+      secondary: { value: '{colors.slate.600}' },
     },
     /** A warning sign or note: a soft amber ground with dark ink. */
     warning: {

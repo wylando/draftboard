@@ -31,7 +31,7 @@ export const tabsRecipe = defineSlotRecipe({
       textStyle: 'body.large',
       cursor: 'pointer',
       _hover: { bg: 'bg.hover' },
-      _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.selected', outlineOffset: '1px' },
+      _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.focus', outlineOffset: '1px' },
       '&[data-selected]': { bg: 'bg.selected', textStyle: 'body.largeStrong' },
     },
     content: {
