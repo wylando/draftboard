@@ -4,7 +4,7 @@ import { createId, nameKey, nameTaken, uniqueName } from './names';
 import { createGroup } from './nodes';
 import { allowsManyToMany, bendsMoveWith, isMany, linkKind, linksToItself, nextCardinality, relationDefaults, routeConnector, sameAnchor, shiftConnector, visibleTables } from './connector';
 import { applyTableEdit, type TableEdit } from './table';
-import { byIdOf, descendantIds, type ById, frameAt, isContainer, mapSiblings, normalizeTree, topLevelIds } from './tree';
+import { byIdOf, descendantIds, type ById, frameAt, isContainer, isEffectivelyVisible, mapSiblings, normalizeTree, topLevelIds } from './tree';
 
 const HISTORY_LIMIT = 200;
 const PASTE_OFFSET = 10;
@@ -272,12 +272,12 @@ function moveByDeltas(nodes: DesignNode[], deltas: Map<string, Point>): DesignNo
   return patchNodes(nodes, patches);
 }
 
-/** The selected layers that align and distribute act on, with their bounds. Connectors take no part. */
+/** The selected layers that align and distribute act on, with their bounds. Connectors and hidden layers take no part. */
 function arrangeable(state: EditorState): Array<{ id: string; box: Box }> {
   const byId = byIdOf(state.nodes);
   return topLevelIds(byId, state.selection).flatMap((id) => {
     const n = byId.get(id) as DesignNode;
-    return n.type === 'connector' ? [] : [{ id, box: rotatedBounds(n, n.rotation) }];
+    return n.type === 'connector' || !isEffectivelyVisible(byId, n) ? [] : [{ id, box: rotatedBounds(n, n.rotation) }];
   });
 }
 
@@ -688,7 +688,9 @@ function reduce(state: EditorState, action: EditorAction): EditorState {
       const size = (b: Box) => (horizontal ? b.width : b.height);
       const sorted = [...items].sort((a, b) => start(a.box) - start(b.box));
       const first = start(sorted[0]!.box);
-      const end = Math.max(...sorted.map((i) => start(i.box) + size(i.box)));
+      // The last layer's own end, not the largest end: a wide layer spanning the others would otherwise push it outside.
+      const lastBox = sorted[sorted.length - 1]!.box;
+      const end = start(lastBox) + size(lastBox);
       const gap = (end - first - sorted.reduce((sum, i) => sum + size(i.box), 0)) / (sorted.length - 1);
       let cursor = first;
       const deltas = new Map<string, Point>();

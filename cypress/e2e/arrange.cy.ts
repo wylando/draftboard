@@ -48,6 +48,38 @@ describe('Multi-selection panel', () => {
   });
 });
 
+describe('Mixed number field', () => {
+  it('commits nothing when left untouched', () => {
+    cy.visitEmpty();
+    cy.drawShape('rect', [100, 100], [200, 200]);
+    cy.prop('opacity').clear().type('50{enter}');
+    cy.drawShape('ellipse', [300, 150], [450, 250]);
+    cy.canvasDrag([50, 50], [500, 300]);
+    cy.prop('opacity').should('have.value', '').and('have.attr', 'placeholder', 'Mixed').focus().blur();
+    cy.get('[data-node-type=rect]').should('have.attr', 'opacity', '0.5');
+    cy.get('[data-node-type=ellipse]').should('have.attr', 'opacity', '1');
+  });
+});
+
+describe('Opacity of a selected group and its child', () => {
+  it('is set once, on the group', () => {
+    cy.visitEmpty();
+    cy.drawShape('rect', [100, 100], [200, 200]);
+    cy.drawShape('rect', [300, 100], [400, 200]);
+    cy.canvasDrag([50, 50], [500, 300]);
+    cy.get('[data-testid=group-selection]').click();
+    cy.contains('[data-testid=layers-panel] [role=treeitem]', 'Group 1').find('button[aria-expanded]').then(($b) => {
+      if ($b.attr('aria-expanded') === 'false') $b.trigger('click');
+    });
+    cy.contains('[data-testid=layers-panel] [role=treeitem]', 'Rectangle 1').click({ shiftKey: true });
+    cy.get('[data-testid=properties-panel]').should('contain', '2 layers selected');
+    cy.prop('opacity').clear().type('50{enter}');
+    // A container's opacity sits on its subtree wrapper; the child keeps its own, or the two would compound.
+    cy.get('[data-node-type=group]').parent().should('have.attr', 'opacity', '0.5');
+    cy.get('[data-node-type=rect]').first().should('have.attr', 'opacity', '1');
+  });
+});
+
 describe('Distribute', () => {
   it('gives three layers equal gaps', () => {
     cy.visitEmpty();

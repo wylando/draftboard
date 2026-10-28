@@ -160,6 +160,7 @@ function MultiProperties({ nodes }: { nodes: DesignNode[] }) {
 
   // One undo step for an edit across all layers, like a single layer's.
   const patchAll = (p: NodePatch) => dispatch({ type: 'updateNodes', patches: Object.fromEntries(nodes.map((n) => [n.id, p])) });
+  const patchOuter = (p: NodePatch) => dispatch({ type: 'updateNodes', patches: Object.fromEntries([...outer].map((id) => [id, p])) });
   const updateAll = (p: NodePatch) => {
     dispatch({ type: 'checkpoint' });
     patchAll(p);
@@ -169,7 +170,10 @@ function MultiProperties({ nodes }: { nodes: DesignNode[] }) {
   const fill = shared(nodes, (n) => n.fill);
   const stroke = shared(nodes, (n) => n.stroke);
   const strokeWidth = shared(nodes, (n) => n.strokeWidth);
-  const opacity = shared(nodes, (n) => Math.round(n.opacity * 100));
+  // Opacity compounds through a container, so it is set only on the outermost selected layers.
+  const outer = new Set(topLevelIds(byIdOf(state.nodes), state.selection));
+  const outerNodes = nodes.filter((n) => outer.has(n.id));
+  const opacity = shared(outerNodes, (n) => Math.round(n.opacity * 100));
   // A scrub starts from one value, so it is only offered when the layers agree.
   const scrubs = (field: { mixed: boolean }, apply: (value: number) => void) => ({
     onCommit: (value: number) => {
@@ -234,7 +238,7 @@ function MultiProperties({ nodes }: { nodes: DesignNode[] }) {
           mixed={opacity.mixed}
           min={0}
           max={100}
-          {...scrubs(opacity, (pct) => patchAll({ opacity: pct / 100 }))}
+          {...scrubs(opacity, (pct) => patchOuter({ opacity: pct / 100 }))}
           testId="prop-opacity"
         />
       </Section>

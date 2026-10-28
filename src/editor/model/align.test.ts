@@ -135,4 +135,32 @@ describe('distributeSelection', () => {
     expect(s.past).toHaveLength(1);
     expect(editorReducer(s, { type: 'undo' }).nodes).toEqual(nodes);
   });
+
+  it('keeps every layer inside the original bounds when a wide layer spans the others', () => {
+    const { nodes, state } = setup([[0, 0, 100, 10], [10, 0, 10, 10], [20, 0, 10, 10]]);
+    const s = editorReducer(state, { type: 'distributeSelection', axis: 'horizontal' });
+    // The first and last in position order stay where they are.
+    expect(at(s, nodes[0]!.id).x).toBe(0);
+    expect(at(s, nodes[2]!.id).x).toBe(20);
+    for (const n of nodes) {
+      const moved = at(s, n.id);
+      expect(moved.x).toBeGreaterThanOrEqual(0);
+      expect(moved.x + moved.width).toBeLessThanOrEqual(100);
+    }
+  });
+});
+
+describe('hidden layers', () => {
+  it('take no part in aligning or distributing', () => {
+    const { nodes, state } = setup([[0, 0, 10, 10], [50, 0, 10, 10], [100, 0, 10, 10], [300, 0, 10, 10]]);
+    const hidden = { ...state, nodes: state.nodes.map((n) => (n.id === nodes[3]!.id ? { ...n, visible: false } : n)) };
+    const aligned = editorReducer(hidden, { type: 'alignSelection', align: 'right' });
+    expect(at(aligned, nodes[0]!.id).x).toBe(100);
+    expect(at(aligned, nodes[3]!.id).x).toBe(300);
+    const spread = editorReducer(hidden, { type: 'distributeSelection', axis: 'horizontal' });
+    expect(at(spread, nodes[1]!.id).x).toBe(50);
+    expect(at(spread, nodes[3]!.id).x).toBe(300);
+    const two = { ...hidden, selection: [nodes[0]!.id, nodes[3]!.id] };
+    expect(editorReducer(two, { type: 'alignSelection', align: 'left' })).toBe(two);
+  });
 });
