@@ -1,5 +1,13 @@
 const tableRow = (i: number) => cy.get('[data-node-type=table] [data-testid=table-column]').eq(i);
-const columnEditor = (i: number) => cy.get('[data-testid=column-editor]').eq(i);
+const columnRow = (i: number) => cy.get('[data-testid=column-row]').eq(i);
+// Rows start folded, so this opens column i first (a column just added is already open).
+const columnEditor = (i: number) => {
+  columnRow(i).then(($row) => {
+    if ($row.attr('aria-expanded') !== 'true') cy.wrap($row).click();
+  });
+  columnRow(i).should('have.attr', 'aria-expanded', 'true');
+  return columnRow(i).closest('[data-part=item]').find('[data-testid=column-editor]');
+};
 const indexSearch = () => cy.get('[data-testid=index-editor] [data-testid=index-column-search]');
 const indexChips = () => cy.get('[data-testid=index-editor] [data-testid=index-chip]');
 
@@ -10,10 +18,9 @@ const placeTable = () => {
   cy.get('[data-node-type=table]').should('have.length', 1);
 };
 
-// Past 3 columns the Add button turns into the new column's editor until Enter or a press elsewhere.
 const addColumn = () => {
   cy.get('[data-testid=add-column]').click();
-  cy.focused().should('have.attr', 'data-testid', 'column-name').type('{enter}');
+  cy.focused().should('have.attr', 'data-testid', 'column-name');
 };
 
 const addEmailColumn = () => {
@@ -51,61 +58,79 @@ describe('Tables', () => {
     tableRow(1).should('contain', 'email').and('not.contain', 'varchar');
   });
 
-  it('folds columns to one-line rows past 3, and lists only the first 5 until asked', () => {
+  it('lists every column as a folded row, even a lone one, and only the first 5 until asked', () => {
     placeTable();
-    addColumn();
-    addColumn();
-    cy.get('[data-testid=column-editor]').should('have.length', 3);
-    cy.get('[data-testid=column-row]').should('not.exist');
-
-    addColumn();
-    cy.get('[data-testid=column-row]').should('have.length', 4);
+    cy.get('[data-testid=column-row]').should('have.length', 1);
     cy.get('[data-testid=column-editor]').should('not.exist');
-    cy.get('[data-testid=column-row]').eq(0).should('contain', 'id').and('contain', 'uuid').and('contain', 'PK').click();
+    columnRow(0).should('contain', 'id').and('contain', 'uuid').and('contain', 'PK').and('have.attr', 'aria-expanded', 'false').click();
+    columnRow(0).should('have.attr', 'aria-expanded', 'true');
     cy.get('[data-testid=column-editor]').should('have.length', 1);
-    cy.get('[data-testid=column-row]').eq(0).click();
+    columnRow(0).click();
     cy.get('[data-testid=column-editor]').should('not.exist');
 
-    addColumn();
-    addColumn();
-    // Past 5 the rest wait behind Show more, a new column included once it is named.
-    cy.get('[data-testid=column-row]').should('have.length', 5);
-    cy.get('[data-testid=show-more-columns]').should('have.text', 'Show 1 more column').click();
+    for (let i = 0; i < 5; i++) addColumn();
+    // Past 5 the rest wait behind Show more, until the list is asked for or a new column needs showing.
     cy.get('[data-testid=column-row]').should('have.length', 6);
     cy.get('[data-testid=show-more-columns]').should('have.text', 'Show fewer columns').click();
     cy.get('[data-testid=column-row]').should('have.length', 5);
+    cy.get('[data-testid=show-more-columns]').should('have.text', 'Show 1 more column').click();
+    cy.get('[data-testid=column-row]').should('have.length', 6);
   });
 
-  it('names a new column in place of the Add button, then files it with the rest', () => {
+  it('turns the chevron on a row that opens in place, for columns and indexes alike', () => {
     placeTable();
-    for (let i = 0; i < 5; i++) addColumn();
-    cy.get('[data-testid=show-more-columns]').should('have.text', 'Show 1 more column');
+    cy.get('[data-testid=add-index]').click();
+    cy.get('[data-testid=index-row]').should('have.attr', 'aria-expanded', 'true');
+    cy.get('[data-testid=index-row] [data-part=item-indicator]').should('have.attr', 'data-state', 'open').and('have.css', 'transform').and('not.eq', 'none');
+    cy.get('[data-testid=index-row]').click();
+    cy.get('[data-testid=index-row]').should('have.attr', 'aria-expanded', 'false');
+    cy.get('[data-testid=index-row] [data-part=item-indicator]').should('have.attr', 'data-state', 'closed').and('have.css', 'transform', 'none');
 
+    // Folded, a chevron points down; open, it has turned over.
+    columnRow(0).find('[data-part=item-indicator]').should('have.attr', 'data-state', 'closed').and('have.css', 'transform', 'none');
+    columnRow(0).click();
+    columnRow(0).should('have.attr', 'aria-expanded', 'true');
+    columnRow(0).find('[data-part=item-indicator]').should('have.attr', 'data-state', 'open').and('have.css', 'transform').and('not.eq', 'none');
+  });
+
+  it('Add column stays in place: each click adds a row, opens it and selects its name', () => {
+    placeTable();
     cy.get('[data-testid=add-column]').click();
-    cy.get('[data-testid=add-column]').should('not.exist');
-    cy.get('[data-testid=column-row]').should('have.length', 5);
-    cy.get('[data-testid=new-column] [data-testid=column-name]').should('have.focus').and('have.value', 'column_6');
+    cy.get('[data-testid=add-column]').click();
+    cy.get('[data-testid=column-row]').should('have.length', 3);
+    columnRow(1).should('contain', 'column_1').and('have.attr', 'aria-expanded', 'false');
+    columnRow(2).should('contain', 'column_2').and('have.attr', 'aria-expanded', 'true');
+    cy.get('[data-testid=column-editor] [data-testid=column-name]').should('have.length', 1).and('have.focus').and('have.value', 'column_2');
     cy.focused().should(($input) => {
       const input = $input[0] as HTMLInputElement;
-      expect([input.selectionStart, input.selectionEnd]).to.deep.equal([0, 'column_6'.length]);
+      expect([input.selectionStart, input.selectionEnd]).to.deep.equal([0, 'column_2'.length]);
     });
-    // Leaving the new column's fields finishes it.
-    cy.focused().type('total').blur();
-    cy.get('[data-testid=new-column]').should('not.exist');
+    cy.focused().type('total{enter}');
+    columnRow(2).should('contain', 'total');
     cy.get('[data-testid=add-column]').should('exist');
-    cy.get('[data-testid=show-more-columns]').should('have.text', 'Show 2 more columns');
-    tableRow(6).should('contain', 'total');
+  });
+
+  it('reveals a column added past the first 5, open with its name focused', () => {
+    placeTable();
+    for (let i = 0; i < 4; i++) addColumn();
+    cy.get('[data-testid=column-row]').should('have.length', 5);
+    cy.get('[data-testid=show-more-columns]').should('not.exist');
+
+    addColumn();
+    cy.get('[data-testid=column-row]').should('have.length', 6);
+    columnRow(5).should('contain', 'column_5').and('have.attr', 'aria-expanded', 'true');
+    cy.get('[data-testid=column-editor] [data-testid=column-name]').should('have.focus').and('have.value', 'column_5');
+    cy.get('[data-testid=show-more-columns]').should('have.text', 'Show fewer columns');
   });
 
   it('focuses a new column\'s name once, not again when an undo and redo bring it back', () => {
     placeTable();
     addColumn();
     addColumn();
-    addColumn();
     cy.pressKey('z', { code: 'KeyZ', metaKey: true });
-    cy.get('[data-testid=column-row]').should('not.exist');
+    cy.get('[data-testid=column-row]').should('have.length', 2);
     cy.pressKey('z', { code: 'KeyZ', metaKey: true, shiftKey: true });
-    cy.get('[data-testid=column-row]').should('have.length', 4);
+    cy.get('[data-testid=column-row]').should('have.length', 3);
     cy.document().its('activeElement.tagName').should('eq', 'BODY');
   });
 
@@ -127,6 +152,9 @@ describe('Tables', () => {
     cy.viewport(1280, 560);
     placeTable();
     for (let i = 0; i < 6; i++) addColumn();
+    // Reselecting starts the panel afresh: every row folded, the whole list shown.
+    cy.canvasClick([700, 500]);
+    cy.contains('[data-testid=layers-panel] [role=treeitem]', 'Table 1').click();
     cy.get('[data-testid=show-more-columns]').click();
     cy.get('[data-testid=properties-panel]').scrollTo('top');
     cy.canvasClick([250, 236 + 28 * 6 + 14]);

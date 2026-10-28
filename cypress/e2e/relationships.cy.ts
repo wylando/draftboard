@@ -54,12 +54,13 @@ describe('Relationships', () => {
 
     // Matching types clear the warning.
     cy.canvasClick([550, 318]);
-    cy.get('[data-testid=column-editor]').eq(1).find('[data-testid=column-type]').clear().type('uuid{enter}');
+    cy.get('[data-testid=column-row]').eq(1).click();
+    cy.get('[data-testid=column-editor] [data-testid=column-type]').clear().type('uuid{enter}');
     cy.get('[data-testid=connector-warning]').should('not.exist');
     badge(1, 1).should('have.text', 'FK');
 
     // A unique foreign key shows both.
-    cy.get('[data-testid=column-editor]').eq(1).find('[data-testid=column-unique]').click();
+    cy.get('[data-testid=column-editor] [data-testid=column-unique]').click();
     badge(1, 1).should('have.text', 'UFK');
   });
 
