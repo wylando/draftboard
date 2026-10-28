@@ -57,6 +57,16 @@ export const icons = {
       <path d="M4 6l4 4 4-4" />
     </Icon>
   ),
+  importFile: () => (
+    <Icon>
+      <path d="M8 2v7.5M5 6.75l3 3 3-3M2.5 10.5v3h11v-3" />
+    </Icon>
+  ),
+  exportFile: () => (
+    <Icon>
+      <path d="M8 9.5V2M5 4.75l3-3 3 3M2.5 10.5v3h11v-3" />
+    </Icon>
+  ),
   /** The app mark: two tables joined by a connector. */
   logo: () => (
     <Icon>

@@ -48,8 +48,17 @@ const mainClass = css({
 });
 const innerClass = css({ maxWidth: 'content', marginInline: 'auto' });
 
-export function SettingsPage({ onClose }: { onClose: () => void }) {
-  const [section, setSection] = useState<SectionId>('shortcuts');
+// Deep-link slugs (`#/settings/<slug>`); the guide's id predates its public name.
+const SLUGS: Record<string, SectionId> = {
+  shortcuts: 'shortcuts',
+  canvas: 'canvas',
+  'getting-started': 'guide',
+  symbols: 'symbols',
+};
+
+/** `section` is a deep-link slug; an unknown one opens the default section. The page is keyed by it, so a new link remounts. */
+export function SettingsPage({ onClose, section: slug }: { onClose: () => void; section: string | null }) {
+  const [section, setSection] = useState<SectionId>((slug !== null && Object.hasOwn(SLUGS, slug) ? SLUGS[slug] : undefined) ?? 'shortcuts');
 
   return (
     <div className={pageClass} data-testid="settings-page">

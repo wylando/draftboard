@@ -74,6 +74,8 @@ export const COMMANDS = {
 
   // No default: ⌘, is usually taken by the browser's own settings. Use the gear button or bind one.
   'app.openSettings': { label: 'Open settings', category: 'app', defaults: [], description: 'Open this Settings page.' },
+  // "?" is Shift+/ on a US layout; the physical key is what binds, so other layouts reach it by the same key.
+  'app.gettingStarted': { label: 'Getting started', category: 'app', defaults: ['Shift+/'], description: 'Open the Getting started guide in Settings.' },
 } as const satisfies Record<string, CommandDef>;
 
 export type CommandId = keyof typeof COMMANDS;

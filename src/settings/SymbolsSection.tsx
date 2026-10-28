@@ -14,7 +14,7 @@ import { Block, descClass, mutedClass, Terms, termClass } from './sectionParts';
 
 const NO_MOUNTED: ReadonlySet<string> = new Set();
 const NO_CHILDREN: ReadonlyMap<string | null, DesignNode[]> = new Map();
-const NO_RELATIONS: Relations = { foreignKeys: new Map(), mismatched: new Set(), relationalEnds: new Set() };
+export const NO_RELATIONS: Relations = { foreignKeys: new Map(), mismatched: new Set(), relationalEnds: new Set() };
 const IDENTITY_VIEWPORT = { x: 0, y: 0, zoom: 1 };
 
 const SAMPLE_WIDTH = 96;
@@ -78,7 +78,7 @@ const stackClass = css({ display: 'grid', gap: '1', justifyItems: 'start' });
 const rowsLayoutClass = css({ display: 'flex', flexWrap: 'wrap', gap: '4', alignItems: 'flex-start' });
 const rowsTermsClass = css({ flexGrow: '1', flexBasis: '[16rem]', minWidth: '0' });
 
-function Sample({ nodes, viewBox, relations = NO_RELATIONS, overlay, scale = 1 }: { nodes: DesignNode[]; viewBox: string; relations?: Relations; overlay?: ReactNode; scale?: number }) {
+export function Sample({ nodes, viewBox, relations = NO_RELATIONS, overlay, scale = 1 }: { nodes: DesignNode[]; viewBox: string; relations?: Relations; overlay?: ReactNode; scale?: number }) {
   const [, , width, height] = viewBox.split(' ').map(Number);
   return (
     <svg className={canvasClass} aria-hidden="true" width={width! * scale} height={height! * scale} viewBox={viewBox}>

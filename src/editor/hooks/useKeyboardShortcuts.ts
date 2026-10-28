@@ -19,7 +19,8 @@ interface Options {
   zoomOut: () => void;
   zoomTo100: () => void;
   zoomToFit: () => void;
-  openSettings: () => void;
+  /** `section` is a Settings deep-link slug, such as 'getting-started'. */
+  openSettings: (section?: string) => void;
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -134,6 +135,8 @@ function runCommand(id: CommandId, o: Options, b: BoardControls): void {
     }
     case 'app.openSettings':
       return o.openSettings();
+    case 'app.gettingStarted':
+      return o.openSettings('getting-started');
   }
 }
 

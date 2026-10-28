@@ -5,6 +5,7 @@ import { splitter as splitterRecipe } from 'styled-system/recipes';
 import { IconButton, icons } from '../../design-system';
 import { useEditor } from '../EditorContext';
 import { useSectionFolds } from '../SectionFoldsContext';
+import { EmptyState } from './EmptyState';
 import {
   clampPanelWidth,
   loadPanelLayout,
@@ -178,13 +179,15 @@ function useSidePanels() {
 }
 
 interface EditorBodyProps {
+  /** Opens the Getting started guide, from the empty-board card. */
+  onOpenGuide: () => void;
   layers: ReactNode;
   canvas: ReactNode;
   properties: ReactNode;
 }
 
 /** Layers | canvas | Design. Each sidebar collapses into a button in its corner of the canvas. */
-export function EditorBody({ layers, canvas, properties }: EditorBodyProps) {
+export function EditorBody({ onOpenGuide, layers, canvas, properties }: EditorBodyProps) {
   const classes = splitterRecipe();
   const { splitter, layout, toggle, rootRef, canvasPanel } = useSidePanels();
   const { foldAll } = useSectionFolds();
@@ -283,6 +286,7 @@ export function EditorBody({ layers, canvas, properties }: EditorBodyProps) {
       />
       <Splitter.Panel id="canvas" ref={canvasPanel} className={cx(classes.panel, canvasPanelClass)}>
         {canvas}
+        <EmptyState onOpenGuide={onOpenGuide} />
         {chip('layers')}
         {chip('properties')}
       </Splitter.Panel>

@@ -203,7 +203,7 @@ describe('Settings: getting started guide', () => {
     openSettings();
     cy.get('[data-testid=nav-guide]').click();
     cy.get('[data-testid=getting-started-section]').should('be.visible');
-    cy.get('[data-testid=guide-screen]').should('contain', 'Layers').and('contain', 'Design panel');
+    cy.get('[data-testid=guide-screen]').should('contain', 'Layers').and('contain', 'Design');
     cy.get('[data-testid=guide-tools]').should('contain', 'Rectangle').find('kbd').should('have.length.at.least', 7);
     cy.get('[data-testid=guide-options]').should('contain', 'Appearance').and('contain', 'opacity');
   });

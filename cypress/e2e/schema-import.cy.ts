@@ -6,7 +6,7 @@ const FORMAT = '[data-testid=import-format]';
 const pressed = (dialect: string) => cy.get(`${FORMAT} [data-state=on]`).should('have.attr', 'data-value', dialect);
 
 const previewFixture = () => {
-  cy.get('[data-testid=app-menu]').click();
+  cy.get('[data-testid=import-menu]').click();
   cy.get('[data-testid=import-schema]').click();
   cy.get('[data-testid=schema-source]').should('be.visible');
   cy.fixture(FIXTURE).then((sql: string) => {
@@ -21,7 +21,7 @@ describe('Schema import from SQL', () => {
   beforeEach(() => cy.visitEmpty());
 
   it('previews, adds tables and relationships, and undoes in one step', () => {
-    cy.get('[data-testid=app-menu]').click();
+    cy.get('[data-testid=import-menu]').click();
     cy.get('[data-testid=import-schema]').click();
     cy.contains('button', 'Preview').should('be.disabled');
     cy.get('[data-testid=dialog]').type('{esc}');
@@ -55,7 +55,7 @@ describe('Schema import from SQL', () => {
     previewFixture();
     cy.get('[data-testid=dialog]').type('{esc}');
     cy.get('[data-testid=dialog]').should('not.exist');
-    cy.get('[data-testid=app-menu]').click();
+    cy.get('[data-testid=import-menu]').click();
     cy.get('[data-testid=import-schema]').click();
     cy.get('[data-testid=schema-source]').should('have.value', '');
   });
@@ -125,7 +125,7 @@ describe('Schema import from SQL', () => {
   });
 
   it('says so when the text has no tables', () => {
-    cy.get('[data-testid=app-menu]').click();
+    cy.get('[data-testid=import-menu]').click();
     cy.get('[data-testid=import-schema]').click();
     cy.get('[data-testid=schema-source]').type('SELECT 1;');
     cy.contains('button', 'Preview').click();
@@ -137,7 +137,7 @@ describe('Schema import from SQL', () => {
   });
 
   it('reads a MySQL dump from a file and detects the dialect', () => {
-    cy.get('[data-testid=app-menu]').click();
+    cy.get('[data-testid=import-menu]').click();
     cy.get('[data-testid=import-schema]').click();
     cy.get('[data-testid=schema-tab-file]').click();
     cy.contains('button', 'Preview').should('be.disabled');
@@ -151,7 +151,7 @@ describe('Schema import from SQL', () => {
   });
 
   it('re-parses with the dialect picked in the preview', () => {
-    cy.get('[data-testid=app-menu]').click();
+    cy.get('[data-testid=import-menu]').click();
     cy.get('[data-testid=import-schema]').click();
     // `jsonb` marks it as PostgreSQL, and the MySQL grammar can't read it. (The reverse isn't true:
     // the PostgreSQL grammar accepts MySQL dumps, so a dump can't demonstrate a failing re-parse.)
@@ -176,7 +176,7 @@ describe('Schema import from SQL', () => {
       },
     });
     cy.get('[data-testid=canvas]').should('be.visible');
-    cy.get('[data-testid=app-menu]').click();
+    cy.get('[data-testid=import-menu]').click();
     cy.get('[data-testid=import-schema]').click();
     cy.get('[data-testid=schema-source]').type('CREATE TABLE t (id int);');
     cy.contains('button', 'Preview').click();
@@ -184,7 +184,7 @@ describe('Schema import from SQL', () => {
   });
 
   it('keeps pasted text across tabs, and states the privacy note only on the File tab', () => {
-    cy.get('[data-testid=app-menu]').click();
+    cy.get('[data-testid=import-menu]').click();
     cy.get('[data-testid=import-schema]').click();
     cy.get('[data-testid=schema-source]').type('CREATE TABLE t (id int);');
     cy.contains('Nothing is uploaded').should('not.exist');
@@ -195,7 +195,7 @@ describe('Schema import from SQL', () => {
   });
 
   it('imports a SQLite database file', () => {
-    cy.get('[data-testid=app-menu]').click();
+    cy.get('[data-testid=import-menu]').click();
     cy.get('[data-testid=import-schema]').click();
     cy.get('[data-testid=schema-tab-file]').click();
     cy.fixture('schema/sample.db', null).then((contents) => {
@@ -212,7 +212,7 @@ describe('Schema import from SQL', () => {
   });
 
   it('reads pasted SQLite SQL, and re-parses it when the dialect is toggled', () => {
-    cy.get('[data-testid=app-menu]').click();
+    cy.get('[data-testid=import-menu]').click();
     cy.get('[data-testid=import-schema]').click();
     cy.get('[data-testid=schema-source]').type(
       'CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT);\nCREATE TABLE posts (id INTEGER PRIMARY KEY, user_id INTEGER REFERENCES users(id));',
@@ -234,7 +234,7 @@ describe('Schema import from SQL', () => {
 
   describe('DBML', () => {
     const chooseDbml = () => {
-      cy.get('[data-testid=app-menu]').click();
+      cy.get('[data-testid=import-menu]').click();
       cy.get('[data-testid=import-schema]').click();
       cy.get('[data-testid=schema-tab-file]').click();
       cy.fixture('schema/sample.dbml', null).then((contents) => {
@@ -268,7 +268,7 @@ describe('Schema import from SQL', () => {
     });
 
     it('does not blame the DBML when it is valid but has no tables', () => {
-      cy.get('[data-testid=app-menu]').click();
+      cy.get('[data-testid=import-menu]').click();
       cy.get('[data-testid=import-schema]').click();
       cy.get('[data-testid=schema-source]').type('Enum s {{}\n  a\n  b\n}', { delay: 0 });
       cy.contains('button', 'Preview').click();
@@ -278,7 +278,7 @@ describe('Schema import from SQL', () => {
     });
 
     it('lists syntax errors with their lines and imports nothing', () => {
-      cy.get('[data-testid=app-menu]').click();
+      cy.get('[data-testid=import-menu]').click();
       cy.get('[data-testid=import-schema]').click();
       cy.get('[data-testid=schema-source]').type('Table users {{}\n  id int [pk\n}', { delay: 0 });
       cy.contains('button', 'Preview').click();
@@ -291,7 +291,7 @@ describe('Schema import from SQL', () => {
 
   describe('files the importer cannot use', () => {
     const chooseFile = (contents: ReturnType<typeof Cypress.Buffer.from>, fileName: string) => {
-      cy.get('[data-testid=app-menu]').click();
+      cy.get('[data-testid=import-menu]').click();
       cy.get('[data-testid=import-schema]').click();
       cy.get('[data-testid=schema-tab-file]').click();
       cy.get('[data-testid=schema-file]').selectFile({ contents, fileName }, { force: true });
@@ -315,7 +315,7 @@ describe('Schema import from SQL', () => {
 
   describe('guessed relationships', () => {
     const previewNoFks = () => {
-      cy.get('[data-testid=app-menu]').click();
+      cy.get('[data-testid=import-menu]').click();
       cy.get('[data-testid=import-schema]').click();
       cy.fixture('schema/no-fks.sql').then((sql: string) => {
         cy.get('[data-testid=schema-source]').type(sql, { delay: 0, parseSpecialCharSequences: false });
@@ -356,7 +356,7 @@ describe('Schema import from SQL', () => {
     it('pages a long list of guesses and moves focus to the first new one', () => {
       // Short enough that the guesses overflow the dialog body.
       cy.viewport(1000, 420);
-      cy.get('[data-testid=app-menu]').click();
+      cy.get('[data-testid=import-menu]').click();
       cy.get('[data-testid=import-schema]').click();
       cy.fixture('schema/many-guesses.sql').then((sql: string) => {
         // Long names with no spaces to break at, as real schemas have; they used to widen the dialog body.
@@ -383,7 +383,7 @@ describe('Schema import from SQL', () => {
     });
 
     it('selects all guesses, including unshown ones, shows a mixed state, and clears them', () => {
-      cy.get('[data-testid=app-menu]').click();
+      cy.get('[data-testid=import-menu]').click();
       cy.get('[data-testid=import-schema]').click();
       cy.fixture('schema/many-guesses.sql').then((sql: string) => {
         cy.get('[data-testid=schema-source]').type(sql, { delay: 0, parseSpecialCharSequences: false });
@@ -438,7 +438,7 @@ describe('Schema import from SQL', () => {
   it('does not run canvas shortcuts while typing in the dialog', () => {
     cy.drawShape('rect', [100, 100], [200, 200]);
     cy.get('[data-node-type=rect]').should('have.length', 1);
-    cy.get('[data-testid=app-menu]').click();
+    cy.get('[data-testid=import-menu]').click();
     cy.get('[data-testid=import-schema]').click();
     cy.get('[data-testid=schema-source]').type('rrr{backspace}').should('have.value', 'rr');
     cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'select');
@@ -449,7 +449,7 @@ describe('Schema import from SQL', () => {
     const HEIGHT = 420;
     cy.viewport(1000, HEIGHT);
     const sql = Array.from({ length: 12 }, (_, i) => `CREATE TABLE t_${i} (id int PRIMARY KEY);\nCREATE VIEW v_${i} AS SELECT 1;`).join('\n');
-    cy.get('[data-testid=app-menu]').click();
+    cy.get('[data-testid=import-menu]').click();
     cy.get('[data-testid=import-schema]').click();
     cy.get('[data-testid=schema-source]').type(sql, { delay: 0, parseSpecialCharSequences: false });
     // Typing scrolls the body only if the viewport is short; scroll it explicitly so the next step
