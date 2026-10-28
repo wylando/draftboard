@@ -75,7 +75,8 @@ export function EmptyState({ onOpenGuide }: { onOpenGuide: () => void }) {
 
   return (
     <>
-      {state.nodes.length === 0 && (
+      {/* Only on the Move tool: with a drawing tool picked, a drag through the card's area must reach the canvas. */}
+      {state.nodes.length === 0 && state.tool === 'select' && (
         <div className={areaClass}>
           <section className={cardClass} data-testid="empty-state" aria-label="Start a board">
             <h2 className={titleClass}>Start your first schema</h2>

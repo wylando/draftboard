@@ -15,6 +15,20 @@ describe('First run: empty board', () => {
     cy.get('[data-testid=tool-dock]').should('be.visible');
   });
 
+  it('steps aside for a drawing tool so a drag through its area draws', () => {
+    cy.pressKey('r', { code: 'KeyR' });
+    cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'rect');
+    cy.get(CARD).should('not.exist');
+    cy.get('[data-testid=canvas]').then(($c) => {
+      const box = $c[0]!.getBoundingClientRect();
+      cy.canvasDrag([box.width / 2 - 40, box.height / 2 - 40], [box.width / 2 + 40, box.height / 2 + 40]);
+    });
+    cy.get('[data-node-type=rect]').should('have.length', 1);
+    cy.pressKey('z', { code: 'KeyZ', metaKey: true });
+    cy.get('[data-node-type=rect]').should('not.exist');
+    cy.get(CARD).should('be.visible');
+  });
+
   it('adds a table at the view centre, selected, and returns when it is undone', () => {
     cy.get('[data-testid=empty-add-table]').click();
     cy.get(CARD).should('not.exist');

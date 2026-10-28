@@ -43,13 +43,11 @@ describe('Viewport: zoom and pan', () => {
     zoomLabel().should('have.text', '200%');
     cy.get('[data-testid=canvas]').then(($c) => {
       const { width, height } = $c[0]!.getBoundingClientRect();
-      // Screen = world * 2 + (center - center * 2), so world = (screen + center) / 2.
-      // Drawn in the top-left corner: the empty board's card covers the centre and takes presses.
-      const from: [number, number] = [60, 60];
-      const world = (screen: number, center: number) => (screen + center) / 2;
-      const toScreen = (wx: number, wy: number): [number, number] => [wx * 2 - width / 2, wy * 2 - height / 2];
-      const [wx, wy] = [world(from[0], width / 2), world(from[1], height / 2)];
-      cy.drawShape('rect', from, toScreen(wx + 50, wy + 25));
+      // Screen = world * 2 + (center - center * 2) => world = (screen + center) / 2
+      const cx = width / 2;
+      const cy0 = height / 2;
+      const toScreen = (wx: number, wy: number): [number, number] => [wx * 2 - cx, wy * 2 - cy0];
+      cy.drawShape('rect', toScreen(cx, cy0), toScreen(cx + 50, cy0 + 25));
       cy.prop('w').should('have.value', '50');
       cy.prop('h').should('have.value', '25');
     });
