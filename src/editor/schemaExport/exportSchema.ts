@@ -84,6 +84,11 @@ export function collectSchema(nodes: readonly DesignNode[], selectedIds: readonl
         warnings.push(`Connector "${n.name}" links two columns but isn't a foreign key; skipped`);
         continue;
       }
+      // Databases only let a foreign key reference a key: PostgreSQL rejects anything else outright.
+      if (!toColumn.unique && !(toColumn.primaryKey && primaryKey(to).length === 1)) {
+        warnings.push(`Connector "${n.name}" references "${to.name}"."${toColumn.name}", which isn't unique or the primary key; skipped`);
+        continue;
+      }
       if (foreignKeys.some((f) => f.fromColumn === fromColumn && f.toColumn === toColumn)) continue;
       foreignKeys.push({ from, fromColumn, to, toColumn, oneToOne: single(n.fromCardinality) && single(n.toCardinality) });
     } else if (n.from.kind === 'node' && n.to.kind === 'node') {
@@ -120,14 +125,22 @@ const referenceType = (type: string) =>
     .replace(/^smallserial$/i, 'smallint')
     .replace(/^serial$/i, 'integer')
     .replace(/^bigserial$/i, 'bigint')
-    .replace(/\s+auto_increment\b/i, '');
+    .replace(/\s+(?:auto_increment|autoincrement)\b/i, '')
+    .replace(/\s+generated\s+(?:always|by\s+default)\s+as\s+identity\b.*$/i, '');
 
-const LITERAL_DEFAULT = /^(?:'(?:[^']|'')*'|[-+]?\d+(?:\.\d+)?|true|false|null|current_(?:time|date|timestamp)|\(.*\))$/i;
+const LITERAL_DEFAULT = /^(?:'(?:[^']|'')*'|[-+]?\d+(?:\.\d+)?|true|false|null|current_(?:time|date|timestamp)|\(.*\))$/is;
+/** MySQL also takes the current-time functions bare, which is how mysqldump writes them. */
+const MYSQL_TIME_DEFAULT = /^(?:current_timestamp|now|localtime|localtimestamp)(?:\(\d*\))?$/i;
 
-/** SQLite reads only a literal as a bare default; an expression such as `now()` needs parentheses. */
-const sqlDefault = (value: string, dialect: SqlDialect) => (dialect === 'sqlite' && !LITERAL_DEFAULT.test(value) ? `(${value})` : value);
+/** MySQL and SQLite read only a literal as a bare default; an expression such as `uuid()` needs parentheses. */
+function sqlDefault(value: string, dialect: SqlDialect): string {
+  const oneLine = value.replace(/\s*[\r\n]+\s*/g, ' ');
+  if (dialect === 'postgres' || LITERAL_DEFAULT.test(oneLine) || (dialect === 'mysql' && MYSQL_TIME_DEFAULT.test(oneLine))) return oneLine;
+  return `(${oneLine})`;
+}
 
-const comment = (text: string) => text.split('\n').map((line) => `-- ${line}`.trimEnd());
+// PostgreSQL ends a `--` comment at a lone carriage return too.
+const comment = (text: string) => text.split(/\r\n|\r|\n/).map((line) => `-- ${line}`.trimEnd());
 
 interface SqlTable {
   name: string;
@@ -158,7 +171,8 @@ export function toSql(schema: ExportSchema, dialect: SqlDialect): ExportText {
   const id = (name: string) => `${q}${name.replaceAll(q, q + q)}${q}`;
   const list = (names: string[]) => names.map(id).join(', ');
 
-  const uniqueColumns = new Set(schema.foreignKeys.filter((f) => f.oneToOne).map((f) => f.fromColumn));
+  // A column that is the whole primary key is unique already; one that is part of it mustn't be unique alone.
+  const uniqueColumns = new Set(schema.foreignKeys.filter((f) => f.oneToOne && !f.fromColumn.primaryKey).map((f) => f.fromColumn));
   const tables: SqlTable[] = schema.tables.map((t) => ({
     name: t.name,
     label: t.name,
@@ -177,8 +191,12 @@ export function toSql(schema: ExportSchema, dialect: SqlDialect): ExportText {
         warnings.push(`Table "${t.name}": index "${i.name}" has no columns; skipped`);
         return [];
       }
-      const columns = i.columnIds.map((cid) => t.columns.find((c) => c.id === cid)?.name ?? '');
-      return [{ name: i.name, columns, unique: i.unique }];
+      const columns = i.columnIds.map((cid) => t.columns.find((c) => c.id === cid)?.name);
+      if (columns.some((c) => c === undefined)) {
+        warnings.push(`Table "${t.name}": index "${i.name}" names a column the table doesn't have; skipped`);
+        return [];
+      }
+      return [{ name: i.name, columns: columns as string[], unique: i.unique }];
     }),
   }));
   const foreignKeys: SqlForeignKey[] = schema.foreignKeys.map((f) => ({
@@ -214,10 +232,9 @@ export function toSql(schema: ExportSchema, dialect: SqlDialect): ExportText {
     );
   }
 
-  // PostgreSQL and SQLite share one namespace for every index (PostgreSQL's also holds the tables); MySQL's
-  // index names are per table.
+  // PostgreSQL and SQLite keep tables and indexes in one namespace; MySQL's index names are per table.
   if (dialect !== 'mysql') {
-    const taken = new Set(dialect === 'postgres' ? tableNames : []);
+    const taken = new Set(tableNames);
     for (const t of tables) {
       for (const i of t.indexes) {
         const name = uniqueIdentifier(i.name, taken);
@@ -246,7 +263,7 @@ export function toSql(schema: ExportSchema, dialect: SqlDialect): ExportText {
     const body = lines.map((l, i) => {
       const comma = i < lines.length - 1 ? ',' : '';
       // A trailing comment ends at the line break, so a note's own breaks become spaces.
-      return `  ${l.sql}${comma}${l.note ? ` -- ${l.note.replace(/\s*\n\s*/g, ' ')}` : ''}`;
+      return `  ${l.sql}${comma}${l.note ? ` -- ${l.note.replace(/\s*[\r\n]+\s*/g, ' ')}` : ''}`;
     });
     statements.push([...(t.note ? comment(t.note) : []), `CREATE TABLE ${id(t.name)} (`, ...body, ');'].join('\n'));
   }
@@ -262,7 +279,8 @@ export function toSql(schema: ExportSchema, dialect: SqlDialect): ExportText {
 
 const dbmlName = (name: string) => (/^\w+$/.test(name) ? name : `"${name.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`);
 const dbmlString = (text: string) =>
-  text.includes('\n') ? `'''${text.replace(/\\/g, '\\\\').replace(/'''/g, "\\'''")}'''` : `'${text.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+  // Every quote is escaped in the triple-quoted form too, so one at the end can't run into the closing quotes.
+  text.includes('\n') ? `'''${text.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'''` : `'${text.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 const dbmlType = (type: string) => (/^[\w]+(\([\d\s,]*\))?$/.test(type) ? type : `"${type.replace(/"/g, '\\"')}"`);
 
 /** A default as DBML reads it: strings, numbers and keywords as themselves, anything else as an expression. */
@@ -296,6 +314,10 @@ export function toDbml(schema: ExportSchema, dialect: SqlDialect): ExportText {
     const indexes = t.indexes.flatMap((i) => {
       if (i.columnIds.length === 0) {
         warnings.push(`Table "${t.name}": index "${i.name}" has no columns; skipped`);
+        return [];
+      }
+      if (!i.columnIds.every((cid) => t.columns.some((c) => c.id === cid))) {
+        warnings.push(`Table "${t.name}": index "${i.name}" names a column the table doesn't have; skipped`);
         return [];
       }
       const settings = [...(i.unique ? ['unique'] : []), `name: ${dbmlString(i.name)}`];

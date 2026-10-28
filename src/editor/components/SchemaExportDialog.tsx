@@ -40,13 +40,20 @@ export function SchemaExportDialog({ open, onOpenChange }: { open: boolean; onOp
   const { preferences } = usePreferences();
   const { alert } = useDialogs();
   const [format, setFormat] = useState<Format>('sql');
-  const [dialect, setDialect] = useState<SqlDialect>(preferences.sqlDialect);
+  // Null follows the SQL dialect setting until the user picks one here.
+  const [picked, setDialect] = useState<SqlDialect | null>(null);
+  const dialect = picked ?? preferences.sqlDialect;
   const [copied, setCopied] = useState(false);
 
-  const schema = useMemo(() => collectSchema(state.nodes, state.selection), [state.nodes, state.selection]);
-  const output = useMemo(() => (format === 'sql' ? toSql(schema, dialect) : toDbml(schema, dialect)), [schema, format, dialect]);
-  const warnings = [...schema.warnings, ...output.warnings];
-  const count = schema.tables.length === 1 ? '1 table' : `${schema.tables.length} tables`;
+  // The component stays mounted once opened, so skip the work while closed: drags change nodes every frame.
+  const schema = useMemo(() => (open ? collectSchema(state.nodes, state.selection) : null), [open, state.nodes, state.selection]);
+  const output = useMemo(
+    () => (schema === null ? { text: '', warnings: [] } : format === 'sql' ? toSql(schema, dialect) : toDbml(schema, dialect)),
+    [schema, format, dialect],
+  );
+  const tableCount = schema?.tables.length ?? 0;
+  const warnings = [...(schema?.warnings ?? []), ...output.warnings];
+  const count = tableCount === 1 ? '1 table' : `${tableCount} tables`;
   const boardName = boards.find((b) => b.id === activeId)?.name ?? 'schema';
 
   const copy = async () => {
@@ -92,7 +99,7 @@ export function SchemaExportDialog({ open, onOpenChange }: { open: boolean; onOp
     >
       <div className={bodyClass}>
         <p className={scopeClass} data-testid="export-scope">
-          {schema.tables.length === 0 ? 'No tables to export' : `${count} ${schema.scope === 'selection' ? 'from the selection' : 'on this board'}`}
+          {tableCount === 0 ? 'No tables to export' : `${count} ${schema?.scope === 'selection' ? 'from the selection' : 'on this board'}`}
         </p>
         <div className={rowClass}>
           <span className={labelClass}>Format</span>

@@ -80,7 +80,8 @@ describe('collectSchema', () => {
     const oneToMany = link(tables, whole(a), whole(tags), { name: 'one to many' });
     const unkeyed = link(tables, whole(tags), whole(noKey), { name: 'unkeyed', fromCardinality: 'many', toCardinality: 'many' });
     const leaving = link(tables, col(posts, 'editor_id'), col(outside, 'id'), { name: 'leaving' });
-    const nodes = [...tables, fk, oneToOne, manyToMany, notFk, oneToMany, unkeyed, leaving];
+    const loose = link(tables, col(posts, 'editor_id'), col(a, 'bio'), { name: 'loose' });
+    const nodes = [...tables, fk, oneToOne, manyToMany, notFk, oneToMany, unkeyed, leaving, loose];
     const schema = collectSchema(
       nodes,
       tables.filter((t) => t !== outside).map((t) => t.id),
@@ -98,6 +99,7 @@ describe('collectSchema', () => {
       'Connector "one to many" links whole tables but isn\'t many-to-many; link columns to export a foreign key',
       'Connector "unkeyed" is many-to-many, but "notes" has no primary key; skipped',
       'Connector "leaving" leads to "outside", which isn\'t exported; skipped',
+      'Connector "loose" references "users"."bio", which isn\'t unique or the primary key; skipped',
     ]);
   });
 });
@@ -111,7 +113,7 @@ function design() {
       { name: 'Line No', primaryKey: true },
       { name: 'price', dataType: 'numeric(10,2)', nullable: true, default: '0' },
     ],
-    { note: 'One row per line\nof an order' },
+    { note: "One row per line\nof an 'order'" },
   );
   const u = users();
   const profile = table('profile', [{ name: 'user_id', primaryKey: true }, { name: 'nickname', dataType: 'text', nullable: true }]);
@@ -173,7 +175,12 @@ describe('toSql', () => {
   });
 
   it('prefixes every line of a note as a comment', () => {
-    expect(toSql(design(), 'postgres').text).toContain('-- One row per line\n-- of an order\nCREATE TABLE "Order Items"');
+    expect(toSql(design(), 'postgres').text).toContain("-- One row per line\n-- of an 'order'\nCREATE TABLE \"Order Items\"");
+    const t = table('t', [{ name: 'a', note: 'one\rtwo', default: '1 +\n1' }], { note: 'x\ry' });
+    const text = toSql(collectSchema([t], []), 'postgres').text;
+    expect(text).not.toMatch(/\r/);
+    expect(text).toContain('-- x\n-- y\n');
+    expect(text).toContain('DEFAULT 1 + 1, -- one two'.replace(',', ''));
   });
 
   it('makes a one-to-one foreign key column unique', async () => {
@@ -182,11 +189,27 @@ describe('toSql', () => {
     const nodes = [a, b, link([a, b], col(b, 'owner'), col(a, 'id'), { fromCardinality: 'zeroOrOne', toCardinality: 'one' })];
     const parsed = await parseSql(toSql(collectSchema(nodes, []), 'postgres').text, 'postgres');
     expect(parsed.tables[1]?.columns[1]).toMatchObject({ name: 'owner', unique: true });
+    // Part of a composite key, the column alone mustn't become unique.
+    const c = table('visa', [{ name: 'owner', primaryKey: true }, { name: 'country', primaryKey: true }]);
+    const composite = [a, c, link([a, c], col(c, 'owner'), col(a, 'id'), { fromCardinality: 'one', toCardinality: 'one' })];
+    expect(toSql(collectSchema(composite, []), 'postgres').text).not.toMatch(/"owner"[^\n]*UNIQUE/);
+  });
+
+  it('wraps expression defaults in parentheses where MySQL and SQLite need them', async () => {
+    const t = table('t', [
+      { name: 'id', dataType: 'char(36)', primaryKey: true, default: 'uuid()' },
+      { name: 'at', dataType: 'timestamp', default: 'CURRENT_TIMESTAMP' },
+    ]);
+    const mysql = toSql(collectSchema([t], []), 'mysql').text;
+    expect(mysql).toContain('DEFAULT (uuid())');
+    expect(mysql).toContain('DEFAULT CURRENT_TIMESTAMP');
+    expect((await parseSql(mysql, 'mysql')).warnings).toEqual([]);
+    expect(toSql(collectSchema([t], []), 'postgres').text).toContain('DEFAULT uuid()');
   });
 
   // Types stay as written, so each dialect gets key types it accepts; auto-numbering never reaches the junction.
   it.each([
-    ['postgres', 'serial', 'bigserial', ['integer', 'bigint']],
+    ['postgres', 'serial', 'bigint generated always as identity', ['integer', 'bigint']],
     ['mysql', 'int auto_increment', 'bigint', ['int', 'bigint']],
     ['sqlite', 'integer', 'integer', ['integer', 'integer']],
   ] as const)('generates a junction table for a many-to-many in %s', async (dialect, postKey, tagKey, junctionTypes) => {
@@ -222,17 +245,27 @@ describe('toSql', () => {
       { id: 'i1', name: 'by_name', columnIds: ['name'], unique: false },
       { id: 'i2', name: 'pending', columnIds: [], unique: false },
     ];
-    b.indexes = [{ id: 'i1', name: 'BY_NAME', columnIds: ['name'], unique: false }];
+    b.indexes = [
+      { id: 'i1', name: 'BY_NAME', columnIds: ['name'], unique: false },
+      { id: 'i2', name: 'a', columnIds: ['name'], unique: false },
+      { id: 'i3', name: 'ghost', columnIds: ['gone'], unique: false },
+    ];
     const schema = collectSchema([a, b], []);
 
     const pg = toSql(schema, 'postgres');
     expect(pg.warnings).toEqual([
       'Table "a": column "name" has no type; exported as text',
       'Table "a": index "pending" has no columns; skipped',
+      'Table "b": index "ghost" names a column the table doesn\'t have; skipped',
       'Table "b": index "BY_NAME" is also used by another table; exported as "BY_NAME_2"',
+      'Table "b": index "a" is also used by another table; exported as "a_2"',
     ]);
     const parsed = await parseSql(pg.text, 'postgres');
-    expect(parsed.tables.map((t) => t.indexes.map((i) => i.name))).toEqual([['by_name'], ['BY_NAME_2']]);
+    expect(parsed.tables.map((t) => t.indexes.map((i) => i.name))).toEqual([['by_name'], ['BY_NAME_2', 'a_2']]);
+    // SQLite also keeps tables and indexes in one namespace; it runs the DDL, so a clash would fail.
+    const lite = await parseSqliteSql(toSql(schema, 'sqlite').text);
+    expect(lite.warnings).toEqual([]);
+    expect(lite.tables.map((t) => t.indexes.map((i) => i.name))).toEqual([['by_name'], ['BY_NAME_2', 'a_2']]);
     expect(parsed.tables[0]?.columns[0]?.dataType).toBe('text');
     // MySQL scopes index names to their table, so nothing is renamed.
     expect(toSql(schema, 'mysql').text).toContain('CREATE INDEX `BY_NAME` ON `b`');
@@ -262,7 +295,7 @@ describe('toDbml', () => {
     const parsed = await parseDbml(text);
     expect(parsed.warnings).toEqual([]);
     const [readItems, readUsers, , , stats] = parsed.tables;
-    expect(readItems).toEqual({ ...orderItems, note: 'One row per line\nof an order' });
+    expect(readItems).toEqual({ ...orderItems, note: "One row per line\nof an 'order'" });
     expect(readUsers?.columns).toEqual([
       { name: 'id', dataType: 'integer', primaryKey: true, nullable: false, unique: false },
       { name: 'email', dataType: 'text', primaryKey: false, nullable: false, unique: true },

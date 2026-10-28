@@ -53,6 +53,8 @@ describe('Schema export', () => {
       .then((text) => cy.get('@copy').should('have.been.calledOnceWith', text));
     cy.get('[data-testid=export-status]').should('contain', 'Copied');
 
+    // A file left by an earlier run would satisfy readFile before the new download lands.
+    cy.exec('rm -f cypress/downloads/board_1.dbml');
     cy.get('[data-testid=export-format] [data-value=dbml]').click();
     cy.get('[data-testid=export-download]').click();
     cy.readFile('cypress/downloads/board_1.dbml').should('contain', 'Ref: comments.post_id > posts.id');
