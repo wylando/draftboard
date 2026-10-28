@@ -18,6 +18,8 @@ const COMPACT_TARGET_PX = 12;
 /** On-screen px of the table name in overview, and the least it may shrink to before wrapping. */
 export const OVERVIEW_NAME_PX = 13;
 export const OVERVIEW_NAME_MIN_PX = 10;
+/** On-screen px of text room an overview label always has, so a narrow card's name may reach past the card. */
+const OVERVIEW_BUDGET_PX = 140;
 
 export function detailLevel(zoom: number): TableDetail {
   if (zoom >= FULL_MIN_ZOOM) return 'full';
@@ -59,6 +61,11 @@ function breakPoints(name: string): number[] {
     if (/[_\- ]/.test(name[i - 1]!) || (/[a-z0-9]/.test(name[i - 1]!) && /[A-Z]/.test(name[i]!))) points.push(i);
   }
   return points;
+}
+
+/** World px of room for an overview label: the card's inside, or the screen budget when that is more. */
+export function overviewAvail(cardWidth: number, scale: number, pad = 12): number {
+  return Math.max(cardWidth - 2 * pad, OVERVIEW_BUDGET_PX / scale);
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { COMPACT_MIN_ZOOM, FULL_MIN_ZOOM, compactSizes, detailLevel, ellipsize, overviewLabel, overviewScale } from './tableDetail';
+import { COMPACT_MIN_ZOOM, FULL_MIN_ZOOM, compactSizes, detailLevel, ellipsize, overviewAvail, overviewLabel, overviewScale } from './tableDetail';
 
 // Stand-in for canvas text measuring, which a node environment doesn't have.
 const measure = (text: string, size: number) => text.length * size * 0.55;
@@ -96,5 +96,28 @@ describe('overviewLabel', () => {
     expect(l.lines.length).toBeLessThanOrEqual(2);
     expect(l.lines.join('').endsWith('…')).toBe(true);
     for (const line of l.lines) expect(measure(line, l.size)).toBeLessThanOrEqual(216);
+  });
+});
+
+describe('overviewAvail', () => {
+  it('is the card width when that is the roomier, else a screen-pixel budget', () => {
+    expect(overviewAvail(2400, 0.25)).toBe(2376);
+    expect(overviewAvail(120, 0.2)).toBeGreaterThan(120);
+    expect(overviewAvail(120, 0.2) * 0.2).toBeGreaterThanOrEqual(100);
+  });
+
+  it('lets names on a narrow card stay readable at tiny zooms', () => {
+    for (const z of [0.1, 0.2, 0.3]) {
+      for (const name of ['users', 'customer_orders_archive_2024']) {
+        const l = overviewLabel(name, overviewAvail(120, z), z, measure);
+        const shown = l.lines.join('').replace(/…/g, '');
+        expect(shown.length, `${name} at ${z}`).toBeGreaterThanOrEqual(3);
+        expect(l.size * z).toBeGreaterThanOrEqual(10 - 1e-9);
+      }
+    }
+  });
+
+  it('shows users whole on a 120-wide card', () => {
+    expect(overviewLabel('users', overviewAvail(120, 0.1), 0.1, measure).lines).toEqual(['users']);
   });
 });

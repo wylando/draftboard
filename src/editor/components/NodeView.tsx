@@ -2,7 +2,7 @@ import { createContext, memo, useContext } from 'react';
 import { TABLE_COLORS, TABLE_HEADER_HEIGHT, TABLE_ROW_HEIGHT, TABLE_STYLE } from '../model/table';
 import { isBroken } from '../model/connector';
 import type { Cardinality, ConnectorNode, DesignNode, Point, TableNode } from '../model/types';
-import { compactSizes, ellipsize, overviewLabel, type TableDetail } from '../tableDetail';
+import { compactSizes, ellipsize, overviewAvail, overviewLabel, type TableDetail } from '../tableDetail';
 import { CANVAS_FONT_FAMILY, CANVAS_MONO_FAMILY, measureText, TEXT_LINE_HEIGHT } from '../textMetrics';
 import { css } from 'styled-system/css';
 import { token } from 'styled-system/tokens';
@@ -147,8 +147,9 @@ function OverviewName({
   const padX = 4 / scale;
   const padY = 2 / scale;
   const height = lines.length * lineHeight + 2 * padY;
+  // Never takes a press: past a small card it would cover neighbours, and over the card the table underneath is the target.
   return (
-    <g data-testid="table-name-pill" className={noSelectClass}>
+    <g data-testid="table-name-pill" className={noSelectClass} pointerEvents="none">
       <title>{name}</title>
       <rect
         x={x - textWidth / 2 - padX}
@@ -185,7 +186,7 @@ function TableShape({ node, detail, scale }: { node: TableNode; detail: TableDet
   const overview = detail === 'overview';
   // Sized for the screen, not the card: a small card's label may be taller than it is.
   const label = overview
-    ? overviewLabel(node.name, w - 2 * TABLE_STYLE.pad, scale, (t, size) => measureText(t, size, CANVAS_FONT_FAMILY, 600).width)
+    ? overviewLabel(node.name, overviewAvail(w, scale, TABLE_STYLE.pad), scale, (t, size) => measureText(t, size, CANVAS_FONT_FAMILY, 600).width)
     : null;
   const sizes = compactSizes(scale);
   const nameSize = compact ? sizes.column : TABLE_STYLE.nameSize;
@@ -297,7 +298,7 @@ function TableShape({ node, detail, scale }: { node: TableNode; detail: TableDet
           );
         })}
       </g>
-      {label && (
+      {label && label.lines.some(Boolean) && (
         <OverviewName name={node.name} lines={label.lines} size={label.size} scale={scale} x={w / 2} y={h / 2} fill={node.fill} stroke={node.stroke} ink={ink} />
       )}
       <line x1={0} x2={w} y1={TABLE_HEADER_HEIGHT} y2={TABLE_HEADER_HEIGHT} stroke={node.stroke} strokeWidth={node.strokeWidth} />
