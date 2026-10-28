@@ -70,6 +70,8 @@ export const tokens = defineTokens({
     6: { value: '1.5rem' }, // 24px
     /** Ours: bottom offset that lifts canvas notices above the floating tool dock (16px gap + 44px dock + 12px air). */
     toolDockClearance: { value: '4.5rem' },
+    /** Ours: top offset that keeps canvas popups clear of a collapsed sidebar's chip (8px inset + 36px chip + 4px air). */
+    panelChipClearance: { value: '3rem' },
   },
   radii: {
     none: { value: '0' },
@@ -81,6 +83,8 @@ export const tokens = defineTokens({
   shadows: {
     elevation100: { value: '0 1px 3px 0 #00000026, 0 0 0.5px 0 #0000004d' },
     elevation200: { value: '0 1px 3px 0 #0000001a, 0 3px 8px 0 #0000001a, 0 0 0.5px 0 #0000002e' },
+    /** Ours: floating canvas popups, lifted further than the dock. */
+    elevation300: { value: '0 2px 6px 0 #0000001f, 0 12px 32px 0 #00000033, 0 0 0.5px 0 #0000004d' },
   },
   /** Ours: dialogs and other overlays sit above the editor chrome. */
   zIndex: {
@@ -110,6 +114,7 @@ export const tokens = defineTokens({
     kbd: { value: '20px' },
     content: { value: '760px' },
     dialog: { value: '400px' },
+    popup: { value: '280px' },
     radio: { value: '14px' },
     switchWidth: { value: '28px' },
     switchHeight: { value: '16px' },

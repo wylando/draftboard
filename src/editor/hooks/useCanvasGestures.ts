@@ -53,6 +53,8 @@ const elementsAt = (e: { clientX: number; clientY: number }) => document.element
 /** Screen-pixel distance before a press becomes a drag. */
 const DRAG_THRESHOLD = 3;
 const WHEEL_ZOOM_SPEED = 0.01;
+/** Wheel events carry no end, so a scroll counts as settled after this long without one. */
+const WHEEL_SETTLE_MS = 200;
 /** Design choice: Shift snaps a corner rotation to this many degrees. */
 const ROTATION_SNAP = 15;
 /** Design choice: screen-pixel distance at which an edge or center snaps to another layer's. */
@@ -122,6 +124,8 @@ interface Options {
   onRowDrop: (drop: RowDrop | null) => void;
   /** The connector being drawn or re-attached, as it would be if released here; null when none. */
   onConnect: (preview: ConnectPreview | null) => void;
+  /** True once a press drags past `DRAG_THRESHOLD` or the wheel pans or zooms; false when that settles. */
+  onBusy: (busy: boolean) => void;
 }
 
 const isShapeTool = (tool: string): tool is DrawableType =>
@@ -198,6 +202,7 @@ export function useCanvasGestures({
   onEditTable,
   onRowDrop,
   onConnect,
+  onBusy,
 }: Options) {
   const stateRef = useLatest(state);
   const gestureRef = useRef<Gesture | null>(null);
@@ -219,6 +224,7 @@ export function useCanvasGestures({
       const screen = toLocal(e);
       const world = screenToWorld(screen, viewport);
       const dist = Math.hypot(screen.x - g.start.x, screen.y - g.start.y);
+      if (dist >= DRAG_THRESHOLD) onBusy(true);
       const snap = snapToLayers && !(e.metaKey || e.ctrlKey);
       const threshold = SNAP_DISTANCE / viewport.zoom;
 
@@ -466,13 +472,14 @@ export function useCanvasGestures({
         }
       }
     },
-    [dispatch, onConnect, onGuides, onMarquee, onRowDrop, snapToLayers, stateRef, tableIdType, toLocal],
+    [dispatch, onBusy, onConnect, onGuides, onMarquee, onRowDrop, snapToLayers, stateRef, tableIdType, toLocal],
   );
 
   const handleUp = useCallback((e: PointerEvent) => {
     const g = gestureRef.current;
     gestureRef.current = null;
     if (!g) return;
+    onBusy(false);
     onGuides(NO_GUIDES);
 
     if (g.kind === 'move' && g.moved) {
@@ -522,7 +529,7 @@ export function useCanvasGestures({
       dispatch({ type: 'setTool', tool: 'select' });
     }
     if (g.kind === 'marquee') onMarquee(null);
-  }, [dispatch, onConnect, onEditText, onGuides, onMarquee, onRowDrop, stateRef, tableIdType, toLocal]);
+  }, [dispatch, onBusy, onConnect, onEditText, onGuides, onMarquee, onRowDrop, stateRef, tableIdType, toLocal]);
 
   // A cancelled pointer (a pen or touch interruption) reports no real release point, so the
   // gesture stops where it stands: a press never becomes a click-to-place, and a move drops
@@ -531,13 +538,14 @@ export function useCanvasGestures({
     const g = gestureRef.current;
     gestureRef.current = null;
     if (!g) return;
+    onBusy(false);
     onGuides(NO_GUIDES);
     if (g.kind === 'move' && g.moved) dispatch({ type: 'dropSelectionAt', point: g.last });
     if (g.kind === 'marquee') onMarquee(null);
     if (g.kind === 'reorder') onRowDrop(null);
     if (g.kind === 'connect' || g.kind === 'reattach') onConnect(null);
     if (g.kind === 'create' && g.nodeId) dispatch({ type: 'setTool', tool: 'select' });
-  }, [dispatch, onConnect, onGuides, onMarquee, onRowDrop]);
+  }, [dispatch, onBusy, onConnect, onGuides, onMarquee, onRowDrop]);
 
   // Window-level listeners stay registered for the hook's lifetime and read the
   // latest handlers from refs, so a re-render mid-drag can never orphan them.
@@ -701,8 +709,14 @@ export function useCanvasGestures({
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
+    let settle: ReturnType<typeof setTimeout> | undefined;
     const onWheel = (e: WheelEvent) => {
+      // A popup's own scroll area takes the wheel; the canvas stays put.
+      if (e.target instanceof Element && e.target.closest('[data-canvas-popup]')) return;
       e.preventDefault();
+      onBusy(true);
+      clearTimeout(settle);
+      settle = setTimeout(() => onBusy(false), WHEEL_SETTLE_MS);
       const { viewport } = stateRef.current;
       if (e.ctrlKey || e.metaKey) {
         const factor = Math.exp(-e.deltaY * WHEEL_ZOOM_SPEED);
@@ -712,8 +726,11 @@ export function useCanvasGestures({
       }
     };
     el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, [containerRef, dispatch, stateRef, toLocal]);
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      clearTimeout(settle);
+    };
+  }, [containerRef, dispatch, onBusy, stateRef, toLocal]);
 
   return { onPointerDown, onDoubleClick };
 }

@@ -12,6 +12,7 @@ import {
   kbdRecipe,
   menuRecipe,
   panelRecipe,
+  popupRecipe,
   radioGroupRecipe,
   sectionRecipe,
   splitterRecipe,
@@ -59,6 +60,13 @@ export default defineConfig({
       splitter: splitterRecipe,
       accordion: accordionRecipe,
       combobox: comboboxRecipe,
+      popup: popupRecipe,
+    },
+    keyframes: {
+      popupIn: {
+        from: { opacity: '0', transform: 'translateY(4px) scale(0.98)' },
+        to: { opacity: '1', transform: 'none' },
+      },
     },
   },
   globalCss: {

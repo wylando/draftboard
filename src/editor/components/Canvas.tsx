@@ -21,6 +21,7 @@ import { CANVAS_FONT_FAMILY, measureText } from '../textMetrics';
 import { usePreferences } from '../../settings/preferences/PreferencesContext';
 import { CanvasGrid } from './CanvasGrid';
 import { FrameLabel, NodeView, RelationsContext, type Relations } from './NodeView';
+import { RoutePopup } from './RoutePopup';
 import { SelectionOverlay } from './SelectionOverlay';
 import { TableCellEditor } from './TableCellEditor';
 import { TextEditor } from './TextEditor';
@@ -76,6 +77,10 @@ export function Canvas() {
   const [cellNotice, setCellNotice] = useState<string | null>(null);
   const [rowDrop, setRowDrop] = useState<RowDrop | null>(null);
   const [spacePressed, setSpacePressed] = useState(false);
+  /** A drag, pan or zoom is under way; popups over the canvas step aside until it settles. */
+  const [busy, setBusy] = useState(false);
+  /** The selection (ids in order) whose route popup was closed; any other selection brings the popup back. */
+  const [routeClosedFor, setRouteClosedFor] = useState<string | null>(null);
   const dialogOpen = useLatest(useDialogs().isOpen);
 
   // Measured before the first paint as well: ResizeObserver reports only later, and until the size is
@@ -142,11 +147,17 @@ export function Canvas() {
     },
     onRowDrop: setRowDrop,
     onConnect: setConnectPreview,
+    onBusy: setBusy,
   });
 
   const onHover = (e: ReactPointerEvent) => {
     // Pointer events carry the real Alt state, which catches an Alt pressed outside the window.
     setAltPressed(e.altKey);
+    // A popup covers the canvas there, so nothing under it is hovered (elementsFromPoint would see through it).
+    if ((e.target as Element).closest('[data-canvas-popup]')) {
+      setHover(null);
+      return;
+    }
     const hitId = e.buttons === 0 ? (e.target as Element).closest('[data-node-id]')?.getAttribute('data-node-id') : null;
     const { viewport, nodes } = state;
     // Found exactly as a release would find it, so the highlight never disagrees with the result.
@@ -210,10 +221,15 @@ export function Canvas() {
     }
     return { foreignKeys: foreignKeyColumns(nodes), mismatched, relationalEnds };
   }, [nodes, byId]);
+  const joinPath = useMemo(() => cheapestJoinPath(selection, byId), [selection, byId]);
+  const guaranteedPath = useMemo(() => joinPath && cheapestJoinPath(selection, byId, true), [joinPath, selection, byId]);
+  // By content, not identity: undo and other actions rebuild the same selection as a new array.
+  const selectionKey = selection.join('\n');
+  if (routeClosedFor !== null && routeClosedFor !== selectionKey) setRouteClosedFor(null);
   const related = useMemo(() => {
-    const { connectors, tables } = cheapestJoinPath(selection, byId) ?? relatedToTables(selection, byId);
+    const { connectors, tables } = joinPath ?? relatedToTables(selection, byId);
     return nodes.filter((n) => connectors.has(n.id) || tables.has(n.id));
-  }, [selection, nodes, byId]);
+  }, [joinPath, selection, nodes, byId]);
   const selectedSet = new Set(selection);
   const selected = nodes.filter((n) => selectedSet.has(n.id) && isEffectivelyVisible(byId, n));
   const picked = state.selectedColumn;
@@ -320,6 +336,16 @@ export function Canvas() {
         <p data-testid="table-cell-notice" role="status" className={noticeClass}>
           {cellNotice} The cell kept its old value.
         </p>
+      )}
+      {joinPath && !busy && routeClosedFor !== selectionKey && (
+        <RoutePopup
+          path={joinPath}
+          guaranteed={guaranteedPath}
+          ends={selection}
+          byId={byId}
+          viewport={viewport}
+          onClose={() => setRouteClosedFor(selectionKey)}
+        />
       )}
       {editingNode && (
         <TextEditor
