@@ -44,7 +44,9 @@ describe('Toasts', () => {
     cy.get('[data-node-type=rect]').should('have.length', 1);
   });
 
+  // The clock is frozen so a toast can't expire by itself: only the dismissal can remove its Undo.
   it('Undo goes away when another edit follows the delete', () => {
+    cy.clock();
     cy.drawShape('rect', [100, 100], [200, 200]);
     cy.drawShape('rect', [300, 100], [400, 200]);
     cy.pressKey('Backspace');
@@ -54,7 +56,8 @@ describe('Toasts', () => {
     cy.get('[data-node-type=rect]').should('have.length', 2);
   });
 
-  it('drops the Undo once the delete has been undone and something else edited', () => {
+  it('drops the Undo once the delete has been undone', () => {
+    cy.clock();
     cy.drawShape('rect', [100, 100], [200, 200]);
     cy.pressKey('Backspace');
     cy.contains('[data-testid=toast]', 'Deleted 1 layer').should('exist');

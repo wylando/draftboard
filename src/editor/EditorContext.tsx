@@ -3,8 +3,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useReducer,
 import { dismissNotice, notify } from '../design-system';
 import { useLatest } from '../shared/useLatest';
 import type { EditorAction, EditorState } from './model/editorReducer';
-import { toastFor } from './toasts';
-import { initialWorkspace, sameSavedParts, workspaceReducer, type WorkspaceAction, type WorkspaceState } from './model/workspace';
+import { isUndoable, toastFor, type DeleteMark } from './toasts';
+import { initialWorkspace, sameSavedParts, workspaceReducer, type WorkspaceAction } from './model/workspace';
 import { loadWorkspace, saveWorkspace } from './persistence';
 
 const SAVE_DEBOUNCE_MS = 300;
@@ -28,12 +28,6 @@ interface BoardsContextValue {
 
 const TOAST_ACTIONS = new Set<string>(['copySelection', 'cutSelection', 'pasteClipboard', 'duplicateSelection', 'deleteSelection']);
 
-function isUndoable(ws: WorkspaceState, mark: { boardId: string; nodes: EditorState['nodes'] }): boolean {
-  if (ws.activeId !== mark.boardId) return false;
-  const editor = ws.boards.find((b) => b.id === mark.boardId)?.editor;
-  return editor !== undefined && editor.past[editor.past.length - 1] === mark.nodes && editor.nodes !== mark.nodes;
-}
-
 const EditorContext = createContext<EditorContextValue | null>(null);
 const BoardsContext = createContext<BoardsContextValue | null>(null);
 
@@ -44,7 +38,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   });
   const latest = useLatest(workspace);
   // The delete a visible "Undo" belongs to: its board, and the document it removed (the top of history after it).
-  const deleted = useRef<{ boardId: string; nodes: EditorState['nodes'] } | null>(null);
+  const deleted = useRef<DeleteMark | null>(null);
 
   const dispatch = useCallback(
     (action: EditorAction) => {

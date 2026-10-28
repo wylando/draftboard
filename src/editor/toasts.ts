@@ -1,4 +1,5 @@
 import type { EditorAction, EditorState } from './model/editorReducer';
+import type { WorkspaceState } from './model/workspace';
 import { byIdOf, topLevelIds } from './model/tree';
 
 export interface ToastPlan {
@@ -40,4 +41,17 @@ export function toastFor(state: EditorState, action: EditorAction): ToastPlan | 
     default:
       return null;
   }
+}
+
+/** What a delete toast's Undo belongs to: its board, and the document the delete removed. */
+export interface DeleteMark {
+  boardId: string;
+  nodes: EditorState['nodes'];
+}
+
+/** True while the delete is still the newest history entry on its board, so Undo takes back that delete only. */
+export function isUndoable(ws: WorkspaceState, mark: DeleteMark): boolean {
+  if (ws.activeId !== mark.boardId) return false;
+  const editor = ws.boards.find((b) => b.id === mark.boardId)?.editor;
+  return editor !== undefined && editor.past[editor.past.length - 1] === mark.nodes && editor.nodes !== mark.nodes;
 }

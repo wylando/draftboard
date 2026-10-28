@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { editorReducer, initialEditorState, type EditorState } from './model/editorReducer';
 import { createNode } from './model/nodes';
 import type { DesignNode } from './model/types';
-import { toastFor } from './toasts';
+import { initialWorkspace, workspaceReducer, type WorkspaceState } from './model/workspace';
+import { isUndoable, toastFor } from './toasts';
 
 const withRects = (n: number): EditorState => {
   const nodes: DesignNode[] = [];
@@ -36,5 +37,28 @@ describe('toastFor', () => {
     const spy = new Proxy({} as EditorState, { get: (_, key) => void touched.push(String(key)) });
     expect(toastFor(spy, { type: 'updateNodes', patches: [] } as never)).toBeNull();
     expect(touched).toEqual([]);
+  });
+});
+
+describe('isUndoable', () => {
+  const editor = (ws: WorkspaceState, action: Parameters<typeof editorReducer>[1]): WorkspaceState => workspaceReducer(ws, { type: 'editor', action });
+  const active = (ws: WorkspaceState) => ws.boards.find((b) => b.id === ws.activeId)!.editor;
+  const deleted = () => {
+    const start = editor(initialWorkspace([], undefined), { type: 'loadDocument', nodes: withRects(2).nodes });
+    const picked = editor(start, { type: 'select', ids: [active(start).nodes[0]!.id] });
+    const mark = { boardId: picked.activeId, nodes: active(picked).nodes };
+    return { mark, ws: editor(picked, { type: 'deleteSelection' }) };
+  };
+
+  it('holds while the delete is the newest history entry', () => {
+    const { mark, ws } = deleted();
+    expect(isUndoable(ws, mark)).toBe(true);
+  });
+
+  it('fails after another edit, an undo, or a board change', () => {
+    const { mark, ws } = deleted();
+    expect(isUndoable(editor(ws, { type: 'checkpoint' }), mark)).toBe(false);
+    expect(isUndoable(editor(ws, { type: 'undo' }), mark)).toBe(false);
+    expect(isUndoable(workspaceReducer(ws, { type: 'newBoard' }), mark)).toBe(false);
   });
 });
