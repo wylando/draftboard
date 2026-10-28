@@ -1,4 +1,4 @@
-import { normalType } from '../model/connector';
+import { typesCompatible } from '../model/connector';
 import { nameKey } from '../model/names';
 import type { ImportedRelation, ImportedSchema } from './types';
 
@@ -59,8 +59,7 @@ export function inferRelations(schema: ImportedSchema): ImportedRelation[] {
         if (pool.length !== 1 || !best) break;
         // A column naming its own table duplicates that table's key; it isn't a parent link.
         const key = from === best.table ? undefined : best.table.columns.find((c) => c.name === best.key);
-        // Types are free text, so only a difference after normalising rules a pair out.
-        const differs = key && normalType(key.dataType) !== normalType(column.dataType);
+        const differs = key && !typesCompatible(key.dataType, column.dataType);
         if (key && !differs && !covered.has(`${end(from.name, column.name)}\0${end(best.table.name, key.name)}`)) {
           found.push({ fromTable: from.name, fromColumn: column.name, toTable: best.table.name, toColumn: key.name, declared: false });
         }

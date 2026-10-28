@@ -129,6 +129,8 @@ describe('inferRelations', () => {
     const mk = (a: string, b: string) => schema([table('posts', pk(), key(a)), table('users', typed(b))]);
     expect(inferRelations(mk('uuid', 'text'))).toEqual([]);
     expect(inferRelations(mk('INTEGER', 'integer'))).toEqual([guess('posts', 'user_id', 'users', 'id')]);
+    // A serial key is an int column with a default, so an int column refers to it.
+    expect(inferRelations(mk('int', 'serial'))).toEqual([guess('posts', 'user_id', 'users', 'id')]);
   });
 
   it('does not guess when several tables match', () => {

@@ -4,7 +4,7 @@ import { useEditor } from '../EditorContext';
 import { shapePoints } from '../model/connector';
 import { byIdOf } from '../model/tree';
 import { TABLE_ROW_HEIGHT, tableRowTop, type RowDrop } from '../model/table';
-import type { Box, DesignNode, Point, Viewport } from '../model/types';
+import type { Box, DesignNode, Point, TableNode, Viewport } from '../model/types';
 import { css } from 'styled-system/css';
 import { token } from 'styled-system/tokens';
 
@@ -17,6 +17,8 @@ const GUIDE_TEXT = token.var('colors.selection.guideText');
 
 const HANDLE_SIZE = 8;
 const ROTATE_ZONE_SIZE = 16;
+/** WCAG 2.5.8 target size: handles are drawn at HANDLE_SIZE but grabbed anywhere in a square this big. */
+const HIT_SIZE = 24;
 /** Row grips sit this far left of a selected table, outside it, so a press on a row still moves the table. */
 const ROW_GRIP = { offset: 16, width: 10, height: 16, minHeight: 6 } as const;
 // Row grips and connector end handles are dragged, not clicked.
@@ -125,6 +127,10 @@ interface Props {
   related: DesignNode[];
   /** The user's colour for `related` (Settings → Canvas). */
   relatedColor: string;
+  /** The tables of the highlighted join route, in order; numbered on the canvas. */
+  routeTables: TableNode[];
+  /** The unselected layer a click (or the Layers panel's pointer) would act on. */
+  hovered: DesignNode | null;
 }
 
 /** Connectors on the focused tables and the tables at their other ends, in the user's highlight colour. */
@@ -133,7 +139,7 @@ export function RelatedOutlines({ related, viewport, color }: { related: DesignN
     <>
       {related.map((n) =>
         n.type === 'connector' ? (
-          <polyline key={n.id} data-testid="related-connector" data-related-id={n.id} points={screenPoints(n.points, viewport)} fill="none" stroke={color} strokeWidth={2} pointerEvents="none" />
+          <polyline key={n.id} data-testid="related-connector" data-related-id={n.id} points={screenPoints(n.points, viewport)} fill="none" stroke={color} strokeWidth={3} pointerEvents="none" />
         ) : (
           <polygon key={n.id} data-testid="related-table" data-related-id={n.id} points={outline(n, viewport)} fill="none" stroke={color} strokeWidth={2} pointerEvents="none" />
         ),
@@ -157,6 +163,8 @@ export function SelectionOverlay({
   hideHandles,
   related,
   relatedColor,
+  routeTables,
+  hovered,
 }: Props) {
   // A connector's shape comes from its ends: it gets a highlight along its route, never box handles.
   const single = selected.length === 1 && selected[0]?.type !== 'connector' ? selected[0] : undefined;
@@ -177,6 +185,25 @@ export function SelectionOverlay({
     <g data-testid="selection-overlay">
       {/* Kept while handles hide: editing a table's cells still shows what it links to. */}
       <RelatedOutlines related={related} viewport={viewport} color={relatedColor} />
+      {routeTables.map((t, i) => {
+        const label = i === 0 ? 'Start' : i === routeTables.length - 1 ? 'End' : String(i + 1);
+        const corner = worldToScreen({ x: t.x + t.width, y: t.y }, viewport);
+        const width = label.length * LABEL_CHAR_WIDTH + 10;
+        return (
+          <g key={t.id} data-testid="route-step" data-route-step={i + 1} data-route-table={t.id} pointerEvents="none" aria-hidden="true">
+            <rect x={corner.x - width + 8} y={corner.y - LABEL_HEIGHT / 2} width={width} height={LABEL_HEIGHT} rx={LABEL_HEIGHT / 2} fill={relatedColor} />
+            <text x={corner.x - width / 2 + 8} y={corner.y} fill={HANDLE_FILL} fontSize={LABEL_FONT} fontWeight={700} textAnchor="middle" dominantBaseline="central">
+              {label}
+            </text>
+          </g>
+        );
+      })}
+      {hovered &&
+        (hovered.type === 'connector' ? (
+          <polyline data-testid="hover-outline" data-hover-id={hovered.id} points={toScreen(hovered.points)} fill="none" stroke={SELECTION} strokeWidth={4} strokeOpacity={0.35} pointerEvents="none" />
+        ) : (
+          <polygon data-testid="hover-outline" data-hover-id={hovered.id} points={outline(hovered, viewport)} fill="none" stroke={SELECTION} strokeWidth={1} pointerEvents="none" />
+        ))}
       {selected.map((n) =>
         n.type === 'connector' ? (
           <polyline key={n.id} points={toScreen(n.points)} fill="none" stroke={SELECTION} strokeWidth={3} strokeOpacity={0.5} pointerEvents="none" />
@@ -223,28 +250,43 @@ export function SelectionOverlay({
           );
         })}
 
-      {/* A table's height follows its rows, so it only resizes sideways. */}
+      {/* A table's height follows its rows, so it only resizes sideways. Edges first, so a corner wins where they overlap. */}
       {single &&
         !hideHandles &&
-        HANDLES.filter((h) => single.type !== 'table' || h.dy === 0).map((h) => {
-          const c = boxCenter(single);
-          const local = { x: c.x + (h.dx * single.width) / 2, y: c.y + (h.dy * single.height) / 2 };
-          const p = worldToScreen(rotatePoint(local, single.rotation, c), viewport);
-          return (
-            <rect
-              key={h.id}
-              data-handle={h.id}
-              data-testid={`handle-${h.id}`}
-              x={p.x - HANDLE_SIZE / 2}
-              y={p.y - HANDLE_SIZE / 2}
-              width={HANDLE_SIZE}
-              height={HANDLE_SIZE}
-              fill={HANDLE_FILL}
-              stroke={SELECTION}
-              style={{ cursor: h.cursor }}
-            />
-          );
-        })}
+        HANDLES.filter((h) => single.type !== 'table' || h.dy === 0)
+          .sort((a, b) => Number(a.dx !== 0 && a.dy !== 0) - Number(b.dx !== 0 && b.dy !== 0))
+          .map((h) => {
+            const corner = h.dx !== 0 && h.dy !== 0;
+            // An edge handle on a layer too small to hold it would sit on the corners' hit areas.
+            const edgeLength = (h.dx === 0 ? single.width : single.height) * viewport.zoom;
+            if (!corner && edgeLength < 3 * HANDLE_SIZE) return null;
+            const c = boxCenter(single);
+            const local = { x: c.x + (h.dx * single.width) / 2, y: c.y + (h.dy * single.height) / 2 };
+            const p = worldToScreen(rotatePoint(local, single.rotation, c), viewport);
+            // Corners reach inward but only a little outward, so the rotate zone beyond them stays usable. On a
+            // small layer the reach shrinks, so the corners never swallow the press that moves it.
+            const inward = Math.max(HANDLE_SIZE / 2, Math.min(HIT_SIZE - HANDLE_SIZE / 2, 0.3 * Math.min(single.width, single.height) * viewport.zoom));
+            const span = inward + HANDLE_SIZE / 2;
+            const w = h.dx === 0 ? HIT_SIZE : span;
+            const hh = h.dy === 0 ? HIT_SIZE : span;
+            const left = h.dx === 0 ? p.x - HIT_SIZE / 2 : h.dx < 0 ? p.x - HANDLE_SIZE / 2 : p.x + HANDLE_SIZE / 2 - span;
+            const top = h.dy === 0 ? p.y - HIT_SIZE / 2 : h.dy < 0 ? p.y - HANDLE_SIZE / 2 : p.y + HANDLE_SIZE / 2 - span;
+            return (
+              <g key={h.id} transform={`rotate(${single.rotation} ${p.x} ${p.y})`}>
+                <rect x={p.x - HANDLE_SIZE / 2} y={p.y - HANDLE_SIZE / 2} width={HANDLE_SIZE} height={HANDLE_SIZE} fill={HANDLE_FILL} stroke={SELECTION} pointerEvents="none" />
+                <rect
+                  data-handle={h.id}
+                  data-testid={`handle-${h.id}`}
+                  x={left}
+                  y={top}
+                  width={w}
+                  height={hh}
+                  fill="transparent"
+                  style={{ cursor: h.cursor }}
+                />
+              </g>
+            );
+          })}
 
       {guides.lines.map((g) => (
         <GuideLine key={`${g.axis}-${g.at}`} guide={g} viewport={viewport} />
@@ -343,39 +385,54 @@ export function SelectionOverlay({
           const b2 = worldToScreen(b, viewport);
           if (Math.hypot(b2.x - a2.x, b2.y - a2.y) < long * 2) return null;
           return (
-            <rect
-              key={i}
-              data-connector-segment={i}
-              data-testid="connector-segment-handle"
-              className={vertical ? resizeXClass : resizeYClass}
-              x={mid.x - (vertical ? HANDLE_SIZE / 2 : long / 2)}
-              y={mid.y - (vertical ? long / 2 : HANDLE_SIZE / 2)}
-              width={vertical ? HANDLE_SIZE : long}
-              height={vertical ? long : HANDLE_SIZE}
-              rx={2}
-              fill={HANDLE_FILL}
-              stroke={SELECTION}
-            />
+            <g key={i}>
+              <rect
+                x={mid.x - (vertical ? HANDLE_SIZE / 2 : long / 2)}
+                y={mid.y - (vertical ? long / 2 : HANDLE_SIZE / 2)}
+                width={vertical ? HANDLE_SIZE : long}
+                height={vertical ? long : HANDLE_SIZE}
+                rx={2}
+                fill={HANDLE_FILL}
+                stroke={SELECTION}
+                pointerEvents="none"
+              />
+              <rect
+                data-connector-segment={i}
+                data-testid="connector-segment-handle"
+                className={vertical ? resizeXClass : resizeYClass}
+                x={mid.x - HIT_SIZE / 2}
+                y={mid.y - HIT_SIZE / 2}
+                width={HIT_SIZE}
+                height={HIT_SIZE}
+                fill="transparent"
+              />
+            </g>
           );
         })}
       {connector &&
         !hideHandles &&
         (['from', 'to'] as const).map((end) => {
           const at = end === 'from' ? connector.points[0] : connector.points[connector.points.length - 1];
+          const next = end === 'from' ? connector.points[1] : connector.points[connector.points.length - 2];
           if (!at) return null;
           const p = worldToScreen(at, viewport);
+          // The cardinality marker lies along the line from this end, so the grab area leans the other way.
+          const n = next ? worldToScreen(next, viewport) : p;
+          const len = Math.hypot(n.x - p.x, n.y - p.y) || 1;
+          const lean = HANDLE_SIZE;
           return (
-            <circle
-              key={end}
-              data-connector-end={end}
-              data-testid="connector-handle"
-              className={grabClass}
-              cx={p.x}
-              cy={p.y}
-              r={HANDLE_SIZE / 2 + 1}
-              fill={HANDLE_FILL}
-              stroke={SELECTION}
-            />
+            <g key={end}>
+              <circle cx={p.x} cy={p.y} r={HANDLE_SIZE / 2 + 1} fill={HANDLE_FILL} stroke={SELECTION} pointerEvents="none" />
+              <circle
+                data-connector-end={end}
+                data-testid="connector-handle"
+                className={grabClass}
+                cx={p.x - ((n.x - p.x) / len) * lean}
+                cy={p.y - ((n.y - p.y) / len) * lean}
+                r={HIT_SIZE / 2}
+                fill="transparent"
+              />
+            </g>
           );
         })}
       {connectPreview && (

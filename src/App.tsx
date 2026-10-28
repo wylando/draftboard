@@ -2,6 +2,7 @@ import { css } from 'styled-system/css';
 import { DialogProvider } from './design-system';
 import { useHashRoute } from './app/useHashRoute';
 import { EditorProvider, useBoards, useEditor } from './editor/EditorContext';
+import { HoverProvider } from './editor/HoverContext';
 import { SectionFoldsProvider } from './editor/SectionFoldsContext';
 import { Canvas } from './editor/components/Canvas';
 import { EditorBody } from './editor/components/EditorBody';
@@ -28,6 +29,7 @@ function Editor({ onOpenSettings }: { onOpenSettings: () => void }) {
     <div className={editorClass}>
       <Toolbar onOpenSettings={onOpenSettings} />
       <SectionFoldsProvider>
+        <HoverProvider>
         <EditorBody
           layers={<LayersPanel key={`layers-${activeId}`} />}
           canvas={
@@ -39,6 +41,7 @@ function Editor({ onOpenSettings }: { onOpenSettings: () => void }) {
           }
           properties={<PropertiesPanel key={`properties-${activeId}`} />}
         />
+        </HoverProvider>
       </SectionFoldsProvider>
     </div>
   );

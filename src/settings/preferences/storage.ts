@@ -20,8 +20,10 @@ export interface Preferences {
   relationHighlight: string;
 }
 
-export const DEFAULT_PREFERENCES: Preferences = { gridStyle: 'dots', snapToLayers: true, sqlDialect: 'postgres', relationHighlight: '#80caff' };
+export const DEFAULT_PREFERENCES: Preferences = { gridStyle: 'dots', snapToLayers: true, sqlDialect: 'postgres', relationHighlight: '#7c3aed' };
 
+/** The default before it was made distinct from the selection blue; saved copies of it follow the new default. */
+const RETIRED_HIGHLIGHT = '#80caff';
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 const isGridStyle = (v: unknown): v is GridStyle => GRID_STYLES.some((g) => g.id === v);
 
@@ -38,7 +40,7 @@ export function parsePreferences(raw: string | null): Preferences {
       sqlDialect: isSqlDialect(sqlDialect) ? sqlDialect : DEFAULT_PREFERENCES.sqlDialect,
       // It becomes an SVG stroke attribute, so only a plain colour is let through.
       relationHighlight:
-        typeof relationHighlight === 'string' && HEX_COLOR.test(relationHighlight)
+        typeof relationHighlight === 'string' && HEX_COLOR.test(relationHighlight) && relationHighlight.toLowerCase() !== RETIRED_HIGHLIGHT
           ? relationHighlight.toLowerCase()
           : DEFAULT_PREFERENCES.relationHighlight,
     };

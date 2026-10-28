@@ -76,16 +76,46 @@ export function foreignKeyColumns(nodes: readonly DesignNode[]): Map<string, Set
 
 export const normalType = (t: string) => t.trim().toLowerCase().replace(/\s+/g, ' ');
 
-/** Whether a foreign key's column types differ (ignoring case and spacing); false for anything else. */
-export function typeMismatch(c: ConnectorNode, byId: ReadonlyMap<string, DesignNode>): boolean {
-  if (!c.isForeignKey || c.from.kind !== 'column' || c.to.kind !== 'column') return false;
+const TYPE_FAMILIES: ReadonlyArray<{ family: string; match: RegExp }> = [
+  { family: 'int32', match: /^(int|integer|int4|mediumint|serial|serial4)(\(\d+\))?( unsigned)?$/ },
+  { family: 'int64', match: /^(bigint|int8|bigserial|serial8)(\(\d+\))?( unsigned)?$/ },
+  { family: 'int16', match: /^(smallint|int2|smallserial|serial2)(\(\d+\))?( unsigned)?$/ },
+  { family: 'string', match: /^(text|string|varchar|nvarchar|nchar|char|character|character varying|national character varying)(\(\d+\))?$/ },
+  { family: 'boolean', match: /^(bool|boolean)$/ },
+  { family: 'timestamp', match: /^(timestamp|datetime)(\(\d+\))?( without time zone)?$/ },
+  { family: 'timestamptz', match: /^(timestamptz|timestamp(\(\d+\))? with time zone)$/ },
+  { family: 'numeric', match: /^(numeric|decimal|dec)(\(\d+(, ?\d+)?\))?$/ },
+  { family: 'float', match: /^(real|float|float4|float8|double|double precision)(\(\d+\))?$/ },
+  { family: 'json', match: /^(json|jsonb)$/ },
+];
+
+const typeFamily = (t: string) => TYPE_FAMILIES.find((f) => f.match.test(normalType(t)))?.family;
+
+/**
+ * Whether a foreign key may join two column types: types are free text, so the same family (serial and int, varchar
+ * and text) fits, and a type outside every family fits only itself. Deliberately not dialect-aware.
+ */
+export function typesCompatible(a: string, b: string): boolean {
+  const [fa, fb] = [typeFamily(a), typeFamily(b)];
+  return fa || fb ? fa === fb : normalType(a) === normalType(b);
+}
+
+/** The data types at both ends of a column-to-column foreign key, when the connector is one and both columns exist. */
+export function foreignKeyTypes(c: ConnectorNode, byId: ReadonlyMap<string, DesignNode>): { from: string; to: string } | null {
+  if (!c.isForeignKey || c.from.kind !== 'column' || c.to.kind !== 'column') return null;
   const column = (a: Extract<Anchor, { kind: 'column' }>) => {
     const t = byId.get(a.tableId);
     return t?.type === 'table' ? t.columns.find((col) => col.id === a.columnId) : undefined;
   };
   const a = column(c.from);
   const b = column(c.to);
-  return !!a && !!b && normalType(a.dataType) !== normalType(b.dataType);
+  return a && b ? { from: a.dataType, to: b.dataType } : null;
+}
+
+/** Whether a foreign key's column types are not `typesCompatible`; false for anything else. */
+export function typeMismatch(c: ConnectorNode, byId: ReadonlyMap<string, DesignNode>): boolean {
+  const types = foreignKeyTypes(c, byId);
+  return !!types && !typesCompatible(types.from, types.to);
 }
 
 export function createConnector(from: Anchor, to: Anchor, name: string, byId: ReadonlyMap<string, DesignNode>): ConnectorNode {

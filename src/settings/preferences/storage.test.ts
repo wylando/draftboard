@@ -17,4 +17,12 @@ describe('parsePreferences: relation highlight', () => {
       expect(parsePreferences(JSON.stringify({ relationHighlight: bad })).relationHighlight).toBe(DEFAULT_PREFERENCES.relationHighlight);
     }
   });
+
+  // The old default was close to the selection blue, so a stored copy of it moves to the distinct default.
+  it('moves the retired default #80caff to the current default', () => {
+    expect(DEFAULT_PREFERENCES.relationHighlight).not.toBe('#80caff');
+    for (const old of ['#80caff', '#80CAFF']) {
+      expect(parsePreferences(JSON.stringify({ relationHighlight: old })).relationHighlight).toBe(DEFAULT_PREFERENCES.relationHighlight);
+    }
+  });
 });

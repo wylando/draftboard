@@ -1,6 +1,7 @@
 import { useState, type DragEvent, type ReactElement } from 'react';
 import { IconButton, icons, Panel, Section } from '../../design-system';
 import { useEditor } from '../EditorContext';
+import { useIsHovered, useSetHovered } from '../HoverContext';
 import { nameTaken } from '../model/names';
 import { ancestorIds, byIdOf, childrenByParent, isContainer, topLevelIds } from '../model/tree';
 import type { DesignNode, NodeType } from '../model/types';
@@ -20,6 +21,7 @@ const rowClass = css({
   cursor: 'default',
   _hover: { bg: 'bg.hover' },
 });
+const rowHoveredClass = css({ bg: 'bg.hover' });
 const rowSelectedClass = css({ bg: 'bg.selected', _hover: { bg: 'bg.selected' } });
 const rowInSelectionClass = css({ bg: 'bg.selectedChild' });
 const rowDraggingClass = css({ opacity: '0.5' });
@@ -154,6 +156,8 @@ interface LayerRowProps {
 function LayerRow({ row, selected, dragging, expanded, onToggle, drop, dragHandlers }: LayerRowProps) {
   const { node, depth, hasChildren } = row;
   const { state, dispatch } = useEditor();
+  const hovered = useIsHovered(node.id);
+  const setHovered = useSetHovered();
   const [renaming, setRenaming] = useState(false);
   // Shown under this row, so it stays in view however long the tree is.
   const [renameError, setRenameError] = useState<string | null>(null);
@@ -186,6 +190,7 @@ function LayerRow({ row, selected, dragging, expanded, onToggle, drop, dragHandl
         className={cx(
           'group',
           rowClass,
+          hovered && rowHoveredClass,
           selected && rowSelectedClass,
           row.inSelection && rowInSelectionClass,
           dragging && rowDraggingClass,
@@ -200,6 +205,9 @@ function LayerRow({ row, selected, dragging, expanded, onToggle, drop, dragHandl
         data-drop={drop ?? undefined}
         data-dragging={dragging || undefined}
         data-in-selection={row.inSelection || undefined}
+        data-hovered={hovered || undefined}
+        onPointerEnter={() => setHovered(node.id)}
+        onPointerLeave={() => setHovered(null)}
         draggable={!renaming}
         onClick={(e) => select(e.shiftKey)}
         onDoubleClick={() => setRenaming(true)}
