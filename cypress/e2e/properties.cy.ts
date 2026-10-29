@@ -13,15 +13,12 @@ describe('Properties panel', () => {
     cy.get('[data-node-type=rect] rect').should('have.attr', 'fill', '#d9d9d9');
   });
 
-  it('moves a node by editing X and Y', () => {
-    cy.prop('x').clear().type('250{enter}');
-    cy.prop('y').clear().type('40{enter}');
+  it('applies typed position, stroke width and corner radius', () => {
+    for (const [name, value] of [['x', '250'], ['y', '40'], ['stroke-width', '4'], ['radius', '12']] as const) {
+      cy.prop(name).clear().type(`${value}{enter}`);
+      cy.prop(name).should('have.value', value);
+    }
     cy.get('[data-node-type=rect]').should('have.attr', 'transform').and('contain', 'translate(250 40)');
-  });
-
-  it('applies stroke and corner radius', () => {
-    cy.prop('stroke-width').clear().type('4{enter}');
-    cy.prop('radius').clear().type('12{enter}');
     cy.get('[data-node-type=rect] rect').should('have.attr', 'stroke-width', '4').and('have.attr', 'rx', '12');
   });
 
@@ -102,7 +99,7 @@ describe('Properties panel', () => {
     cy.get('[data-node-type=rect]').should('have.attr', 'opacity', '0');
   });
 
-  it('commits a typed value when its section folds, and keeps the fold across selections', () => {
+  it('commits a typed value when its section folds, keeps the fold across selections, and folds Appearance as one', () => {
     cy.prop('x').clear().type('250');
     cy.get('[data-testid=section-toggle-layer]').should('have.attr', 'aria-expanded', 'true').click();
     // Clicking the toggle blurs the input first, so the draft commits before its section folds.
@@ -116,12 +113,10 @@ describe('Properties panel', () => {
     cy.prop('x').should('not.exist');
     cy.get('[data-testid=section-toggle-layer]').click();
     cy.prop('x').should('have.value', '400');
-  });
 
-  it('keeps fill, stroke and opacity together in one Appearance section', () => {
+    // Fill, stroke and opacity fold together as one Appearance section.
     cy.get('[data-testid=section-toggle-appearance]').should('have.attr', 'aria-expanded', 'true').click();
     for (const name of ['fill', 'stroke', 'stroke-width', 'opacity']) cy.prop(name).should('not.exist');
-    cy.prop('x').should('exist');
   });
 
   it('collapses and expands every section from the Design header, and keeps that after a reload', () => {

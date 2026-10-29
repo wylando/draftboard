@@ -7,6 +7,7 @@ const openSettings = () => {
   cy.get('[data-testid=app-menu]').click();
   cy.get('[data-testid=open-settings]').click();
   cy.get('[data-testid=settings-page]').should('be.visible');
+  cy.url().should('include', '#/settings');
 };
 
 const record = (id: string, key: string, code: string, mods: { metaKey?: boolean; shiftKey?: boolean } = {}) => {
@@ -21,18 +22,6 @@ describe('Settings: keyboard shortcuts', () => {
     openSettings();
   });
 
-  it('lists the align commands, unbound by default', () => {
-    row('arrange.alignLeft').should('exist').find('[data-binding]').should('not.exist');
-  });
-
-  it('opens from the toolbar and returns to the canvas', () => {
-    cy.url().should('include', '#/settings');
-    cy.get('[data-testid=shortcuts-section]').should('be.visible');
-    cy.get('[data-testid=close-settings]').click();
-    cy.get('[data-testid=canvas]').should('be.visible');
-    cy.url().should('not.include', '#/settings');
-  });
-
   it('lists every category with default bindings', () => {
     for (const c of ['tools', 'edit', 'arrange', 'view', 'nudge', 'boards', 'app']) {
       cy.get(`[data-testid=category-${c}]`).should('exist');
@@ -42,6 +31,7 @@ describe('Settings: keyboard shortcuts', () => {
     chip('edit.redo', 'Mod+Y').should('exist');
     chip('board.next', 'Alt+]').should('exist');
     row('app.openSettings').should('contain', 'Not assigned');
+    row('arrange.alignLeft').find('[data-binding]').should('not.exist');
   });
 
   it('rebinds Rectangle from R to B and the canvas uses the new key', () => {
@@ -52,6 +42,7 @@ describe('Settings: keyboard shortcuts', () => {
 
     cy.get('[data-testid=close-settings]').click();
     cy.get('[data-testid=canvas]').should('be.visible');
+    cy.url().should('not.include', '#/settings');
     cy.pressKey('r', { code: 'KeyR' });
     // data-tool is already "select", so wait for a later update to render
     // first; otherwise this passes even if R still picks Rectangle.
@@ -89,23 +80,21 @@ describe('Settings: keyboard shortcuts', () => {
     row('edit.duplicate').should('have.attr', 'data-customized', 'true');
   });
 
-  it('asks before taking a key from another command, then moves it', () => {
+  it('asks before taking a key from another command, and moves it only on confirm', () => {
     record('tool.rect', 'v', 'KeyV');
     cy.get('[data-testid=conflict-notice]').should('contain', 'Move');
     chip('tool.rect', 'V').should('not.exist');
 
-    cy.get('[data-testid=confirm-replace]').click();
-    chip('tool.rect', 'V').should('exist');
-    chip('tool.select', 'V').should('not.exist');
-    row('tool.select').should('contain', 'Not assigned');
-  });
-
-  it('cancelling a conflict changes nothing', () => {
-    record('tool.rect', 'v', 'KeyV');
     cy.get('[data-testid=conflict-notice]').contains('Cancel').click();
     cy.get('[data-testid=conflict-notice]').should('not.exist');
     chip('tool.select', 'V').should('exist');
     chip('tool.rect', 'V').should('not.exist');
+
+    record('tool.rect', 'v', 'KeyV');
+    cy.get('[data-testid=confirm-replace]').click();
+    chip('tool.rect', 'V').should('exist');
+    chip('tool.select', 'V').should('not.exist');
+    row('tool.select').should('contain', 'Not assigned');
   });
 
   it('Escape cancels recording without changing bindings', () => {

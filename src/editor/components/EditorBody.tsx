@@ -211,6 +211,8 @@ export function EditorBody({ onOpenGuide, layers, canvas, properties }: EditorBo
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduceMotion || !('startViewTransition' in document)) return toggle(id);
     morphing.current = true;
+    // Mirrored to the DOM so a spec can tell when clicks are being accepted again.
+    rootRef.current?.setAttribute('data-morphing', '');
     // The after-snapshot is taken when this settles, so it waits for the toggle to commit.
     const transition = document.startViewTransition(
       () =>
@@ -228,7 +230,10 @@ export function EditorBody({ onOpenGuide, layers, canvas, properties }: EditorBo
           toggle(id);
         }),
     );
-    void transition.finished.finally(() => (morphing.current = false));
+    void transition.finished.finally(() => {
+      morphing.current = false;
+      rootRef.current?.removeAttribute('data-morphing');
+    });
   };
 
   const toggleButton = (id: PanelId, action: 'hide' | 'show') => (
