@@ -53,13 +53,24 @@ describe('renderedIds', () => {
 });
 
 describe('normalizeTree: damaged parents', () => {
-  it('detaches layers caught in a parent cycle and keeps documents saved without parentId', () => {
+  it('breaks a parent cycle without losing either layer', () => {
     const a = createNode('frame', at(100, 100, 50), []);
     const b = createNode('frame', at(200, 100, 50), [a]);
-    const old = { ...createNode('rect', at(10, 10, 50), []) } as Partial<DesignNode>;
+    const nodes = normalizeTree([{ ...a, parentId: b.id }, { ...b, parentId: a.id }]);
+    expect(nodes.map((n) => n.id).sort()).toEqual([a.id, b.id].sort());
+    const parentOf = new Map(nodes.map((n) => [n.id, n.parentId]));
+    for (const n of nodes) {
+      let p = n.parentId;
+      for (let steps = 0; p !== null; steps += 1) {
+        expect(steps).toBeLessThan(nodes.length);
+        p = parentOf.get(p) ?? null;
+      }
+    }
+  });
+
+  it('loads a layer saved without parentId at the top level', () => {
+    const old: Partial<DesignNode> = createNode('rect', at(10, 10, 50), []);
     delete old.parentId;
-    const nodes = normalizeTree([old as DesignNode, { ...a, parentId: b.id }, { ...b, parentId: a.id }]);
-    // Only the first node of the cycle is detached; the other may stay inside it.
-    expect(nodes.map((n) => n.parentId)).toEqual([null, null, a.id]);
+    expect(normalizeTree([old as DesignNode])[0]!.parentId).toBeNull();
   });
 });

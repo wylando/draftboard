@@ -35,8 +35,10 @@ describe('parseWorkspace', () => {
 
   it('repairs a damaged table the way a single document does', () => {
     const table = { ...createNode('table', { x: 0, y: 0, width: 200, height: 100 }, []), columns: 'garbage' };
-    expect(parseWorkspace(wrap([{ id: 'a', name: 'T', nodes: [table] }]))!.boards).toHaveLength(1);
-    expect(parseDocument(JSON.stringify({ version: 1, nodes: [table] }))).not.toBeNull();
+    const keep = rect();
+    const loaded = parseWorkspace(wrap([{ id: 'a', name: 'T', nodes: [table, keep] }]))!;
+    expect(loaded.boards[0]!.nodes.map((n) => n.id)).toEqual([table.id, keep.id]);
+    expect(parseDocument(JSON.stringify({ version: 1, nodes: [table, keep] }))!.map((n) => n.id)).toEqual([table.id, keep.id]);
   });
 });
 
