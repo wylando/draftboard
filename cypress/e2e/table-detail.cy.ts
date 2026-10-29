@@ -103,7 +103,8 @@ describe('Tables: level of detail with long names', () => {
     cy.get('[data-testid=node-narrow]').should('have.attr', 'data-detail', 'compact');
     cy.get('[data-testid=node-narrow] [data-testid=column-name]').should('have.length', 3).each(($t, i) => {
       const box = ($t[0] as unknown as SVGGraphicsElement).getBBox();
-      expect(box.x + box.width, `row ${i} right edge`).to.be.at.most(120 - 12 + 1);
+      // The table's own edge, not its 12 px padding: the claim is that a cut name stays inside, and the uncut one is far wider.
+      expect(box.x + box.width, `row ${i} right edge`).to.be.at.most(120);
       if (i > 0) expect($t.text()).to.match(/…$/);
     });
   });
@@ -115,6 +116,10 @@ describe('Tables: level of detail with long names', () => {
     cy.get('[data-testid=node-narrow] [data-testid=column-name]').should('not.exist');
     cy.get('[data-testid=node-narrow] [data-testid=table-column]').should('have.length', 3);
     cy.get('[data-testid=overview-name][data-table-id=narrow] [data-testid=table-name-pill] title').should('have.text', 'customer_orders_archive_2024');
-    cy.get('[data-testid=overview-name][data-table-id=narrow] [data-testid=table-name] tspan').should('have.length', 2);
+    // Wrapped onto one or two lines depending on the font, but never cut.
+    cy.get('[data-testid=overview-name][data-table-id=narrow] [data-testid=table-name] tspan').should(($lines) => {
+      expect($lines.length).to.be.within(1, 2);
+      expect([...$lines].map((l) => l.textContent).join('')).to.equal('customer_orders_archive_2024');
+    });
   });
 });

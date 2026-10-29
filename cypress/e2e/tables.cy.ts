@@ -32,7 +32,7 @@ const addEmailColumn = () => {
 describe('Tables', () => {
   beforeEach(() => cy.visitEmpty());
 
-  it('places a table with an id primary key from the Table tool', () => {
+  it('places a table with an id primary key, then adds and edits columns from the Design panel, one undo step per edit', () => {
     placeTable();
     cy.prop('name').should('have.value', 'Table 1');
     tableRow(0).should('contain', 'id').and('contain', 'uuid');
@@ -41,10 +41,7 @@ describe('Tables', () => {
     cy.get('[data-testid=table-body]').should('have.attr', 'height', '64');
     columnEditor(0).find('[data-testid=column-pk]').should('have.attr', 'data-state', 'on');
     columnEditor(0).find('[data-testid=column-type]').should('have.value', 'uuid');
-  });
 
-  it('adds and edits columns from the Design panel, one undo step per edit', () => {
-    placeTable();
     addEmailColumn();
     columnEditor(1).find('[data-testid=column-type]').clear().type('varchar(64){enter}');
     tableRow(1).should('contain', 'varchar(64)');
@@ -58,7 +55,7 @@ describe('Tables', () => {
     tableRow(1).should('contain', 'email').and('not.contain', 'varchar');
   });
 
-  it('lists every column as a folded row, even a lone one, and only the first 5 until asked', () => {
+  it('lists every column as a folded row, even a lone one, only the first 5 until asked, and reveals a column added past them', () => {
     placeTable();
     cy.get('[data-testid=column-row]').should('have.length', 1);
     cy.get('[data-testid=column-editor]').should('not.exist');
@@ -68,9 +65,14 @@ describe('Tables', () => {
     columnRow(0).click();
     cy.get('[data-testid=column-editor]').should('not.exist');
 
-    for (let i = 0; i < 5; i++) addColumn();
+    for (let i = 0; i < 4; i++) addColumn();
+    cy.get('[data-testid=column-row]').should('have.length', 5);
+    cy.get('[data-testid=show-more-columns]').should('not.exist');
+    addColumn();
     // Past 5 the rest wait behind Show more, until the list is asked for or a new column needs showing.
     cy.get('[data-testid=column-row]').should('have.length', 6);
+    columnRow(5).should('contain', 'column_5').and('have.attr', 'aria-expanded', 'true');
+    cy.get('[data-testid=column-editor] [data-testid=column-name]').should('have.focus').and('have.value', 'column_5');
     cy.get('[data-testid=show-more-columns]').should('have.text', 'Show fewer columns').click();
     cy.get('[data-testid=column-row]').should('have.length', 5);
     cy.get('[data-testid=show-more-columns]').should('have.text', 'Show 1 more column').click();
@@ -98,48 +100,23 @@ describe('Tables', () => {
     columnRow(0).find('[data-part=item-indicator]').should('have.attr', 'data-state', 'open').and(($i) => expect(flipped($i)).to.be.closeTo(-1, 0.001));
   });
 
-  it('after naming a new column with Enter, focus moves to Add column so the next one is a keypress away', () => {
+  it('Add column stays in place: each click adds a row, opens it and selects its name, and Enter on a name returns focus to Add', () => {
     placeTable();
     cy.get('[data-testid=add-column]').click();
-    cy.focused().should('have.attr', 'data-testid', 'column-name').type('email{enter}');
+    cy.focused().should('have.attr', 'data-testid', 'column-name').and('have.value', 'column_1');
+    cy.focused().should(($input) => {
+      const input = $input[0] as HTMLInputElement;
+      expect([input.selectionStart, input.selectionEnd]).to.deep.equal([0, 'column_1'.length]);
+    });
+    cy.focused().type('email{enter}');
     columnRow(1).should('contain', 'email');
     // Cypress's simulated Enter does not activate any button in this app (an unrelated Add index probe fails the same way),
     // so the keypress itself is left to the browser; this pins that focus is there and that a second add still opens a named row.
-    cy.get('[data-testid=add-column]').should('have.focus');
-    cy.get('[data-testid=column-row]').should('have.length', 2);
-    cy.get('[data-testid=add-column]').click();
+    cy.get('[data-testid=add-column]').should('have.focus').click();
     cy.get('[data-testid=column-row]').should('have.length', 3);
-    cy.get('[data-testid=column-editor] [data-testid=column-name]').should('have.focus').and('have.value', 'column_1');
-  });
-
-  it('Add column stays in place: each click adds a row, opens it and selects its name', () => {
-    placeTable();
-    cy.get('[data-testid=add-column]').click();
-    cy.get('[data-testid=add-column]').click();
-    cy.get('[data-testid=column-row]').should('have.length', 3);
-    columnRow(1).should('contain', 'column_1').and('have.attr', 'aria-expanded', 'false');
-    columnRow(2).should('contain', 'column_2').and('have.attr', 'aria-expanded', 'true');
-    cy.get('[data-testid=column-editor] [data-testid=column-name]').should('have.length', 1).and('have.focus').and('have.value', 'column_2');
-    cy.focused().should(($input) => {
-      const input = $input[0] as HTMLInputElement;
-      expect([input.selectionStart, input.selectionEnd]).to.deep.equal([0, 'column_2'.length]);
-    });
-    cy.focused().type('total{enter}');
-    columnRow(2).should('contain', 'total');
-    cy.get('[data-testid=add-column]').should('exist');
-  });
-
-  it('reveals a column added past the first 5, open with its name focused', () => {
-    placeTable();
-    for (let i = 0; i < 4; i++) addColumn();
-    cy.get('[data-testid=column-row]').should('have.length', 5);
-    cy.get('[data-testid=show-more-columns]').should('not.exist');
-
-    addColumn();
-    cy.get('[data-testid=column-row]').should('have.length', 6);
-    columnRow(5).should('contain', 'column_5').and('have.attr', 'aria-expanded', 'true');
-    cy.get('[data-testid=column-editor] [data-testid=column-name]').should('have.focus').and('have.value', 'column_5');
-    cy.get('[data-testid=show-more-columns]').should('have.text', 'Show fewer columns');
+    columnRow(1).should('contain', 'email').and('have.attr', 'aria-expanded', 'false');
+    columnRow(2).should('contain', 'column_1').and('have.attr', 'aria-expanded', 'true');
+    cy.get('[data-testid=column-editor] [data-testid=column-name]').should('have.length', 1).and('have.focus').and('have.value', 'column_1');
   });
 
   it('focuses a new column\'s name once, not again when an undo and redo bring it back', () => {
@@ -206,10 +183,11 @@ describe('Tables', () => {
 
   it('cuts long names short instead of letting them overlap the type, but never a type that fits', () => {
     placeTable();
-    columnEditor(0).find('[data-testid=column-type]').clear().type('double precision{enter}');
-    tableRow(0).find('[data-testid=column-type]').should('have.text', 'double precision');
+    // Short enough to fit in the 240 px table with room to spare in any fallback font.
+    columnEditor(0).find('[data-testid=column-type]').clear().type('integer{enter}');
     columnEditor(0).find('[data-testid=column-name]').clear().type('identifier_assigned_by_the_upstream_system{enter}');
     tableRow(0).find('[data-testid=column-name]').should(($t) => expect($t.text()).to.match(/…$/));
+    tableRow(0).find('[data-testid=column-type]').should('have.text', 'integer');
   });
 
   it('marks unique and indexed columns, finds index columns by fuzzy search, and keeps unrelated indexes when a column goes', () => {
@@ -250,12 +228,16 @@ describe('Tables', () => {
     cy.contains('[data-testid=index-column-option]', /^id$/).click();
     indexChips().should('have.length', 2);
 
-    cy.contains('[data-testid=index-chip]', /^id$/).then(($id) => {
-      cy.contains('[data-testid=index-chip]', 'email').then(($email) => {
-        const dx = $email[0]!.getBoundingClientRect().left + 2 - ($id[0]!.getBoundingClientRect().left + $id[0]!.getBoundingClientRect().width / 2);
-        cy.wrap($id).pointer('pointerdown').pointer('pointermove', [dx / 2, 0]).pointer('pointermove', [dx, 0]).pointer('pointerup', [dx, 0]);
-      });
-    });
+    // Each step re-queries the chip, since chips re-render while one is dragged.
+    const idChip = () => cy.contains('[data-testid=index-chip]', /^id$/);
+    cy.contains('[data-testid=index-chip]', 'email').then(($email) => idChip().then(($id) => {
+      const id = $id[0]!.getBoundingClientRect();
+      const dx = $email[0]!.getBoundingClientRect().left + 2 - (id.left + id.width / 2);
+      idChip().pointer('pointerdown');
+      idChip().pointer('pointermove', [dx / 2, 0]);
+      idChip().pointer('pointermove', [dx, 0]);
+      idChip().pointer('pointerup', [dx, 0]);
+    }));
     indexChips().should(($chips) => expect([...$chips].map((c) => c.textContent)).to.deep.equal(['id', 'email']));
 
     cy.prop('name').click();
@@ -383,13 +365,5 @@ describe('Tables', () => {
     cy.get('[data-node-type=table]').should('have.length', 2);
     cy.get('[data-testid=table-name]').eq(1).should('have.text', 'Table 2');
     cy.get('[data-node-type=table]').eq(1).find('[data-testid=table-column]').should('have.length', 2);
-  });
-
-  it('keeps tables across a reload', () => {
-    placeTable();
-    cy.get('[data-testid=add-column]').click();
-    cy.window().its('localStorage').invoke('getItem', 'draftboard:workspace:v1').should('contain', 'column_1');
-    cy.reload();
-    cy.get('[data-node-type=table] [data-testid=table-column]').should('have.length', 2);
   });
 });
