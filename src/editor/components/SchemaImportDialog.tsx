@@ -71,12 +71,12 @@ const previewTableClass = css({
   width: 'full',
   tableLayout: 'fixed',
   borderCollapse: 'collapse',
-  textStyle: 'body.large',
+  textStyle: 'body.medium',
   '& th': { textAlign: 'start', color: 'text.secondary', paddingBlock: '1', paddingInlineEnd: '2' },
   '& td': { paddingBlock: '1', paddingInlineEnd: '2', borderTopWidth: '1px', borderTopStyle: 'solid', borderTopColor: 'border' },
   '& th, & td': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
 });
-const narrowColClass = css({ width: '[64px]' });
+const narrowColClass = css({ width: '[76px]' });
 const keyColClass = css({ width: '[96px]' });
 const numberCellClass = css({ textAlign: 'end', fontVariantNumeric: 'tabular-nums' });
 const listClass = css({ margin: '0', paddingInlineStart: '4' });

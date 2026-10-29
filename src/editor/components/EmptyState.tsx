@@ -37,7 +37,8 @@ const cardClass = css({
 });
 const titleClass = css({ margin: '0', textStyle: 'body.largeStrong' });
 const hintClass = css({ margin: '0', color: 'text.secondary' });
-const linkClass = css({ justifySelf: 'start' });
+// Underlined so it reads as a link, not a stray label, next to the bordered buttons.
+const linkClass = css({ justifySelf: 'start', textDecoration: 'underline', textUnderlineOffset: '[2px]' });
 
 /** Shown over a board with no layers: ways to start besides picking a tool. */
 export function EmptyState({ onOpenGuide }: { onOpenGuide: () => void }) {
