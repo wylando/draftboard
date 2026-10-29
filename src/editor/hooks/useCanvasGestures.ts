@@ -707,7 +707,9 @@ export function useCanvasGestures({
     [dispatch, onEditTable, onEditText, stateRef, toLocal],
   );
 
-  // React registers wheel listeners as passive, so preventDefault needs a native listener.
+  // React registers wheel listeners as passive, so preventDefault needs a native listener. It reads onBusy
+  // through a ref: callers pass a new function each render, and re-subscribing would cancel the settle timer.
+  const busyRef = useLatest(onBusy);
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -716,9 +718,9 @@ export function useCanvasGestures({
       // A popup's own scroll area takes the wheel; the canvas stays put.
       if (e.target instanceof Element && e.target.closest('[data-canvas-popup]')) return;
       e.preventDefault();
-      onBusy(true);
+      busyRef.current(true);
       clearTimeout(settle);
-      settle = setTimeout(() => onBusy(false), WHEEL_SETTLE_MS);
+      settle = setTimeout(() => busyRef.current(false), WHEEL_SETTLE_MS);
       const { viewport } = stateRef.current;
       if (e.ctrlKey || e.metaKey) {
         const factor = Math.exp(-e.deltaY * WHEEL_ZOOM_SPEED);
@@ -732,7 +734,7 @@ export function useCanvasGestures({
       el.removeEventListener('wheel', onWheel);
       clearTimeout(settle);
     };
-  }, [containerRef, dispatch, onBusy, stateRef, toLocal]);
+  }, [busyRef, containerRef, dispatch, stateRef, toLocal]);
 
   return { onPointerDown, onDoubleClick };
 }
