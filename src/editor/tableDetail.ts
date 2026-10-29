@@ -7,7 +7,7 @@ export type TableDetail = 'full' | 'compact' | 'overview';
 export const FULL_MIN_ZOOM = 0.65;
 /**
  * Design choice: below this zoom a table shows only its name. Compact text is capped at the row height
- * (`COMPACT_MAX_SIZE`), which reads 8 px on screen at this zoom, the smallest kept legible.
+ * (`COMPACT_MAX_SIZE`), which reads 8 px on screen at this zoom.
  */
 export const COMPACT_MIN_ZOOM = 0.4;
 

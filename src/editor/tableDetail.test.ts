@@ -45,6 +45,7 @@ describe('compactSizes', () => {
       const { column } = compactSizes(overviewScale(z));
       expect(column).toBeLessThanOrEqual(20);
       if (z >= 0.6) expect(column * z).toBeGreaterThan(11);
+      // 20 px at exactly 40% is 8 px; the epsilon absorbs float rounding.
       expect(column * z).toBeGreaterThanOrEqual(8 - 1e-9);
     }
   });
