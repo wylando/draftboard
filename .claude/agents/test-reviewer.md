@@ -101,8 +101,8 @@ environment (CI fonts, viewport, browser).
   `cypress/support/workspace.ts`, with nodes built from the app's factories imported from `src/editor/model`, or use
   an existing custom command (`visitEmpty`, `drawShape`, `canvasDrag`, `pressKey`, `prop`). Read what was saved with
   that module's retrying `savedNodes` / `savedWorkspace`, not a hand-parsed `localStorage` read. Don't seed the
-  legacy `draftboard:document:v1` key unless the test is about migration. Drive the canvas only through these commands; they dispatch real
-  `PointerEvent`s at `elementFromPoint`.
+  legacy `draftboard:document:v1` key unless the test is about migration. Drive the canvas only through these
+  commands; they dispatch real `PointerEvent`s at `elementFromPoint`.
 - **Shared helpers.** A helper copied into three or more specs, or one whose copies have started to drift, moves
   to `cypress/support/` (a plain imported module, or a custom command if it chains off Cypress); before then, a
   local copy is fine. When a new test needs a helper that already exists in support, require it over a new copy.
