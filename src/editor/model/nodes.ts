@@ -27,8 +27,11 @@ export const DEFAULT_SIZE: Record<DrawableType, { width: number; height: number 
   table: { width: 240, height: tableHeight(1) },
 };
 
-/** `idType` types the `id` primary key a new table starts with. */
-export function createNode(type: DrawableType, box: Box, existing: DesignNode[], idType = 'uuid'): DesignNode {
+/**
+ * `idType` types the `id` primary key a new table starts with. `ink` colours new text and lines; the UI
+ * passes a light one on dark backgrounds, so loaders and tests keep the black default.
+ */
+export function createNode(type: DrawableType, box: Box, existing: DesignNode[], idType = 'uuid', ink = '#000000'): DesignNode {
   const base = {
     id: createId(),
     name: nextName(type, existing),
@@ -46,9 +49,9 @@ export function createNode(type: DrawableType, box: Box, existing: DesignNode[],
     case 'ellipse':
       return { ...base, type, fill: '#d9d9d9', stroke: '#000000', strokeWidth: 0 };
     case 'line':
-      return { ...base, type, fill: '#000000', stroke: '#000000', strokeWidth: 1, flipped: false };
+      return { ...base, type, fill: ink, stroke: ink, strokeWidth: 1, flipped: false };
     case 'text':
-      return { ...base, type, fill: '#000000', stroke: '#000000', strokeWidth: 0, text: 'Text', fontSize: 16 };
+      return { ...base, type, fill: ink, stroke: ink, strokeWidth: 0, text: 'Text', fontSize: 16 };
     case 'table':
       return {
         ...base,

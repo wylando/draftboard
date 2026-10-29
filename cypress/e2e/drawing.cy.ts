@@ -52,4 +52,38 @@ describe('Drawing shapes', () => {
     cy.get('[data-testid=text-editor]').should('not.exist');
     cy.get('[data-node-type=text]').should('contain.text', 'Hello canvas');
   });
+  describe('default ink for new text and lines', () => {
+    // Saves are debounced, so this retries until the write has landed.
+    const savedInk = (type: string, expected: string) =>
+      cy.window().should((win) => {
+        const saved = JSON.parse(win.localStorage.getItem('draftboard:workspace:v1') ?? '{}') as {
+          boards?: Array<{ nodes: Array<{ type: string; fill: string; stroke: string }> }>;
+        };
+        const node = saved.boards?.[0]?.nodes.find((n) => n.type === type);
+        expect(node, `saved ${type}`).to.exist;
+        expect([node!.fill, node!.stroke]).to.deep.equal([expected, expected]);
+      });
+
+    it('is black on the light canvas', () => {
+      cy.drawShape('line', [100, 100], [300, 100]);
+      cy.drawShape('text', [100, 200], [300, 240]);
+      savedInk('line', '#000000');
+      savedInk('text', '#000000');
+    });
+
+    it('is a light grey on the dark canvas', () => {
+      cy.colorScheme('dark');
+      cy.drawShape('line', [100, 100], [300, 100]);
+      cy.drawShape('text', [100, 200], [300, 240]);
+      savedInk('line', '#e6e6e6');
+      savedInk('text', '#e6e6e6');
+    });
+
+    it('follows the frame a text lands in, not the OS theme', () => {
+      cy.colorScheme('dark');
+      cy.drawShape('frame', [400, 100], [800, 400]);
+      cy.drawShape('text', [450, 150], [650, 190]);
+      savedInk('text', '#000000');
+    });
+  });
 });
