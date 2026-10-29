@@ -20,7 +20,8 @@ const scopeClass = css({ margin: '0', textStyle: 'body.mediumStrong' });
 const noticeClass = css({ display: 'grid', gap: '1', padding: '2', borderRadius: 'medium', bg: 'warning.bg', color: 'warning.ink' });
 const noticeHeadingClass = css({ margin: '0', textStyle: 'body.mediumStrong' });
 const noticeListClass = css({ margin: '0', paddingInlineStart: '4' });
-const noticeActionClass = css({ justifySelf: 'start' });
+// The notice stays amber in both themes, so its button takes the notice's own ink rather than the theme's button colours.
+const noticeActionClass = css({ justifySelf: 'start', bg: 'warning.ink', color: 'warning.bg', borderColor: 'warning.ink', _hover: { bg: 'warning.ink', opacity: '0.85' } });
 const previewClass = css({
   width: 'full',
   height: '[320px]',
