@@ -19,7 +19,7 @@ export default defineConfig({
       // Unit tests cover the pure modules; React components, hooks and the theme are Cypress's job,
       // so counting them would only make the floor meaningless.
       include: ['src/**/*.ts'],
-      exclude: ['src/**/*.test.ts', 'src/**/use*.ts', 'src/editor/hooks/**', 'src/design-system/**'],
+      exclude: ['src/**/*.test.ts', 'src/**/use[A-Z]*.ts', 'src/editor/hooks/**', 'src/design-system/**'],
       reporter: ['text-summary'],
       // A floor, not a target: about 3 points under coverage on 2026-10-28, so a slide fails CI
       // but nobody writes tests to chase the number. No autoUpdate, which would ratchet it.
