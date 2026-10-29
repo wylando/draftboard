@@ -1,10 +1,11 @@
 // A module, so its helpers don't clash with tables.cy.ts's in the shared spec scope.
 export {};
 
+import { undo } from '../support/canvas';
+
 const tableRow = (i: number) => cy.get('[data-node-type=table] [data-testid=table-column]').eq(i);
 const tableRows = () => cy.get('[data-node-type=table] [data-testid=table-column]');
 const editor = () => cy.get('[data-testid=table-cell-editor]');
-const undo = () => cy.pressKey('z', { code: 'KeyZ', metaKey: true });
 
 // Placed at (200, 200), 240 wide: header 200..236, then 28 px rows from 236.
 const rowY = (i: number) => 236 + 28 * i + 14;

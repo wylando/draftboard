@@ -1,3 +1,5 @@
+import { undo } from '../support/canvas';
+
 const tableRow = (i: number) => cy.get('[data-node-type=table] [data-testid=table-column]').eq(i);
 const columnRow = (i: number) => cy.get('[data-testid=column-row]').eq(i);
 // Rows start folded, so this opens column i first (a column just added is already open).
@@ -49,9 +51,9 @@ describe('Tables', () => {
     tableRow(1).should('contain', 'varchar(64)?');
     cy.get('[data-testid=table-body]').should('have.attr', 'height', '92');
 
-    cy.pressKey('z', { code: 'KeyZ', metaKey: true });
+    undo();
     tableRow(1).should('contain', 'varchar(64)').and('not.contain', '?');
-    cy.pressKey('z', { code: 'KeyZ', metaKey: true });
+    undo();
     tableRow(1).should('contain', 'email').and('not.contain', 'varchar');
   });
 
@@ -123,7 +125,7 @@ describe('Tables', () => {
     placeTable();
     addColumn();
     addColumn();
-    cy.pressKey('z', { code: 'KeyZ', metaKey: true });
+    undo();
     cy.get('[data-testid=column-row]').should('have.length', 2);
     cy.pressKey('z', { code: 'KeyZ', metaKey: true, shiftKey: true });
     cy.get('[data-testid=column-row]').should('have.length', 3);
@@ -243,7 +245,7 @@ describe('Tables', () => {
     cy.prop('name').click();
     cy.get('[data-testid=index-editor]').should('not.exist');
     cy.get('[data-testid=index-row]').should('contain', 'id, email');
-    cy.pressKey('z', { code: 'KeyZ', metaKey: true });
+    undo();
     cy.get('[data-testid=index-row]').should('contain', 'email, id').click();
     cy.get('[data-testid=index-editor]').should('exist');
   });
@@ -286,7 +288,7 @@ describe('Tables', () => {
     addEmailColumn();
     cy.get('[data-testid=add-index]').click();
     cy.get('[data-testid=index-name]').should('have.value', 'table_1_idx').type(' {enter}');
-    cy.pressKey('z', { code: 'KeyZ', metaKey: true });
+    undo();
     // The undo removed the index itself, so the trailing-space commit wasn't a step.
     cy.get('[data-testid=index-editor]').should('not.exist');
     tableRow(1).should('contain', 'email');

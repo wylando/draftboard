@@ -1,12 +1,8 @@
 // A module, so its helpers don't clash with other specs' in the shared spec scope.
 export {};
 
-const placeTable = (at: [number, number]) => {
-  cy.pressKey('d', { code: 'KeyD' });
-  cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'table');
-  cy.canvasClick(at);
-  cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'select');
-};
+import { placeTable } from '../support/canvas';
+
 const connect = (from: [number, number], to: [number, number], count: number) => {
   cy.pressKey('c', { code: 'KeyC' });
   cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'connector');

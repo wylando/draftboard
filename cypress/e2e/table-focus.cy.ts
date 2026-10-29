@@ -2,13 +2,7 @@
 export {};
 
 import { savedNodes } from '../support/workspace';
-
-const placeTable = (at: [number, number]) => {
-  cy.pressKey('d', { code: 'KeyD' });
-  cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'table');
-  cy.canvasClick(at);
-  cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'select');
-};
+import { placeTable } from '../support/canvas';
 
 const overlay = () => cy.get('[data-testid=selection-overlay]');
 const relatedConnectors = () => cy.get('[data-testid=related-connector]');
