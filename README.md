@@ -121,10 +121,12 @@ Boards autosave to `localStorage` (their names, order, the open board and their 
 | `npm run lint`          | Lint with ESLint (typescript-eslint + react-hooks) |
 | `npm run typecheck`     | Typecheck the app and the test suite |
 | `npm run test:unit`     | Run the Vitest unit tests for pure logic (`src/**/*.test.ts`) |
+| `npm run test:coverage` | Run the unit tests and fail if coverage of the pure modules drops below the floor in `vite.config.ts` |
 | `npm run test:e2e`      | Run the Cypress suite headless against the dev server |
 | `npm run test:e2e:dist` | Run the Cypress suite against the production build |
+| `npm run test:e2e:burn` | Run each new or changed Cypress spec 5 times in a row to catch flaky tests (`:dist` for the production build) |
 | `npm run cy:open`       | Open the Cypress runner interactively (start `npm run dev -- --port 5199` first) |
-| `npm run verify`        | Run everything CI runs: lint, typecheck, unit tests, build and e2e |
+| `npm run verify`        | Run everything CI runs: lint, typecheck, unit tests with coverage, build, e2e and burn-in |
 
 ### Tech stack
 
@@ -154,6 +156,10 @@ src/
 └── shared/           # Small shared hooks
 cypress/
 └── e2e/              # One spec per feature area
+.claude/
+├── agents/test-reviewer.md  # Claude Code agent that reviews new and changed tests
+└── hooks/                   # Reminds Claude to run it after a test file changes
+scripts/burn-in.sh    # Reruns new and changed specs to catch flaky tests
 ```
 
 ### Design system
@@ -173,13 +179,15 @@ For messages and yes/no questions, call `useDialogs()` (`alert` / `confirm`, bot
 
 - **Pre-push hook:** runs lint, typecheck and unit tests locally in a few seconds. `npm install` sets it up automatically.
 - **GitHub Actions:** every pull request into `main` runs **Lint & typecheck** first, then **Build & E2E** against the production build.
+  Unit tests run with a coverage floor (a backstop against slipping, not a target), and the pull request's new or
+  changed Cypress specs run 5 more times to catch flaky tests.
 
 ## 🤝 Contributing
 
 Contributions are welcome! Before you open a pull request:
 
 1. Follow the conventions in the surrounding code (architecture, Panda styling, test style).
-2. Add or update a Cypress spec for any user-facing change, and a Vitest unit test (`*.test.ts` next to the module) for pure logic.
+2. Add or update a Cypress spec for any user-facing change, and a Vitest unit test (`*.test.ts` next to the module) for pure logic. Add only tests that can catch a bug no other test catches; [`.claude/agents/test-reviewer.md`](.claude/agents/test-reviewer.md) lists what counts as redundant or flaky.
 3. Make sure `npm run verify` passes locally.
 
 Found a bug or have an idea? [Open an issue](../../issues).

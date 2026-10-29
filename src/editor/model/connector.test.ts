@@ -123,13 +123,14 @@ describe('live rerouting', () => {
     expect(Math.max(...frames)).toBeLessThanOrEqual(100000);
   });
 
-  it('gives up on a connector whose end table overlaps another table, among 300 tables, without a search blowing up', () => {
+  // The claim is the expansion budget, not speed; under coverage instrumentation CI needs about 7 s, past the 5 s default.
+  it('gives up on a connector whose end table overlaps another table, among 300 tables, without a search blowing up', { timeout: 20_000 }, () => {
     const nodes = normalizeTree(jitteredSchema(300, 100));
     const link = nodes.find((n) => n.type === 'connector') as ConnectorNode;
     const target = link.to.kind === 'node' ? link.to.nodeId : '';
     const other = nodes.find((n) => n.type === 'table' && n.id !== target && n.id !== (link.from.kind === 'node' ? link.from.nodeId : ''))!;
     const overlapped = nodes.map((n) => (n.id === target ? { ...n, x: other.x + 30, y: other.y + 20 } : n));
-        const n = expansionsOf(() => { normalizeTree(overlapped); });
+    const n = expansionsOf(() => { normalizeTree(overlapped); });
     // Measured: 210520, with no search reaching the cap. Lowering the cap to 100000 makes failed searches cascade into fallbacks (measured 430941), which this catches.
     expect(n).toBeLessThanOrEqual(400000);
   });
