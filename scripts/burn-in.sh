@@ -34,6 +34,6 @@ fi
 i=1
 while [ "$i" -le "$runs" ]; do
   echo "burn-in: run $i of $runs: $specs"
-  env -u ELECTRON_RUN_AS_NODE cypress run --spec "$specs"
+  env -u ELECTRON_RUN_AS_NODE npx cypress run --spec "$specs"
   i=$((i + 1))
 done
