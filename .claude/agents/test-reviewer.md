@@ -65,6 +65,8 @@ Cypress (only queries and assertions retry; actions run once; `.then` never retr
 - Wide or font-dependent layouts: CI runs Linux with a wider fallback font and real scrollbars. Pixel-exact positions
   and "doesn't scroll" checks need margin.
 - Raising `{ timeout }`, `defaultCommandTimeout` or adding `retries` to make a test pass. That hides flakiness.
+  The one exception: a test whose claim is counted work (not speed) may set its own timeout to cover coverage
+  instrumentation, with a comment saying so.
 
 Vitest:
 - Wall-clock time, `Date.now()`, `Math.random()` or timers without fakes. Pass the value in, or use fake timers.
