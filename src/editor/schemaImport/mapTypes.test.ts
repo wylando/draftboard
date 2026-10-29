@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { mapDbmlType, mapSchemaTypes } from './mapTypes';
+import { importedColumn } from './testSchemas';
 import type { ImportedSchema } from './types';
 
 // [input, postgres, mysql, sqlite]
@@ -79,8 +80,8 @@ describe('mapSchemaTypes', () => {
       {
         name: 'users',
         columns: [
-          { name: 'id', dataType: 'int', primaryKey: true, nullable: false, unique: false },
-          { name: 'status', dataType: 'order_status', primaryKey: false, nullable: true, unique: false, default: "'new'" },
+          importedColumn('id', 'int', { primaryKey: true, nullable: false }),
+          importedColumn('status', 'order_status', { default: "'new'" }),
         ],
         indexes: [{ name: '', columns: ['id'], unique: false }],
       },
@@ -99,9 +100,9 @@ describe('mapSchemaTypes', () => {
     expect(mapped).not.toBe(schema);
   });
 
+  // Postgres rewrites int to integer, so an in-place edit would show; mysql keeps int and could not.
   it('uses the dialect for the mapping without mutating the input', () => {
-    const mapped = mapSchemaTypes(schema, 'postgres');
-    expect(mapped.tables[0]?.columns[0]?.dataType).toBe('integer');
+    expect(mapSchemaTypes(schema, 'postgres').tables[0]?.columns[0]?.dataType).toBe('integer');
     expect(schema.tables[0]?.columns[0]?.dataType).toBe('int');
   });
 });

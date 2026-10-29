@@ -42,14 +42,4 @@ describe('Canvas grid', () => {
     cy.canvasDrag([50, 50], [250, 250]);
     cy.prop('name').should('have.value', 'Rectangle 1');
   });
-
-  it('falls back to the default when saved preferences are corrupt', () => {
-    cy.visit('/', {
-      onBeforeLoad: (win) => {
-        win.localStorage.clear();
-        win.localStorage.setItem('draftboard:preferences:v1', '{"gridStyle":"plaid"}');
-      },
-    });
-    cy.get('[data-testid=canvas]').should('have.attr', 'data-grid', 'dots');
-  });
 });

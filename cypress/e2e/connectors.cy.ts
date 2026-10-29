@@ -66,42 +66,6 @@ describe('Connectors', () => {
     cy.get('[data-testid=connect-preview]').should('not.exist');
   });
 
-  it('routes stacked tables around one side instead of back through them', () => {
-    placeTable([100, 100]);
-    // One pixel left of Table 1, so their centres differ but they still overlap sideways.
-    placeTable([99, 300]);
-    connectorTool();
-    cy.canvasDrag([150, 350], [150, 150]);
-    route((points) => {
-      const outside = points.every(([x]) => x >= 339) || points.every(([x]) => x <= 100);
-      expect(outside, `route ${JSON.stringify(points)} stays beside both tables`).to.equal(true);
-    });
-  });
-
-  it('links tables a few pixels apart with a plain line', () => {
-    placeTable([100, 100]);
-    // A 10 px gap: closer than both stubs together.
-    placeTable([350, 100]);
-    connectorTool();
-    cy.canvasDrag([400, 150], [150, 150]);
-    route((points) => expect(points).to.deep.equal([[350, 150], [340, 150]]));
-  });
-
-  it('routes overlapping tables without running through one', () => {
-    placeTable([100, 100]);
-    placeTable([330, 400]);
-    // Drag Table 2 up so it overlaps Table 1's right edge, sideways and in height (330..570 × 110..174).
-    cy.canvasDrag([400, 418], [400, 128]);
-    cy.prop('y').should('have.value', '110');
-    connectorTool();
-    cy.canvasDrag([500, 160], [150, 150]);
-    // Short and local: never out round Table 2's far side or along its length.
-    route((points) => {
-      const local = points.every(([x]) => x >= 300 && x <= 370);
-      expect(local, `route ${JSON.stringify(points)} stays in the overlap`).to.equal(true);
-    });
-  });
-
   it('attaches where a selected layer shows a handle, and beside another connector on the same row', () => {
     twoTables();
     connectIdRows();

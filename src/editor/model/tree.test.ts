@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createConnector } from './connector';
 import { createGroup, createNode } from './nodes';
-import { renderedIds } from './tree';
+import { normalizeTree, renderedIds } from './tree';
 import type { Box, DesignNode } from './types';
 
 const window: Box = { x: 0, y: 0, width: 1000, height: 1000 };
@@ -49,5 +49,28 @@ describe('renderedIds', () => {
     // 300 px pitch on 40 columns: the window reaches rows 0-3 and columns 0-4 (4 x 5), not their neighbours.
     const ids = renderedIds(tables, { x: 0, y: 0, width: 1240, height: 1000 }, []);
     expect(ids.size).toBe(20);
+  });
+});
+
+describe('normalizeTree: damaged parents', () => {
+  it('breaks a parent cycle without losing either layer', () => {
+    const a = createNode('frame', at(100, 100, 50), []);
+    const b = createNode('frame', at(200, 100, 50), [a]);
+    const nodes = normalizeTree([{ ...a, parentId: b.id }, { ...b, parentId: a.id }]);
+    expect(nodes.map((n) => n.id).sort()).toEqual([a.id, b.id].sort());
+    const parentOf = new Map(nodes.map((n) => [n.id, n.parentId]));
+    for (const n of nodes) {
+      let p = n.parentId;
+      for (let steps = 0; p !== null; steps += 1) {
+        expect(steps).toBeLessThan(nodes.length);
+        p = parentOf.get(p) ?? null;
+      }
+    }
+  });
+
+  it('loads a layer saved without parentId at the top level', () => {
+    const old: Partial<DesignNode> = createNode('rect', at(10, 10, 50), []);
+    delete old.parentId;
+    expect(normalizeTree([old as DesignNode])[0]!.parentId).toBeNull();
   });
 });
