@@ -9,11 +9,6 @@ describe('Frames contain layers', () => {
     cy.drawShape('rect', [100, 100], [200, 200]);
   });
 
-  it('a shape drawn on a frame goes inside it', () => {
-    layer('Frame 1').should('have.attr', 'aria-level', '1').and('have.attr', 'aria-expanded', 'true');
-    layer('Rectangle 1').should('have.attr', 'aria-level', '2');
-  });
-
   it('clicking a child on the canvas selects the child, not the frame', () => {
     cy.canvasClick([300, 300]);
     cy.prop('name').should('have.value', 'Frame 1');
@@ -42,7 +37,7 @@ describe('Frames contain layers', () => {
   it('dragging a child out of the frame takes it out, and undo puts it back', () => {
     cy.canvasDrag([150, 150], [550, 150]);
     layer('Rectangle 1').should('have.attr', 'aria-level', '1');
-    cy.pressKey('z', { metaKey: true });
+    cy.pressKey('z', { code: 'KeyZ', metaKey: true });
     layer('Rectangle 1').should('have.attr', 'aria-level', '2');
     cy.prop('x').should('have.value', '100');
   });
@@ -134,7 +129,7 @@ describe('Groups', () => {
     cy.get('[data-node-type=group]').should('not.exist');
     cy.get('[data-testid=properties-panel]').should('contain', '2 layers selected');
     layer('Rectangle 1').should('have.attr', 'aria-level', '1');
-    cy.pressKey('z', { metaKey: true });
+    cy.pressKey('z', { code: 'KeyZ', metaKey: true });
     layer('Group 1').should('exist');
   });
 

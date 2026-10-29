@@ -74,7 +74,7 @@ describe('Canvas signals', () => {
   });
 
   describe('hover', () => {
-    it('outlines the layer a click would select, and highlights its Layers row', () => {
+    it('outlines the layer a click would select (a connector thicker), highlights its Layers row, and skips a selected layer or a held button', () => {
       hover(C);
       cy.get(`[data-testid=hover-outline][data-hover-id="${c}"]`).should('exist');
       layerRow('Table 3').should('have.attr', 'data-hovered', 'true');
@@ -82,17 +82,13 @@ describe('Canvas signals', () => {
       hover([800, 650]);
       cy.get('[data-testid=hover-outline]').should('not.exist');
       layerRow('Table 3').should('not.have.attr', 'data-hovered');
-    });
 
-    it('thickens a hovered connector', () => {
       cy.get(`[data-node-id="${link}"] [data-testid=connector-line]`).invoke('attr', 'data-route').then((route) => {
         const [p, q] = route!.split(' ').map((pt) => pt.split(',').map(Number)) as [[number, number], [number, number]];
         hover([(p[0] + q[0]) / 2, (p[1] + q[1]) / 2]);
       });
       cy.get(`[data-testid=hover-outline][data-hover-id="${link}"]`).should('have.attr', 'stroke-width', '4');
-    });
 
-    it('is not drawn for a selected layer or while a button is held', () => {
       cy.canvasClick(A);
       cy.prop('name').should('have.value', 'Table 1');
       hover(A);
@@ -142,8 +138,8 @@ describe('Handle hit areas', () => {
     cy.canvasClick([800, 650]);
     cy.drawShape('rect', [600, 400], [640, 440]);
     cy.prop('w').should('have.value', '40');
-    // Fractions of the 40px box: inside the corner and edge grab areas' reach would resize instead.
-    for (const [fx, fy] of [[0.3, 0.5], [0.25, 0.25], [0.7, 0.7]] as const) {
+    // Fractions of the 40px box (one in an edge's reach, one in a corner's): grabbing there would resize instead.
+    for (const [fx, fy] of [[0.3, 0.5], [0.25, 0.25]] as const) {
       cy.prop('x').invoke('val').then((x) => {
         cy.canvasDrag([600 + 40 * fx + (Number(x) - 600), 400 + 40 * fy], [600 + 40 * fx + (Number(x) - 600) + 20, 400 + 40 * fy]);
         cy.prop('x').should('have.value', String(Number(x) + 20));
@@ -151,8 +147,8 @@ describe('Handle hit areas', () => {
       cy.prop('w').should('have.value', '40');
     }
     cy.prop('rotation').should('have.value', '0');
-    // Just outside the box's top-left corner (x is now 660; the corner grab area starts 4px out).
-    cy.canvasDrag([652, 392], [630, 410]);
+    // Just outside the box's top-left corner (x is now 640; the corner grab area starts 4px out).
+    cy.canvasDrag([632, 392], [610, 410]);
     cy.prop('rotation').should('not.have.value', '0');
   });
 

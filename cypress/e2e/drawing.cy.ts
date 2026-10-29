@@ -16,7 +16,7 @@ describe('Drawing shapes', () => {
   });
 
   it('places a default-size shape on click using a keyboard shortcut', () => {
-    cy.pressKey('o');
+    cy.pressKey('o', { code: 'KeyO' });
     cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'ellipse');
     cy.canvasClick([200, 200]);
 
@@ -44,7 +44,7 @@ describe('Drawing shapes', () => {
   });
 
   it('creates and edits text', () => {
-    cy.pressKey('t');
+    cy.pressKey('t', { code: 'KeyT' });
     cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'text');
     cy.canvasClick([120, 120]);
 
@@ -52,6 +52,7 @@ describe('Drawing shapes', () => {
     cy.get('[data-testid=text-editor]').should('not.exist');
     cy.get('[data-node-type=text]').should('contain.text', 'Hello canvas');
   });
+
   describe('default ink for new text and lines', () => {
     // Saves are debounced, so this retries until the write has landed.
     const savedInk = (type: string, expected: string) =>
@@ -64,13 +65,7 @@ describe('Drawing shapes', () => {
         expect([node!.fill, node!.stroke]).to.deep.equal([expected, expected]);
       });
 
-    it('is black on the light canvas', () => {
-      cy.drawShape('line', [100, 100], [300, 100]);
-      cy.drawShape('text', [100, 200], [300, 240]);
-      savedInk('line', '#000000');
-      savedInk('text', '#000000');
-    });
-
+    // Light is the model default and unit-tested; the dark case is the only check that the OS theme is read at creation.
     it('is a light grey on the dark canvas', () => {
       cy.colorScheme('dark');
       cy.drawShape('line', [100, 100], [300, 100]);
@@ -79,13 +74,14 @@ describe('Drawing shapes', () => {
       savedInk('text', '#e6e6e6');
     });
 
-    it('follows the fill of the frame a text lands in, not the OS theme', () => {
+    it('follows the fill of the frame a line or text lands in, not the OS theme', () => {
       cy.drawShape('frame', [400, 100], [800, 400]);
       cy.prop('fill').clear().type('222222{enter}');
       cy.get('[data-node-type=frame] rect').first().should('have.attr', 'fill', '#222222');
+      cy.drawShape('line', [450, 250], [650, 250]);
       cy.drawShape('text', [450, 150], [650, 190]);
+      savedInk('line', '#e6e6e6');
       savedInk('text', '#e6e6e6');
     });
-
   });
 });
