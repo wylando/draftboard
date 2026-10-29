@@ -104,13 +104,13 @@ describe('live rerouting', () => {
 
   // Measured: 4640 average at 64 tables, 1410 at 100; the 20-connector hub's worst frame is 41725 (the original slow-frame check).
   it.each([
-    { tables: 64, links: 100, hub: 0, mover: 32, frames: 5, step: 1, worst: false, budget: 12000 },
-    { tables: 100, links: 100, hub: 0, mover: 50, frames: 5, step: 1, worst: false, budget: 4000 },
-    { tables: 100, links: 80, hub: 20, mover: 50, frames: 20, step: 12, worst: true, budget: 100000 },
-  ])('drags a table among $tables tables with $links connectors and a $hub-connector hub without a search blowing up', ({ tables, links, hub, mover, frames, step, worst, budget }) => {
+    { tables: 64, links: 100, hub: 0, mover: 32, frames: 5, step: 1, metric: 'average frame', budget: 12000 },
+    { tables: 100, links: 100, hub: 0, mover: 50, frames: 5, step: 1, metric: 'average frame', budget: 4000 },
+    { tables: 100, links: 80, hub: 20, mover: 50, frames: 20, step: 12, metric: 'worst frame', budget: 100000 },
+  ])('drags a table among $tables tables with $links connectors and a $hub-connector hub keeps the $metric within budget', ({ tables, links, hub, mover, frames, step, metric, budget }) => {
     const nodes = normalizeTree(jitteredSchema(tables, links, hub));
     const perFrame = drag(nodes, nodes[mover]!.id, frames, step);
-    const measured = worst ? Math.max(...perFrame) : perFrame.reduce((sum, n) => sum + n, 0) / perFrame.length;
+    const measured = metric === 'worst frame' ? Math.max(...perFrame) : perFrame.reduce((sum, n) => sum + n, 0) / perFrame.length;
     expect(measured).toBeLessThanOrEqual(budget);
   });
 

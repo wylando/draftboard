@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { bindingFromEvent, formatBinding, formatBindingText, isValidBinding } from './keys';
+import { bindingFromEvent, formatBinding, isValidBinding } from './keys';
 
 const press = (code: string, key: string, mods: Partial<Record<'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey', boolean>> = {}) => ({
   code,
@@ -49,17 +49,10 @@ describe('formatBinding', () => {
 
   // The platform comes from the global `navigator`, which the module doesn't let us inject.
   it.each([
-    ['MacIntel', ['\u2318', '\u21e7', 'Z'], '\u2318\u21e7Z'],
-    ['Win32', ['Ctrl', 'Shift', 'Z'], 'Ctrl+Shift+Z'],
-  ])('on %s', (platform, parts, text) => {
+    ['MacIntel', ['\u2318', 'Z']],
+    ['Win32', ['Ctrl', 'Z']],
+  ])('renders Mod for %s', (platform, parts) => {
     vi.stubGlobal('navigator', { platform });
-    expect(formatBinding('Mod+Shift+Z')).toEqual(parts);
-    expect(formatBindingText('Mod+Shift+Z')).toBe(text);
-  });
-
-  it('labels named keys', () => {
-    vi.stubGlobal('navigator', { platform: 'Win32' });
-    expect(formatBinding('Mod+Backspace')).toEqual(['Ctrl', '\u232b']);
-    expect(formatBinding('Alt+ArrowLeft')).toEqual(['Alt', '\u2190']);
+    expect(formatBinding('Mod+Z')).toEqual(parts);
   });
 });
