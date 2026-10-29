@@ -95,6 +95,14 @@ describe('light chrome', () => {
   });
 });
 
+describe.each(MODES)('open board tab in the %s theme', (mode) => {
+  it('is darker than the top bar it sits on', () => {
+    // Against white, a higher ratio means a darker colour.
+    const darkness = (token: string) => contrastRatio(semanticColor(token, mode), '#ffffff');
+    expect(darkness('bg.tabActive')).toBeGreaterThan(darkness('bg.topBar'));
+  });
+});
+
 describe('menu and combobox highlight', () => {
   it('fills the highlighted item with bg.selected, which differs from the resting surface', () => {
     const highlighted = '&[data-highlighted]';

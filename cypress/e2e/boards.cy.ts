@@ -32,18 +32,6 @@ describe('Boards', () => {
     cy.visitEmpty();
   });
 
-  it('sets the open tab darker than the top bar it sits on', () => {
-    // Sum of the RGB channels from a computed `rgb(r, g, b)` colour; enough to rank two greys.
-    const lightness = (el: Element) =>
-      (getComputedStyle(el).backgroundColor.match(/\d+/g) ?? []).slice(0, 3).reduce((sum, c) => sum + Number(c), 0);
-    activeTab('Board 1')
-      .parent()
-      .should(($tab) => {
-        const bar = $tab[0].ownerDocument.querySelector('[data-testid=toolbar]') as Element;
-        expect(lightness($tab[0]), 'open tab vs top bar').to.be.lessThan(lightness(bar));
-      });
-  });
-
   it('always shows a 24px close button on the open tab, and hides it on the others until hover', () => {
     newBoard();
     activeTab('Board 2');
@@ -101,14 +89,22 @@ describe('Boards', () => {
     cy.get('[data-node-type=rect]').should('have.length', 1);
   });
 
-  it('closes an empty board at once, and asks before closing one with layers', () => {
+  it('closes an empty board at once, activating its right neighbour (or the left one when the last tab closes), and asks before closing one with layers', () => {
     cy.drawShape('rect', [100, 100], [200, 200]);
     newBoard();
     newBoard();
+    newBoard();
+    tabNames(['Board 1', 'Board 2', 'Board 3', 'Board 4']);
+    activeTab('Board 4');
+
+    closeButton('Board 4').click();
     tabNames(['Board 1', 'Board 2', 'Board 3']);
-    closeButton('Board 3').click();
-    tabNames(['Board 1', 'Board 2']);
-    activeTab('Board 2');
+    activeTab('Board 3');
+
+    tab('Board 2').click();
+    closeButton('Board 2').click();
+    tabNames(['Board 1', 'Board 3']);
+    activeTab('Board 3');
 
     tab('Board 1').click();
     closeButton('Board 1').click();
@@ -119,17 +115,9 @@ describe('Boards', () => {
 
     closeButton('Board 1').click();
     cy.get('[data-testid=dialog-confirm]').click();
-    tabNames(['Board 2']);
-    activeTab('Board 2');
-    closeButton('Board 2').should('not.exist');
-  });
-
-  it('closing the active board activates its right neighbour', () => {
-    newBoard();
-    newBoard();
-    tab('Board 2').click();
-    closeButton('Board 2').click();
+    tabNames(['Board 3']);
     activeTab('Board 3');
+    closeButton('Board 3').should('not.exist');
   });
 
   it('keeps boards, order, the active board and their layers after a reload', () => {
@@ -152,7 +140,7 @@ describe('Boards', () => {
   });
 
   it('commits a text being edited into the board it was typed in', () => {
-    cy.pressKey('t');
+    cy.pressKey('t', { code: 'KeyT' });
     cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'text');
     cy.canvasClick([120, 120]);
     cy.get('[data-testid=text-editor]').should('be.focused').type('Typed on one');
@@ -183,12 +171,14 @@ describe('Boards', () => {
   it('leaves Space on a focused tab to the browser, which presses the button', () => {
     newBoard();
     // Cypress's own typing never presses a button with Space, so check what stops it in a browser: a cancelled keydown.
+    // Recorded by a listener that runs after the canvas's own, so the flag is the final verdict on the event.
+    let prevented: boolean | undefined;
+    cy.window().then((win) => win.addEventListener('keydown', (e) => (prevented = e.defaultPrevented), { once: true }));
     tab('Board 1').focus().then(($tab) => {
       const win = $tab[0]!.ownerDocument.defaultView!;
-      const keydown = new win.KeyboardEvent('keydown', { key: ' ', code: 'Space', bubbles: true, cancelable: true });
-      $tab[0]!.dispatchEvent(keydown);
-      expect(keydown.defaultPrevented).to.equal(false);
+      $tab[0]!.dispatchEvent(new win.KeyboardEvent('keydown', { key: ' ', code: 'Space', bubbles: true, cancelable: true }));
     });
+    cy.wrap(null).should(() => expect(prevented).to.equal(false));
   });
 
   it('keeps the open tab in view when the strip overflows, and scrolls it with the wheel', () => {
@@ -202,9 +192,9 @@ describe('Boards', () => {
       expect(open.left).to.be.at.least(list.left - 1);
       expect(open.right).to.be.at.most(list.right + 1);
     });
+    cy.get('[data-testid=board-tabs]').should(($l) => expect($l[0]!.scrollLeft).to.be.greaterThan(0));
     cy.get('[data-testid=board-tabs]').then(($l) => {
       const before = $l[0]!.scrollLeft;
-      expect(before).to.be.greaterThan(0);
       cy.wrap($l).trigger('wheel', { deltaY: -200 });
       cy.wrap($l).should(($after) => expect($after[0]!.scrollLeft).to.be.lessThan(before));
     });
@@ -243,28 +233,36 @@ describe('Boards', () => {
     newBoard();
     newBoard();
     activeTab('Board 3');
-    tab('Board 3').then(($t) => {
-      const width = $t[0]!.getBoundingClientRect().width;
-      cy.wrap($t).pointer('pointerdown').pointer('pointermove', [-width, 0]).pointer('pointermove', [-width * 2.2, 0]).pointer('pointerup', [-width * 2.2, 0]);
+    // Each step re-queries the tab: it re-renders as it moves, so a held element could be stale.
+    tab('Board 3').then(($t) => $t[0]!.getBoundingClientRect().width).then((width) => {
+      tab('Board 3').pointer('pointerdown');
+      tab('Board 3').pointer('pointermove', [-width, 0]);
+      tab('Board 3').pointer('pointermove', [-width * 2.2, 0]);
+      tab('Board 3').pointer('pointerup', [-width * 2.2, 0]);
     });
     tabNames(['Board 3', 'Board 1', 'Board 2']);
     activeTab('Board 3');
 
     // A drag of an inactive tab doesn't open it.
-    tab('Board 2').then(($t) => {
-      const width = $t[0]!.getBoundingClientRect().width;
-      cy.wrap($t).pointer('pointerdown').pointer('pointermove', [-width * 1.2, 0]).pointer('pointerup', [-width * 1.2, 0]);
+    tab('Board 2').then(($t) => $t[0]!.getBoundingClientRect().width).then((width) => {
+      tab('Board 2').pointer('pointerdown');
+      tab('Board 2').pointer('pointermove', [-width * 1.2, 0]);
+      tab('Board 2').pointer('pointerup', [-width * 1.2, 0]);
     });
     tabNames(['Board 3', 'Board 2', 'Board 1']);
     activeTab('Board 3');
 
     // A drag cancelled by the browser drops nothing, and must not eat a later keyboard activation.
-    tab('Board 2').pointer('pointerdown').pointer('pointermove', [-60, 0]).pointer('pointercancel');
+    tab('Board 2').pointer('pointerdown');
+    tab('Board 2').pointer('pointermove', [-60, 0]);
+    tab('Board 2').pointer('pointercancel');
     tabNames(['Board 3', 'Board 2', 'Board 1']);
     tab('Board 2').then(($t) => $t[0]!.click());
     activeTab('Board 2');
 
-    tab('Board 1').pointer('pointerdown').pointer('pointerup').click();
+    tab('Board 1').pointer('pointerdown');
+    tab('Board 1').pointer('pointerup');
+    tab('Board 1').click();
     activeTab('Board 1');
     tabNames(['Board 3', 'Board 2', 'Board 1']);
 
