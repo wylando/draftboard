@@ -84,7 +84,7 @@ function Sample({ nodes, viewBox, relations = NO_RELATIONS, overlay, scale = 1 }
     <svg className={canvasClass} aria-hidden="true" width={width! * scale} height={height! * scale} viewBox={viewBox}>
       <RelationsContext.Provider value={relations}>
         {nodes.map((n) => (
-          <NodeView key={n.id} node={n} childrenOf={NO_CHILDREN} mounted={NO_MOUNTED} editingId={null} />
+          <NodeView key={n.id} node={n} childrenOf={NO_CHILDREN} mounted={NO_MOUNTED} editingId={null} detail="full" scale={1} fullDetailId={null} />
         ))}
       </RelationsContext.Provider>
       {overlay}
