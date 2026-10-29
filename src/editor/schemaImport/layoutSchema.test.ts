@@ -17,6 +17,10 @@ describe('layoutSchema', () => {
   it('positions every table, including unconnected ones, and never overlaps two boxes', async () => {
     const layout = await layoutSchema(tables, links);
     expect([...layout.keys()].sort()).toEqual(tables.map((t) => t.name).sort());
+    // Linked tables come from dagre, which reports arbitrary coordinates; the block must be shifted to the origin.
+    const points = [...layout.values()];
+    expect(Math.min(...points.map((p) => p.x))).toBe(0);
+    expect(Math.min(...points.map((p) => p.y))).toBe(0);
     for (const a of tables) {
       for (const b of tables) {
         if (a.name >= b.name) continue;
