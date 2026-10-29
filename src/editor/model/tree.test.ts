@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createConnector } from './connector';
 import { createGroup, createNode } from './nodes';
-import { renderedIds } from './tree';
+import { normalizeTree, renderedIds } from './tree';
 import type { Box, DesignNode } from './types';
 
 const window: Box = { x: 0, y: 0, width: 1000, height: 1000 };
@@ -49,5 +49,17 @@ describe('renderedIds', () => {
     // 300 px pitch on 40 columns: the window reaches rows 0-3 and columns 0-4 (4 x 5), not their neighbours.
     const ids = renderedIds(tables, { x: 0, y: 0, width: 1240, height: 1000 }, []);
     expect(ids.size).toBe(20);
+  });
+});
+
+describe('normalizeTree: damaged parents', () => {
+  it('detaches layers caught in a parent cycle and keeps documents saved without parentId', () => {
+    const a = createNode('frame', at(100, 100, 50), []);
+    const b = createNode('frame', at(200, 100, 50), [a]);
+    const old = { ...createNode('rect', at(10, 10, 50), []) } as Partial<DesignNode>;
+    delete old.parentId;
+    const nodes = normalizeTree([old as DesignNode, { ...a, parentId: b.id }, { ...b, parentId: a.id }]);
+    // Only the first node of the cycle is detached; the other may stay inside it.
+    expect(nodes.map((n) => n.parentId)).toEqual([null, null, a.id]);
   });
 });

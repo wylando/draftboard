@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { initialWorkspace, workspaceReducer } from './model/workspace';
+import { initialEditorState } from './model/editorReducer';
 import { createNode } from './model/nodes';
 import { documentFileName, parseDocument, parseWorkspace, serializeDocument, serializeWorkspace, workspaceFromStorage } from './persistence';
 
@@ -59,6 +60,15 @@ describe('workspaceFromStorage', () => {
   it('is empty when nothing usable is stored', () => {
     expect(workspaceFromStorage(null, null).boards).toEqual([]);
     expect(workspaceFromStorage(null, 'junk').boards).toEqual([]);
+  });
+});
+
+describe('loading a document', () => {
+  it('repairs repeated layer names on load, in any case; the first layer in tree order keeps its name', () => {
+    const first = { ...rect(), name: 'Old rect' };
+    const second = { ...rect(), name: 'OLD RECT' };
+    const state = initialEditorState(parseDocument(serializeDocument([first, second]))!);
+    expect(state.nodes.map((n) => n.name)).toEqual(['Old rect', 'OLD RECT 2']);
   });
 });
 

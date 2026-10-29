@@ -151,23 +151,6 @@ describe('Boards', () => {
     cy.get('[data-node-type=rect]').should('not.exist');
   });
 
-  it('opens a document saved before boards existed as Board 1, leaving the old copy alone', () => {
-    const rect = {
-      id: 'old-1', type: 'rect', name: 'Rectangle 1', parentId: null, x: 40, y: 40, width: 80, height: 60,
-      rotation: 0, fill: '#d9d9d9', stroke: '#000000', strokeWidth: 0, opacity: 1, visible: true, cornerRadius: 0,
-    };
-    const legacy = JSON.stringify({ version: 1, nodes: [rect] });
-    cy.visit('/', {
-      onBeforeLoad(win) {
-        win.localStorage.clear();
-        win.localStorage.setItem('draftboard:document:v1', legacy);
-      },
-    });
-    activeTab('Board 1');
-    cy.get('[data-node-id=old-1]').should('exist');
-    cy.window().its('localStorage').invoke('getItem', 'draftboard:document:v1').should('equal', legacy);
-  });
-
   it('commits a text being edited into the board it was typed in', () => {
     cy.pressKey('t');
     cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'text');

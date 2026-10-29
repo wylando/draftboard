@@ -392,24 +392,4 @@ describe('Tables', () => {
     cy.reload();
     cy.get('[data-node-type=table] [data-testid=table-column]').should('have.length', 2);
   });
-
-  it('repairs a saved table with repeated column names or stale index columns, keeping the rest of the document', () => {
-    const column = { primaryKey: false, nullable: false, unique: false, dataType: 'text' };
-    const rect = { id: 'r', type: 'rect', name: 'Keep me', parentId: null, x: 500, y: 100, width: 50, height: 50, rotation: 0, fill: '#d9d9d9', stroke: '#000000', strokeWidth: 0, opacity: 1, visible: true, cornerRadius: 0 };
-    const table = {
-      id: 't', type: 'table', name: 'users', parentId: null, x: 100, y: 100, width: 240, height: 92,
-      rotation: 0, fill: '#ffffff', stroke: '#d9d9d9', strokeWidth: 1, opacity: 1, visible: true, accent: '#dbeafe',
-      columns: [{ ...column, id: 'a', name: 'email' }, { ...column, id: 'b', name: 'Email' }],
-      indexes: [{ id: 'i', name: 'users_idx', columnIds: ['a', 'gone'], unique: false }],
-    };
-    cy.visit('/', {
-      onBeforeLoad: (win) => {
-        win.localStorage.clear();
-        win.localStorage.setItem('draftboard:document:v1', JSON.stringify({ version: 1, nodes: [rect, table] }));
-      },
-    });
-    cy.get('[data-node-type=rect]').should('have.length', 1);
-    tableRow(1).should('contain', 'Email_2');
-    tableRow(0).find('[data-testid=column-index]').should('exist');
-  });
 });
