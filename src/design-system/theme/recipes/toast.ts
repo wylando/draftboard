@@ -59,7 +59,7 @@ export const toastRecipe = defineSlotRecipe({
       textStyle: 'body.mediumStrong',
       cursor: 'pointer',
       _hover: { bg: 'bg.toolbarHover' },
-      _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.selected', outlineOffset: '1px' },
+      _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.focusOnToolbar', outlineOffset: '1px' },
     },
   },
 });

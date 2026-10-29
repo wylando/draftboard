@@ -134,13 +134,13 @@ describe('focus indicators', () => {
       return /\.tsx?$/.test(e.name) && !/\.test\./.test(e.name) ? [path] : [];
     });
 
-  // popup.ts's 1px outline is the card's rim, not a focus ring.
+  // popup.ts's and toast.ts's 1px outlines are the cards' rims, not focus rings.
   it('colours every 2px outline with a focus token', () => {
     const offenders: string[] = [];
     for (const file of [...sources('src/design-system/theme/recipes'), ...sources('src/editor/components'), ...sources('src/settings')]) {
       for (const [i, line] of readFileSync(file, 'utf8').split('\n').entries()) {
         const colour = /outlineColor: '([^']+)'/.exec(line)?.[1];
-        if (colour && !line.includes("outlineWidth: '1px'") && !/^border\.focus(OnToolbar)?$/.test(colour) && !file.endsWith('popup.ts')) {
+        if (colour && !line.includes("outlineWidth: '1px'") && !/^border\.focus(OnToolbar)?$/.test(colour) && !file.endsWith('popup.ts') && !file.endsWith('toast.ts')) {
           offenders.push(`${file}:${i + 1} ${colour}`);
         }
       }
