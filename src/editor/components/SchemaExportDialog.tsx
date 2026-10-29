@@ -13,13 +13,14 @@ import { chipGroup } from 'styled-system/recipes';
 type Format = 'sql' | 'dbml';
 
 const chips = chipGroup();
-const bodyClass = css({ display: 'grid', gap: '2', minWidth: '0' });
+// An auto track would grow to the longest unbroken table or column name, wider than the dialog.
+const bodyClass = css({ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '2', minWidth: '0' });
 const rowClass = css({ display: 'flex', alignItems: 'center', gap: '2', flexWrap: 'wrap' });
 const labelClass = css({ color: 'text.secondary' });
 const scopeClass = css({ margin: '0', textStyle: 'body.largeStrong' });
 const noticeClass = css({ display: 'grid', gap: '1', padding: '2', borderRadius: 'medium', bg: 'warning.bg', color: 'warning.ink' });
 const noticeHeadingClass = css({ margin: '0', textStyle: 'body.largeStrong' });
-const noticeListClass = css({ margin: '0', paddingInlineStart: '4' });
+const noticeListClass = css({ margin: '0', paddingInlineStart: '4', overflowWrap: 'anywhere' });
 // The notice stays amber in both themes, so its button takes the notice's own ink rather than the theme's button colours.
 const noticeActionClass = css({ justifySelf: 'start', bg: 'warning.ink', color: 'warning.bg', borderColor: 'warning.ink', _hover: { bg: 'warning.ink', opacity: '0.85' } });
 const previewClass = css({
@@ -38,7 +39,7 @@ const previewClass = css({
   bg: 'bg',
   _focus: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.focus', borderColor: 'border.focus' },
 });
-const listClass = css({ margin: '0', paddingInlineStart: '4', color: 'text.secondary' });
+const listClass = css({ margin: '0', paddingInlineStart: '4', color: 'text.secondary', overflowWrap: 'anywhere' });
 const statusClass = css({ color: 'text.secondary', marginInlineEnd: 'auto' });
 
 export function SchemaExportDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
