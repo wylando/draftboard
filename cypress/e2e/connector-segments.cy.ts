@@ -2,6 +2,7 @@
 export {};
 
 import { savedNodes } from '../support/workspace';
+import { placeTable, undo } from '../support/canvas';
 
 interface Pt {
   x: number;
@@ -14,13 +15,6 @@ interface SavedConnector {
   bends?: unknown;
 }
 
-const placeTable = (at: [number, number]) => {
-  cy.pressKey('d', { code: 'KeyD' });
-  cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'table');
-  cy.canvasClick(at);
-  cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'select');
-};
-const undo = () => cy.pressKey('z', { code: 'KeyZ', metaKey: true });
 
 // A's `id` row is centred at y 150 and its right edge is x 270; C sits lower, so its `id` row is at y 350 and its
 // left edge is x 690. The automatic route is horizontal, one vertical jog, horizontal.

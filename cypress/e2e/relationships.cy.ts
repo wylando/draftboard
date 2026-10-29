@@ -2,13 +2,7 @@
 export {};
 
 import { savedNodes } from '../support/workspace';
-
-const placeTable = (at: [number, number]) => {
-  cy.pressKey('d', { code: 'KeyD' });
-  cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'table');
-  cy.canvasClick(at);
-  cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'select');
-};
+import { placeTable, undo } from '../support/canvas';
 
 const connect = (from: [number, number], to: [number, number]) => {
   cy.pressKey('c', { code: 'KeyC' });
@@ -55,7 +49,7 @@ describe('Relationships', () => {
     cy.get('[data-testid=connector-fk]').should('have.attr', 'data-state', 'unchecked');
     badge(1, 1).should('not.exist');
     cy.get('[data-testid=type-mismatch]').should('not.exist');
-    cy.pressKey('z', { code: 'KeyZ', metaKey: true });
+    undo();
     badge(1, 1).should('have.text', 'FK');
 
     // Matching types clear the warning.
@@ -96,7 +90,7 @@ describe('Relationships', () => {
     marker('from').should('have.attr', 'data-cardinality', 'many');
     marker('to').should('have.attr', 'data-cardinality', 'many');
     // Each click was one undo step.
-    cy.pressKey('z', { code: 'KeyZ', metaKey: true });
+    undo();
     marker('from').should('have.attr', 'data-cardinality', 'zeroOrOne');
   });
 

@@ -2,6 +2,7 @@
 export {};
 
 import { savedNodes } from '../support/workspace';
+import { placeTable } from '../support/canvas';
 
 interface Pt {
   x: number;
@@ -17,13 +18,6 @@ interface Saved extends Box {
   points?: Pt[];
   bends?: Pt[];
 }
-
-const placeTable = (at: [number, number]) => {
-  cy.pressKey('d', { code: 'KeyD' });
-  cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'table');
-  cy.canvasClick(at);
-  cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'select');
-};
 
 // A's `id` row is centred at y 150 (right edge x 270); C is lower, its `id` row at y 350 (left edge x 690).
 // B starts out of the way, below both; the tests drag it onto the connector.

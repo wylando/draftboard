@@ -2,13 +2,7 @@
 export {};
 
 import { savedNodes, seedWorkspace } from '../support/workspace';
-
-const placeTable = (at: [number, number]) => {
-  cy.pressKey('d', { code: 'KeyD' });
-  cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'table');
-  cy.canvasClick(at);
-  cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'select');
-};
+import { placeTable, undo } from '../support/canvas';
 
 const connectorTool = () => {
   cy.pressKey('c', { code: 'KeyC' });
@@ -162,7 +156,7 @@ describe('Connectors', () => {
     route((points) => expect(points[points.length - 1]).to.deep.equal([340, 150]));
     cy.get('[data-testid=problems-indicator]').should('contain', '1');
 
-    cy.pressKey('z', { code: 'KeyZ', metaKey: true });
+    undo();
     line().should('have.attr', 'data-broken', 'false');
     cy.get('[data-testid=problems-indicator]').should('not.exist');
     cy.pressKey('z', { code: 'KeyZ', metaKey: true, shiftKey: true });
