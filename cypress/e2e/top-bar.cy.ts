@@ -12,7 +12,7 @@ describe('Top bar', () => {
   it('lines its controls up with the board tabs', () => {
     cy.get('[role=tab][aria-selected=true]').then(($tab) => {
       const row = centerY($tab[0]!);
-      for (const id of ['app-menu', 'board-new', 'zoom-level']) {
+      for (const id of ['app-menu', 'board-new', 'import-menu', 'export-menu', 'zoom-level']) {
         // Within a pixel: layout lands on sub-pixel positions that differ between platforms.
         cy.get(`[data-testid=${id}]`).should(($el) => expect(centerY($el[0]!)).to.be.closeTo(row, 1));
       }
@@ -43,11 +43,10 @@ describe('Top bar', () => {
     });
   });
 
-  it('keeps file actions and Settings in the app menu', () => {
+  it('keeps Settings and Getting started in the app menu, with a hairline divider', () => {
     cy.get('[data-testid=app-menu]').click();
-    for (const id of ['import-board', 'export-board', 'import-schema', 'export-schema']) {
-      cy.get(`[data-testid=${id}]`).should('be.visible');
-    }
+    cy.get('[data-testid=open-guide]').should('be.visible');
+    cy.get('[data-testid=open-settings]').should('be.visible');
     // A 1px hairline in the border colour: the browser's own <hr> border once drew a heavy dark rule here.
     cy.get('[role=menu] [data-part=separator]').first().should(($hr) => {
       const style = getComputedStyle($hr[0]!);

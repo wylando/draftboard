@@ -8,6 +8,9 @@ import type { DesignNode, NodeType } from '../model/types';
 import { emptyHint, fieldError, sidebar } from '../styles';
 import { css, cx } from 'styled-system/css';
 
+// Plain text rather than a bordered Section: an empty panel has nothing to group.
+const emptyHintClass = cx(emptyHint, css({ paddingBlock: '3', paddingInline: '4' }));
+
 type DropPosition = 'above' | 'below' | 'inside';
 
 const listClass = css({ listStyle: 'none', margin: '0', marginInline: '-4', padding: '0' });
@@ -346,10 +349,10 @@ export function LayersPanel() {
 
   return (
     <Panel className={sidebar} data-testid="layers-panel">
-      <Section>
-        {rows.length === 0 ? (
-          <p className={emptyHint}>Pick a tool and drag on the canvas to add a layer.</p>
-        ) : (
+      {rows.length === 0 ? (
+        <p className={emptyHintClass}>Pick a tool and drag on the canvas to add a layer.</p>
+      ) : (
+        <Section>
           <ul className={listClass} role="tree" aria-label="Layers" aria-multiselectable="true">
             {rows.map((row) => (
               <LayerRow
@@ -364,8 +367,8 @@ export function LayersPanel() {
               />
             ))}
           </ul>
-        )}
-      </Section>
+        </Section>
+      )}
     </Panel>
   );
 }

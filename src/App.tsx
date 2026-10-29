@@ -3,6 +3,7 @@ import { DialogProvider } from './design-system';
 import { useHashRoute } from './app/useHashRoute';
 import { EditorProvider, useBoards, useEditor } from './editor/EditorContext';
 import { HoverProvider } from './editor/HoverContext';
+import { FileActionsProvider, useFileActions } from './editor/hooks/FileActions';
 import { SectionFoldsProvider } from './editor/SectionFoldsContext';
 import { Canvas } from './editor/components/Canvas';
 import { EditorBody } from './editor/components/EditorBody';
@@ -20,17 +21,19 @@ const editorClass = css({ display: 'flex', flexDirection: 'column', height: 'ful
 // The dock overlays this wrapper rather than the canvas element, which handles pointer-down itself.
 const canvasAreaClass = css({ position: 'relative', flex: '1', minWidth: '0', display: 'flex' });
 
-function Editor({ onOpenSettings }: { onOpenSettings: () => void }) {
+function Editor({ onOpenSettings }: { onOpenSettings: (section?: string) => void }) {
   const { state, dispatch } = useEditor();
   const { activeId } = useBoards();
   const controls = useViewportControls();
-  useKeyboardShortcuts({ state, dispatch, ...controls, openSettings: onOpenSettings });
+  const files = useFileActions();
+  useKeyboardShortcuts({ state, dispatch, ...controls, openSettings: onOpenSettings, files });
   return (
     <div className={editorClass}>
       <Toolbar onOpenSettings={onOpenSettings} />
       <SectionFoldsProvider>
         <HoverProvider>
         <EditorBody
+          onOpenGuide={() => onOpenSettings('getting-started')}
           layers={<LayersPanel key={`layers-${activeId}`} />}
           canvas={
             <div className={canvasAreaClass}>
@@ -48,7 +51,7 @@ function Editor({ onOpenSettings }: { onOpenSettings: () => void }) {
 }
 
 export function App() {
-  const { route, navigate } = useHashRoute();
+  const { route, section, navigate } = useHashRoute();
   // Providers sit above the route so the document, undo history and bindings
   // survive switching between the canvas and Settings.
   return (
@@ -57,9 +60,11 @@ export function App() {
         <EditorProvider>
           <DialogProvider>
             {route === 'settings' ? (
-              <SettingsPage onClose={() => navigate('editor')} />
+              <SettingsPage key={section ?? ''} section={section} onClose={() => navigate('editor')} />
             ) : (
-              <Editor onOpenSettings={() => navigate('settings')} />
+              <FileActionsProvider>
+                <Editor onOpenSettings={(target) => navigate('settings', target)} />
+              </FileActionsProvider>
             )}
           </DialogProvider>
         </EditorProvider>
