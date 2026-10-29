@@ -2,7 +2,7 @@ import { isMany } from '../model/connector';
 import { nameKey } from '../model/names';
 import { SQL_DIALECTS, sqlIdentifier, uniqueIdentifier, type SqlDialect } from '../model/table';
 import { descendantIds, isEffectivelyVisible } from '../model/tree';
-import type { Cardinality, Column, DesignNode, TableNode } from '../model/types';
+import type { Anchor, Cardinality, Column, DesignNode, TableNode } from '../model/types';
 
 /** `from.fromColumn` references `to.toColumn`. */
 export interface ExportForeignKey {
@@ -27,7 +27,18 @@ export interface ExportSchema {
   tables: TableNode[];
   foreignKeys: ExportForeignKey[];
   manyToMany: ExportManyToMany[];
+  /** Problems with tables themselves. */
   warnings: string[];
+  /** Relationships the export can't express, named by their ends. */
+  skippedLinks: SkippedLink[];
+}
+
+export interface SkippedLink {
+  /** "users.id → teams.owner_id", or "users → teams" for a link between whole tables. */
+  ends: string;
+  reason: string;
+  /** Set when the link was dropped only because this table isn't in scope. */
+  missingTableId?: string;
 }
 
 export interface ExportText {
@@ -44,6 +55,7 @@ const primaryKey = (t: TableNode) => t.columns.filter((c) => c.primaryKey);
  */
 export function collectSchema(nodes: readonly DesignNode[], selectedIds: readonly string[]): ExportSchema {
   const warnings: string[] = [];
+  const skippedLinks: SkippedLink[] = [];
   const picked = new Set([...selectedIds, ...descendantIds(nodes, selectedIds)]);
   const allTables = nodes.filter((n): n is TableNode => n.type === 'table');
   let inScope = allTables.filter((t) => picked.has(t.id));
@@ -62,8 +74,16 @@ export function collectSchema(nodes: readonly DesignNode[], selectedIds: readonl
   const anyTable = new Map(allTables.map((t) => [t.id, t]));
   const foreignKeys: ExportForeignKey[] = [];
   const manyToMany: ExportManyToMany[] = [];
+  const endName = (a: Anchor) => {
+    if (a.kind === 'column') {
+      const t = anyTable.get(a.tableId);
+      return `${t?.name ?? '?'}.${t?.columns.find((c) => c.id === a.columnId)?.name ?? '?'}`;
+    }
+    return a.kind === 'node' ? (anyTable.get(a.nodeId)?.name ?? '?') : '?';
+  };
   for (const n of nodes) {
     if (n.type !== 'connector') continue;
+    const ends = `${endName(n.from)} → ${endName(n.to)}`;
     const fromId = n.from.kind === 'column' ? n.from.tableId : n.from.kind === 'node' ? n.from.nodeId : null;
     const toId = n.to.kind === 'column' ? n.to.tableId : n.to.kind === 'node' ? n.to.nodeId : null;
     const from = fromId === null ? undefined : exported.get(fromId);
@@ -71,7 +91,11 @@ export function collectSchema(nodes: readonly DesignNode[], selectedIds: readonl
     if (!from || !to) {
       // Only links that leave the export are worth a word; lines between other shapes aren't relationships.
       const missing = from ? anyTable.get(toId ?? '') : to ? anyTable.get(fromId ?? '') : undefined;
-      if (missing && n.isForeignKey) warnings.push(`Connector "${n.name}" leads to "${missing.name}", which isn't exported; skipped`);
+      if (missing && n.isForeignKey) {
+        // Adding a table with no columns would export nothing, so don't offer it.
+        if (missing.columns.length === 0) skippedLinks.push({ ends, reason: `"${missing.name}" has no columns` });
+        else skippedLinks.push({ ends, reason: `"${missing.name}" isn't included`, missingTableId: missing.id });
+      }
       continue;
     }
     if (n.from.kind === 'column' && n.to.kind === 'column') {
@@ -81,31 +105,33 @@ export function collectSchema(nodes: readonly DesignNode[], selectedIds: readonl
       const toColumn = to.columns.find((c) => c.id === toColumnId);
       if (!fromColumn || !toColumn) continue;
       if (!n.isForeignKey) {
-        warnings.push(`Connector "${n.name}" links two columns but isn't a foreign key; skipped`);
+        skippedLinks.push({ ends, reason: "isn't a foreign key" });
         continue;
       }
       // Databases only let a foreign key reference a key: PostgreSQL rejects anything else outright.
       if (!toColumn.unique && !(toColumn.primaryKey && primaryKey(to).length === 1)) {
-        warnings.push(`Connector "${n.name}" references "${to.name}"."${toColumn.name}", which isn't unique or the primary key; skipped`);
+        skippedLinks.push({ ends, reason: `"${to.name}"."${toColumn.name}" isn't unique or the primary key` });
         continue;
       }
       if (foreignKeys.some((f) => f.fromColumn === fromColumn && f.toColumn === toColumn)) continue;
       foreignKeys.push({ from, fromColumn, to, toColumn, oneToOne: single(n.fromCardinality) && single(n.toCardinality) });
     } else if (n.from.kind === 'node' && n.to.kind === 'node') {
       if (!isMany(n.fromCardinality) || !isMany(n.toCardinality)) {
-        warnings.push(`Connector "${n.name}" links whole tables but isn't many-to-many; link columns to export a foreign key`);
+        skippedLinks.push({ ends, reason: "links whole tables but isn't many-to-many; link columns to export a foreign key" });
         continue;
       }
       const unkeyed = [from, to].find((t) => primaryKey(t).length === 0);
       if (unkeyed) {
-        warnings.push(`Connector "${n.name}" is many-to-many, but "${unkeyed.name}" has no primary key; skipped`);
+        skippedLinks.push({ ends, reason: `"${unkeyed.name}" has no primary key` });
         continue;
       }
       if (manyToMany.some((m) => (m.a === from && m.b === to) || (m.a === to && m.b === from))) continue;
       manyToMany.push({ a: from, b: to });
+    } else {
+      skippedLinks.push({ ends, reason: 'links a table to a column; link two columns to export a foreign key' });
     }
   }
-  return { scope, tables, foreignKeys, manyToMany, warnings };
+  return { scope, tables, foreignKeys, manyToMany, warnings, skippedLinks };
 }
 
 const quoteChar: Record<SqlDialect, string> = { postgres: '"', mysql: '`', sqlite: '"' };

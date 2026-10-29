@@ -23,12 +23,12 @@ describe('importNodes', () => {
     return { existing, state: initialEditorState([existing]) };
   };
 
-  it('appends after existing nodes in batch order and selects only the tables', () => {
+  it('appends after existing nodes in batch order and clears the selection', () => {
     const { a, b, link } = importBatch();
     const { existing, state } = seed();
     const s = editorReducer(state, { type: 'importNodes', nodes: [a, b, link] });
     expect(s.nodes.map((n) => n.id)).toEqual([existing.id, a.id, b.id, link.id]);
-    expect(s.selection).toEqual([a.id, b.id]);
+    expect(s.selection).toEqual([]);
     const routed = s.nodes.find((n) => n.id === link.id) as ConnectorNode;
     expect(routed.points.length).toBeGreaterThan(0);
   });

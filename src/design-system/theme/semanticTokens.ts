@@ -21,6 +21,9 @@ export const semanticTokens = defineSemanticTokens({
       selectedChild: pair('{colors.blue.100}', '{colors.navy.800}'),
       brand: pair('{colors.blue.600}', '{colors.blue.500}'),
       brandHover: pair('{colors.blue.700}', '{colors.blue.400}'),
+      /** Buttons that destroy work; white text holds 5.3:1 (hover 7:1). */
+      danger: { value: '{colors.red.600}' },
+      dangerHover: { value: '{colors.red.800}' },
       /** The floating tool dock; a hairline and shadow lift it off the light canvas, a lighter grey off the dark one. */
       toolbar: pair('{colors.white}', '{colors.grey.700}'),
       toolbarHover: pair('{colors.grey.200}', '{colors.grey.600}'),

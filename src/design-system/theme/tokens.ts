@@ -34,10 +34,14 @@ export const tokens = defineTokens({
     },
     red: {
       500: { value: '#f24822' },
+      /** Ours: danger buttons; white text on it is about 5.3:1, which red.500 (3.7:1) doesn't reach. */
+      600: { value: '#c9331a' },
       /** Ours: error text; red.500 is only 3.67:1 on white. */
       700: { value: '#c4320a' },
       /** Ours: error text in the dark theme (5.3:1 on grey.800). */
       400: { value: '#ff7b5f' },
+      /** Ours: hover for danger buttons. */
+      800: { value: '#a82a15' },
     },
     /** Ours: dark-theme selection fills, a deep blue that keeps text.DEFAULT above 4.5:1. */
     navy: {

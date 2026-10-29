@@ -210,7 +210,7 @@ describe('Table focus highlight for two selected tables', () => {
     cy.get('[data-testid=schema-source]').should('be.visible').type(SQL, { delay: 0, parseSpecialCharSequences: false });
     cy.contains('button', 'Preview').click();
     cy.get('[data-testid=import-summary]').should('contain', '3 tables').and('contain', '3 relationships');
-    cy.get('[data-testid=import-add]').click();
+    cy.get('[data-testid=import-submit]').click();
     cy.get('[data-testid=dialog]').should('not.exist');
     cy.get('[data-node-type=connector]').should('have.length', 3);
     cy.window().should((win) => {

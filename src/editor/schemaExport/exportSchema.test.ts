@@ -93,14 +93,38 @@ describe('collectSchema', () => {
       ['profile', 'user_id', 'users', 'id', true],
     ]);
     expect(schema.manyToMany.map((m) => [m.a.name, m.b.name])).toEqual([['posts', 'tags']]);
-    expect(schema.warnings).toEqual([
-      'Table "empty" has no columns; skipped',
-      'Connector "not fk" links two columns but isn\'t a foreign key; skipped',
-      'Connector "one to many" links whole tables but isn\'t many-to-many; link columns to export a foreign key',
-      'Connector "unkeyed" is many-to-many, but "notes" has no primary key; skipped',
-      'Connector "leaving" leads to "outside", which isn\'t exported; skipped',
-      'Connector "loose" references "users"."bio", which isn\'t unique or the primary key; skipped',
+    expect(schema.warnings).toEqual(['Table "empty" has no columns; skipped']);
+    // Named by their ends, never by the connector layer's name.
+    expect(schema.skippedLinks).toEqual([
+      { ends: 'posts.editor_id → users.id', reason: "isn't a foreign key" },
+      { ends: 'users → tags', reason: "links whole tables but isn't many-to-many; link columns to export a foreign key" },
+      { ends: 'tags → notes', reason: '"notes" has no primary key' },
+      { ends: 'posts.editor_id → outside.id', reason: '"outside" isn\'t included', missingTableId: outside.id },
+      { ends: 'posts.editor_id → users.bio', reason: '"users"."bio" isn\'t unique or the primary key' },
     ]);
+  });
+});
+
+describe('collectSchema, links it cannot write', () => {
+  it('says so for a link between a table and a column, instead of dropping it silently', () => {
+    const a = users();
+    const posts = table('posts', [{ name: 'id', primaryKey: true }]);
+    const tables = [a, posts];
+    const mixed = link(tables, whole(posts), col(a, 'id'));
+    expect(collectSchema([...tables, mixed], []).skippedLinks).toEqual([
+      { ends: 'posts → users.id', reason: 'links a table to a column; link two columns to export a foreign key' },
+    ]);
+  });
+
+  it('offers to include a missing table only when it has columns to export', () => {
+    const a = users();
+    const bare = table('bare', []);
+    const full = table('full', [{ name: 'id', primaryKey: true }]);
+    const tables = [a, bare, full];
+    const nodes = [...tables, link(tables, col(a, 'id'), col(full, 'id')), link(tables, col(a, 'id'), whole(bare), { isForeignKey: true })];
+    const links = collectSchema(nodes, [a.id]).skippedLinks;
+    expect(links.map((l) => l.missingTableId)).toEqual([full.id, undefined]);
+    expect(links[1]!.reason).toBe('"bare" has no columns');
   });
 });
 

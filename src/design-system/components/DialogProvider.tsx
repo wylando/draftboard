@@ -11,12 +11,15 @@ export interface ConfirmOptions extends AlertOptions {
   /** Label of the button that resolves `true`. Name the action ("Replace"), not "OK". */
   confirmLabel: string;
   cancelLabel?: string;
+  /** Styles the confirm button as destructive: the action throws work away that undo can't bring back. */
+  destructive?: boolean;
 }
 
 interface Request extends AlertOptions {
   kind: 'alert' | 'confirm';
   confirmLabel: string;
   cancelLabel: string;
+  destructive?: boolean;
   resolve: (confirmed: boolean) => void;
 }
 
@@ -85,7 +88,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
                 <DialogClose asChild>
                   <Button data-testid="dialog-cancel">{request.cancelLabel}</Button>
                 </DialogClose>
-                <Button variant="primary" data-testid="dialog-confirm" onClick={() => settle(true)}>
+                <Button variant={request.destructive ? 'danger' : 'primary'} data-testid="dialog-confirm" onClick={() => settle(true)}>
                   {request.confirmLabel}
                 </Button>
               </>
