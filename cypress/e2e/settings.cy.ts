@@ -227,8 +227,8 @@ describe('Settings: symbols', () => {
     cy.get('[data-testid=symbol-end-broken] [data-testid=connector-line][data-broken=true]').should('exist');
     cy.get('[data-testid=symbol-warning] [data-testid=type-mismatch]').should('exist');
     // The default highlight colour from the preferences.
-    cy.get('[data-testid=symbol-highlight] [data-testid=related-connector]').should('have.attr', 'stroke', '#7c3aed');
-    cy.get('[data-testid=symbol-highlight] [data-testid=related-table]').should('have.attr', 'stroke', '#7c3aed');
+    cy.get('[data-testid=symbol-highlight] [data-testid=related-connector]').should('have.attr', 'stroke', '#8b5cf6');
+    cy.get('[data-testid=symbol-highlight] [data-testid=related-table]').should('have.attr', 'stroke', '#8b5cf6');
 
     cy.get('[data-testid=symbols-rows] [data-testid=column-badge]').should(($b) => {
       expect($b.toArray().map((e) => e.textContent)).to.include.members(['PK', 'UQ', 'FK', 'PFK', 'UFK']);

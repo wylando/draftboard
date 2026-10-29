@@ -20,7 +20,7 @@ export interface Preferences {
   relationHighlight: string;
 }
 
-export const DEFAULT_PREFERENCES: Preferences = { gridStyle: 'dots', snapToLayers: true, sqlDialect: 'postgres', relationHighlight: '#7c3aed' };
+export const DEFAULT_PREFERENCES: Preferences = { gridStyle: 'dots', snapToLayers: true, sqlDialect: 'postgres', relationHighlight: '#8b5cf6' };
 
 /** The default before it was made distinct from the selection blue; saved copies of it follow the new default. */
 const RETIRED_HIGHLIGHT = '#80caff';
