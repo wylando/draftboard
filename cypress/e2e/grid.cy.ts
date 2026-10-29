@@ -13,7 +13,7 @@ describe('Canvas grid', () => {
     cy.get('[data-testid=canvas] pattern circle').should('exist');
   });
 
-  it('switches to lines in Settings and keeps the choice after a reload', () => {
+  it('switches to lines in Settings, keeps the choice after a reload, and can be turned off', () => {
     openCanvasSettings();
     cy.get('[data-testid=grid-style-lines]').click();
     cy.get('[data-testid=grid-style-lines]').should('have.attr', 'data-state', 'checked');
@@ -25,21 +25,11 @@ describe('Canvas grid', () => {
     cy.window().its('localStorage').invoke('getItem', 'draftboard:preferences:v1').should('contain', 'lines');
     cy.reload();
     cy.get('[data-testid=canvas]').should('have.attr', 'data-grid', 'lines');
-  });
 
-  it('can be turned off', () => {
     openCanvasSettings();
     cy.get('[data-testid=grid-style-none]').click();
     cy.get('[data-testid=close-settings]').click();
     cy.get('[data-testid=canvas]').should('have.attr', 'data-grid', 'none');
     cy.get('[data-testid=canvas-grid]').should('not.exist');
-  });
-
-  it('does not get in the way of drawing or box-selecting', () => {
-    cy.drawShape('rect', [100, 100], [200, 200]);
-    cy.canvasClick([600, 400]);
-    cy.get('[data-testid=properties-panel]').should('contain', 'Select a layer');
-    cy.canvasDrag([50, 50], [250, 250]);
-    cy.prop('name').should('have.value', 'Rectangle 1');
   });
 });

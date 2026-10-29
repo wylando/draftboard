@@ -42,13 +42,15 @@ describe('Selecting, moving and resizing', () => {
     cy.prop('rotation').should('have.value', '45');
   });
 
-  it('marquee-selects multiple shapes', () => {
+  it('marquee-selects multiple shapes, and shift-click adds to the selection', () => {
     cy.canvasDrag([50, 50], [450, 250]);
     cy.get('[data-testid=properties-panel]').should('contain', '2 layers selected');
-  });
 
-  it('shift-click adds to the selection', () => {
-    cy.canvasClick([150, 150], { shiftKey: true });
+    cy.canvasClick([700, 500]);
+    cy.get('[data-testid=properties-panel]').should('contain', 'Select a layer');
+    cy.canvasClick([150, 150]);
+    cy.prop('x').should('have.value', '100');
+    cy.canvasClick([350, 150], { shiftKey: true });
     cy.get('[data-testid=properties-panel]').should('contain', '2 layers selected');
   });
 });

@@ -74,7 +74,7 @@ describe('Canvas signals', () => {
   });
 
   describe('hover', () => {
-    it('outlines the layer a click would select, and highlights its Layers row', () => {
+    it('outlines the layer a click would select (a connector thicker), highlights its Layers row, and skips a selected layer or a held button', () => {
       hover(C);
       cy.get(`[data-testid=hover-outline][data-hover-id="${c}"]`).should('exist');
       layerRow('Table 3').should('have.attr', 'data-hovered', 'true');
@@ -82,17 +82,13 @@ describe('Canvas signals', () => {
       hover([800, 650]);
       cy.get('[data-testid=hover-outline]').should('not.exist');
       layerRow('Table 3').should('not.have.attr', 'data-hovered');
-    });
 
-    it('thickens a hovered connector', () => {
       cy.get(`[data-node-id="${link}"] [data-testid=connector-line]`).invoke('attr', 'data-route').then((route) => {
         const [p, q] = route!.split(' ').map((pt) => pt.split(',').map(Number)) as [[number, number], [number, number]];
         hover([(p[0] + q[0]) / 2, (p[1] + q[1]) / 2]);
       });
       cy.get(`[data-testid=hover-outline][data-hover-id="${link}"]`).should('have.attr', 'stroke-width', '4');
-    });
 
-    it('is not drawn for a selected layer or while a button is held', () => {
       cy.canvasClick(A);
       cy.prop('name').should('have.value', 'Table 1');
       hover(A);
@@ -142,7 +138,7 @@ describe('Handle hit areas', () => {
     cy.canvasClick([800, 650]);
     cy.drawShape('rect', [600, 400], [640, 440]);
     cy.prop('w').should('have.value', '40');
-    // Fractions of the 40px box: inside the corner and edge grab areas' reach would resize instead.
+    // Fractions of the 40px box: the first sits in an edge's grab reach, the second in a corner's, the third clear of both; none may resize.
     for (const [fx, fy] of [[0.3, 0.5], [0.25, 0.25], [0.7, 0.7]] as const) {
       cy.prop('x').invoke('val').then((x) => {
         cy.canvasDrag([600 + 40 * fx + (Number(x) - 600), 400 + 40 * fy], [600 + 40 * fx + (Number(x) - 600) + 20, 400 + 40 * fy]);

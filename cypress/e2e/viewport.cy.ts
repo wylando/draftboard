@@ -3,18 +3,14 @@ const zoomLabel = () => cy.get('[data-testid=zoom-level]');
 describe('Viewport: zoom and pan', () => {
   beforeEach(() => cy.visitEmpty());
 
-  it('zooms in and out with toolbar buttons', () => {
+  it('zooms in and out with toolbar buttons, and resets to 100% with Shift+0', () => {
     zoomLabel().should('have.text', '100%');
     cy.zoomMenu('zoom-in');
     zoomLabel().should('have.text', '200%');
     cy.zoomMenu('zoom-out');
     cy.zoomMenu('zoom-out');
     zoomLabel().should('have.text', '50%');
-  });
 
-  it('resets to 100% with Shift+0', () => {
-    cy.zoomMenu('zoom-in');
-    zoomLabel().should('have.text', '200%');
     cy.pressKey(')', { code: 'Digit0', shiftKey: true });
     zoomLabel().should('have.text', '100%');
   });
@@ -29,11 +25,11 @@ describe('Viewport: zoom and pan', () => {
 
   it('pans with the hand tool without moving shapes', () => {
     cy.drawShape('rect', [100, 100], [200, 200]);
-    cy.pressKey('h');
+    cy.pressKey('h', { code: 'KeyH' });
     cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'hand');
     cy.canvasDrag([500, 400], [560, 430]);
     cy.get('[data-testid=world]').should('have.attr', 'transform').and('contain', 'translate(60 30)');
-    cy.pressKey('v');
+    cy.pressKey('v', { code: 'KeyV' });
     cy.get('[data-testid=layers-panel]').contains('Rectangle 1').click();
     cy.prop('x').should('have.value', '100');
   });
