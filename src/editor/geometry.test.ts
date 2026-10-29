@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { fitBox, nextCullWindow, placePopup, viewWorldBox } from './geometry';
+import {
+  alignmentGuides,
+  fitBox,
+  measureBetween,
+  nextCullWindow,
+  placePopup,
+  snapOffset,
+  snapSpacing,
+  spacingGuides,
+  viewWorldBox,
+} from './geometry';
 import type { Box } from './model/types';
 
 const view: Box = { x: 1000, y: 500, width: 800, height: 600 };
@@ -120,5 +130,194 @@ describe('placePopup', () => {
 
   it('sits in the top-right corner when there is nothing to avoid', () => {
     expect(placePopup([], size, bounds, gap)).toEqual({ x: 800, y: 0 });
+  });
+});
+
+const rect = (x: number, y: number, width = 100, height = 100): Box => ({ x, y, width, height });
+
+describe('snapOffset', () => {
+  // Candidate lines on x: start 200, centre 250, end 300.
+  const target = [rect(200, 0)];
+
+  it.each([
+    ['start edge, inside the threshold', 204, -4],
+    ['start edge, exactly at the threshold', 206, -6],
+    ['centre', 246, 4],
+    ['end edge', 303, -3],
+  ])('snaps to the %s', (_name, value, offset) => {
+    expect(snapOffset([value], target, 'x', 6)).toBe(offset);
+  });
+
+  it('does not snap just outside the threshold', () => {
+    expect(snapOffset([206.5], target, 'x', 6)).toBeNull();
+  });
+
+  it('scales with the threshold the caller derives from zoom', () => {
+    // The same 4 world px is 8 screen px at 200% (threshold 3) and 4 screen px at 100% (threshold 6).
+    expect(snapOffset([204], target, 'x', 6 / 2)).toBeNull();
+    expect(snapOffset([204], target, 'x', 6)).toBe(-4);
+  });
+
+  it('takes the closest line across values and candidates', () => {
+    expect(snapOffset([204, 297], [rect(200, 0), rect(100, 0)], 'x', 6)).toBe(3);
+  });
+
+  it('reads the y lines for the y axis', () => {
+    expect(snapOffset([103], [rect(0, 100)], 'y', 6)).toBe(-3);
+  });
+
+  it('is null with nothing to snap to', () => {
+    expect(snapOffset([5], [], 'x', 6)).toBeNull();
+  });
+});
+
+describe('alignmentGuides', () => {
+  const subject = rect(200, 100);
+
+  it('marks the cross-axis ends of the subject and each layer sharing the line', () => {
+    expect(alignmentGuides(subject, { x: [200], y: [] }, [rect(200, 300, 50, 50)])).toEqual([
+      { axis: 'x', at: 200, marks: [100, 200, 300, 350] },
+    ]);
+  });
+
+  it('matches a candidate centre as well as its edges', () => {
+    // Line 250 is the centre of the 200..300 candidate.
+    expect(alignmentGuides(subject, { x: [], y: [150] }, [rect(0, 100, 50, 100)])).toEqual([
+      { axis: 'y', at: 150, marks: [200, 300, 0, 50] },
+    ]);
+  });
+
+  it('draws nothing for a line no layer sits on', () => {
+    expect(alignmentGuides(subject, { x: [200], y: [] }, [rect(210, 300)])).toEqual([]);
+  });
+});
+
+describe('snapSpacing', () => {
+  // A and B are 100 apart.
+  const row = [rect(0, 0), rect(200, 0)];
+
+  it.each([
+    ['after the row, to repeat its gap', rect(404, 0), -4],
+    ['before the row, to repeat its gap', rect(-204, 0), 4],
+  ])('snaps %s', (_name, subject, offset) => {
+    expect(snapSpacing(subject, row, 'x', 6)).toBe(offset);
+  });
+
+  it('does not snap just outside the threshold', () => {
+    expect(snapSpacing(rect(407, 0), row, 'x', 6)).toBeNull();
+  });
+
+  it('ignores layers that share no row with the subject', () => {
+    expect(snapSpacing(rect(404, 300), row, 'x', 6)).toBeNull();
+  });
+
+  it('centres the subject between its two neighbours', () => {
+    // 300 free between A and C; a 100 wide subject sits centred at x 200.
+    expect(snapSpacing(rect(196, 0), [rect(0, 0), rect(400, 0)], 'x', 6)).toBe(4);
+  });
+
+  it('does not centre when the subject is wider than the space between its neighbours', () => {
+    // 50 between them; centred, a 54 wide layer would overlap both. Without the guard this snaps by -2.
+    expect(snapSpacing(rect(100, 0, 54, 100), [rect(0, 0), rect(150, 0)], 'x', 6)).toBeNull();
+  });
+
+  it('finds a neighbour the subject slightly overlaps, within the threshold', () => {
+    // B ends at 203; the subject starts 1 px inside it and would sit 3 px clear of it, like A to B.
+    expect(snapSpacing(rect(202, 0), [rect(0, 0), rect(103, 0)], 'x', 6)).toBe(4);
+  });
+
+  it('works down a column', () => {
+    expect(snapSpacing(rect(0, 404), [rect(0, 0), rect(0, 200)], 'y', 6)).toBe(-4);
+  });
+
+  describe('with nested layers', () => {
+    it('does not reuse a gap that crosses the edge of a frame around only one end', () => {
+      // Frame 1 (100..400) holds Child (300..350); Neighbour sits at 450..500. Child to Neighbour is 100,
+      // but the frame reaches into that gap, so the real gap is frame to Neighbour: 50.
+      const layers = [rect(100, 300, 300, 100), rect(300, 300, 50, 100), rect(450, 300, 50, 100)];
+      expect(snapSpacing(rect(603, 300, 50, 100), layers, 'x', 6)).toBeNull();
+      expect(snapSpacing(rect(553, 300, 50, 100), layers, 'x', 6)).toBe(-3);
+    });
+
+    it('reuses gaps between siblings of a frame that encloses the whole row', () => {
+      const layers = [rect(50, 300, 850, 200), rect(100, 350), rect(300, 350)];
+      expect(snapSpacing(rect(504, 350), layers, 'x', 6)).toBe(-4);
+    });
+  });
+});
+
+describe('spacingGuides', () => {
+  const row = [rect(0, 0), rect(200, 0)];
+
+  it('marks every gap equal to the subject gap', () => {
+    expect(spacingGuides(rect(400, 0), row)).toEqual([
+      {
+        axis: 'x',
+        distance: 100,
+        gaps: [
+          { axis: 'x', from: 100, to: 200, at: 50 },
+          { axis: 'x', from: 300, to: 400, at: 50 },
+        ],
+      },
+    ]);
+  });
+
+  it('marks nothing when the subject gap matches no other', () => {
+    expect(spacingGuides(rect(410, 0), row)).toEqual([]);
+  });
+
+  it('counts gaps that read the same to one decimal as equal', () => {
+    expect(spacingGuides(rect(400.04, 0), row)).toHaveLength(1);
+  });
+});
+
+describe('measureBetween', () => {
+  it('measures the gap between layers that share a row, with no leader', () => {
+    expect(measureBetween(rect(300, 100), rect(100, 100))).toEqual({
+      spans: [{ axis: 'x', from: 200, to: 300, at: 150 }],
+      leaders: [],
+    });
+  });
+
+  it('measures to each side of a layer that encloses the other', () => {
+    // Frame 50..450 x 50..260 around the rect at 300..400 x 100..200.
+    expect(measureBetween(rect(300, 100), rect(50, 50, 400, 210)).spans).toEqual([
+      { axis: 'x', from: 50, to: 300, at: 150 },
+      { axis: 'x', from: 400, to: 450, at: 150 },
+      { axis: 'y', from: 50, to: 100, at: 350 },
+      { axis: 'y', from: 200, to: 260, at: 350 },
+    ]);
+  });
+
+  it('measures from the enclosing layer inward, whichever is the target', () => {
+    expect(measureBetween(rect(100, 100, 300, 300), rect(200, 200)).spans.slice(0, 2)).toEqual([
+      { axis: 'x', from: 100, to: 200, at: 250 },
+      { axis: 'x', from: 300, to: 400, at: 250 },
+    ]);
+  });
+
+  it.each([
+    ['the target extends past the selection', rect(100, 100), rect(150, 150)],
+    ['the selection extends past the target', rect(150, 150), rect(100, 100)],
+  ])('measures matching edges of layers that partly overlap, where %s', (_name, a, b) => {
+    expect(measureBetween(a, b).spans).toEqual([
+      { axis: 'x', from: 100, to: 150, at: 175 },
+      { axis: 'x', from: 200, to: 250, at: 175 },
+      { axis: 'y', from: 100, to: 150, at: 175 },
+      { axis: 'y', from: 200, to: 250, at: 175 },
+    ]);
+  });
+
+  it('leads from each gap to a layer that sits diagonally away', () => {
+    expect(measureBetween(rect(300, 100), rect(500, 400, 60, 60))).toEqual({
+      spans: [
+        { axis: 'x', from: 400, to: 500, at: 150 },
+        { axis: 'y', from: 200, to: 400, at: 350 },
+      ],
+      leaders: [
+        { axis: 'y', from: 150, to: 400, at: 500 },
+        { axis: 'x', from: 350, to: 500, at: 400 },
+      ],
+    });
   });
 });

@@ -16,6 +16,7 @@ const hover = (at: [number, number]) => cy.canvasPointer('pointermove', at, { bu
 const measure = (axis: 'x' | 'y', distance: number) =>
   cy.get(`[data-testid=distance-measure][data-axis=${axis}][data-distance="${distance}"]`);
 
+// Which distances and leaders are drawn is pinned by the measureBetween unit tests in geometry.test.ts.
 describe('Measuring distances with Alt', () => {
   beforeEach(() => {
     altDown = false;
@@ -54,36 +55,5 @@ describe('Measuring distances with Alt', () => {
     });
     // Rect 1 has scrolled away from the pointer.
     cy.get('[data-testid=distance-measure]').should('not.exist');
-  });
-
-  it('measures to each side of a layer that encloses the selection', () => {
-    cy.drawShape('frame', [50, 50], [450, 260]);
-    cy.get('[data-testid=layers-panel]').contains('Rectangle 2').click();
-    cy.prop('name').should('have.value', 'Rectangle 2');
-    holdAlt(true);
-    // Inside the frame but over neither rect.
-    hover([250, 230]);
-    measure('x', 250).should('exist');
-    measure('x', 50).should('exist');
-    measure('y', 50).should('exist');
-    measure('y', 60).should('exist');
-  });
-
-  it('measures edge to edge for a layer that partly overlaps the selection', () => {
-    cy.drawShape('rect', [150, 150], [250, 250]);
-    holdAlt(true);
-    // Over rect 1 only, outside the new rect.
-    hover([120, 120]);
-    cy.get('[data-testid=distance-measure][data-axis=x][data-distance="50"]').should('have.length', 2);
-    cy.get('[data-testid=distance-measure][data-axis=y][data-distance="50"]').should('have.length', 2);
-  });
-
-  it('leads a dashed line to a layer that sits diagonally away', () => {
-    cy.drawShape('rect', [500, 400], [560, 460]);
-    holdAlt(true);
-    hover([150, 150]);
-    measure('x', 300).should('exist');
-    measure('y', 200).should('exist');
-    cy.get('[data-testid=measure-leader]').should('have.length', 2);
   });
 });

@@ -122,6 +122,7 @@ describe('Smart guides', () => {
     cy.prop('x').should('have.value', '550');
   });
 
+  // Gap choice and centring are pinned in geometry.test.ts (snapSpacing, spacingGuides); this only shows the overlay.
   it('snaps to a gap already used in the row, and marks every equal gap', () => {
     // Rect 1 and rect 2 sit 100 apart; this one starts 60 right of rect 2.
     cy.drawShape('rect', [460, 100], [560, 200]);
@@ -136,15 +137,6 @@ describe('Smart guides', () => {
     cy.canvasPointer('pointerup', [554, 150]);
     cy.prop('x').should('have.value', '500');
     cy.get('[data-testid=spacing-guide]').should('not.exist');
-  });
-
-  it('centers a layer between its neighbours in a column', () => {
-    // A column: rect 1 (y 100..200) and this rect (y 300..400), then a 40 px square to drop between them.
-    cy.drawShape('rect', [100, 300], [200, 400]);
-    cy.drawShape('rect', [600, 600], [640, 640]);
-    // Unsnapped, the square lands at y 233; centered, at 230 with 30 above and below.
-    cy.canvasDrag([620, 620], [150, 253]);
-    cy.prop('y').should('have.value', '230');
   });
 
   it('snaps the dragged edge while resizing', () => {
@@ -206,37 +198,7 @@ const visitWith = (nodes: object[]) =>
   });
 
 describe('Smart guides on nested layers', () => {
-  it('only reuses gaps between true neighbours, not across a frame to its child', () => {
-    visitWith([
-      { ...base, id: 'f', type: 'frame', name: 'Frame 1', parentId: null, x: 100, y: 300, width: 300, height: 100, fill: '#ffffff' },
-      { ...base, id: 'c', type: 'rect', name: 'Child', parentId: 'f', x: 300, y: 300, width: 50, height: 100 },
-      { ...base, id: 'y', type: 'rect', name: 'Neighbour', parentId: null, x: 450, y: 300, width: 50, height: 100 },
-      { ...base, id: 'm', type: 'rect', name: 'Mover', parentId: null, x: 700, y: 300, width: 50, height: 100 },
-    ]);
-    cy.get('[data-testid=layers-panel]').should('contain', 'Mover');
-    // The real gap is Frame 1 → Neighbour, 50. Child → Neighbour (100) crosses the frame's edge,
-    // so Mover, landing 103 past Neighbour, must not snap to 100.
-    cy.canvasDrag([725, 350], [628, 350]);
-    cy.prop('x').should('have.value', '603');
-    // Control: the real 50 px gap does snap, so the miss above isn't snapping being off.
-    cy.canvasDrag([628, 350], [578, 350]);
-    cy.prop('x').should('have.value', '550');
-  });
-
-  it('reuses gaps between siblings inside a frame', () => {
-    // The frame spans the whole row; it encloses the gaps rather than blocking them.
-    visitWith([
-      { ...base, id: 'f', type: 'frame', name: 'Frame 1', parentId: null, x: 50, y: 300, width: 850, height: 200, fill: '#ffffff' },
-      { ...base, id: 'a', type: 'rect', name: 'A', parentId: 'f', x: 100, y: 350, width: 100, height: 100 },
-      { ...base, id: 'b', type: 'rect', name: 'B', parentId: 'f', x: 300, y: 350, width: 100, height: 100 },
-      { ...base, id: 'm', type: 'rect', name: 'M', parentId: 'f', x: 600, y: 350, width: 100, height: 100 },
-    ]);
-    cy.get('[data-testid=layers-panel]').should('contain', 'M');
-    // Unsnapped, M lands 104 past B; A → B is 100.
-    cy.canvasDrag([650, 400], [554, 400]);
-    cy.prop('x').should('have.value', '500');
-  });
-
+  // Which gaps count between nested layers is pinned by the snapSpacing unit tests in geometry.test.ts.
   it('ignores a layer clipped out of sight by its frame', () => {
     const nodes = [
       { ...base, id: 'f', type: 'frame', name: 'Frame 1', parentId: null, x: 100, y: 300, width: 200, height: 200, fill: '#ffffff' },
