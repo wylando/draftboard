@@ -132,8 +132,6 @@ interface Props {
   related: DesignNode[];
   /** The user's colour for `related` (Settings → Canvas). */
   relatedColor: string;
-  /** The tables of the highlighted join route, in order; numbered on the canvas. */
-  routeTables: TableNode[];
   /** The unselected layer a click (or the Layers panel's pointer) would act on. */
   hovered: DesignNode | null;
 }
@@ -153,6 +151,26 @@ export function RelatedOutlines({ related, viewport, color }: { related: DesignN
   );
 }
 
+/**
+ * The highlighted join route's tables, in order, as Start / 2 / … / End pills on their corners. The caller draws it
+ * last, in front of everything, overview names included: the pills are what reads the route.
+ */
+export function RouteSteps({ tables, viewport, color }: { tables: TableNode[]; viewport: Viewport; color: string }) {
+  return tables.map((t, i) => {
+    const label = i === 0 ? 'Start' : i === tables.length - 1 ? 'End' : String(i + 1);
+    const corner = worldToScreen({ x: t.x + t.width, y: t.y }, viewport);
+    const width = label.length * LABEL_CHAR_WIDTH + 10;
+    return (
+      <g key={t.id} data-testid="route-step" data-route-step={i + 1} data-route-table={t.id} pointerEvents="none" aria-hidden="true">
+        <rect x={corner.x - width + 8} y={corner.y - LABEL_HEIGHT / 2} width={width} height={LABEL_HEIGHT} rx={LABEL_HEIGHT / 2} fill={color} />
+        <text x={corner.x - width / 2 + 8} y={corner.y} fill={isDark(color) ? PILL_LIGHT : PILL_DARK} fontSize={LABEL_FONT} fontWeight={700} textAnchor="middle" dominantBaseline="central">
+          {label}
+        </text>
+      </g>
+    );
+  });
+}
+
 /** Drawn in screen space so outlines and handles stay a constant size at any zoom. */
 export function SelectionOverlay({
   selected,
@@ -168,7 +186,6 @@ export function SelectionOverlay({
   hideHandles,
   related,
   relatedColor,
-  routeTables,
   hovered,
 }: Props) {
   // A connector's shape comes from its ends: it gets a highlight along its route, never box handles.
@@ -188,27 +205,6 @@ export function SelectionOverlay({
 
   return (
     <g data-testid="selection-overlay">
-      {/* Kept while handles hide: editing a table's cells still shows what it links to. */}
-      <RelatedOutlines related={related} viewport={viewport} color={relatedColor} />
-      {routeTables.map((t, i) => {
-        const label = i === 0 ? 'Start' : i === routeTables.length - 1 ? 'End' : String(i + 1);
-        const corner = worldToScreen({ x: t.x + t.width, y: t.y }, viewport);
-        const width = label.length * LABEL_CHAR_WIDTH + 10;
-        return (
-          <g key={t.id} data-testid="route-step" data-route-step={i + 1} data-route-table={t.id} pointerEvents="none" aria-hidden="true">
-            <rect x={corner.x - width + 8} y={corner.y - LABEL_HEIGHT / 2} width={width} height={LABEL_HEIGHT} rx={LABEL_HEIGHT / 2} fill={relatedColor} />
-            <text x={corner.x - width / 2 + 8} y={corner.y} fill={isDark(relatedColor) ? PILL_LIGHT : PILL_DARK} fontSize={LABEL_FONT} fontWeight={700} textAnchor="middle" dominantBaseline="central">
-              {label}
-            </text>
-          </g>
-        );
-      })}
-      {hovered &&
-        (hovered.type === 'connector' ? (
-          <polyline data-testid="hover-outline" data-hover-id={hovered.id} points={toScreen(hovered.points)} fill="none" stroke={SELECTION} strokeWidth={4} strokeOpacity={0.35} pointerEvents="none" />
-        ) : (
-          <polygon data-testid="hover-outline" data-hover-id={hovered.id} points={outline(hovered, viewport)} fill="none" stroke={SELECTION} strokeWidth={1} pointerEvents="none" />
-        ))}
       {selected.map((n) =>
         n.type === 'connector' ? (
           <polyline key={n.id} points={toScreen(n.points)} fill="none" stroke={SELECTION} strokeWidth={3} strokeOpacity={0.5} pointerEvents="none" />
@@ -219,6 +215,7 @@ export function SelectionOverlay({
 
       {group && (
         <rect
+          data-testid="selection-bounds"
           x={group.x * viewport.zoom + viewport.x}
           y={group.y * viewport.zoom + viewport.y}
           width={group.width * viewport.zoom}
@@ -229,6 +226,15 @@ export function SelectionOverlay({
           pointerEvents="none"
         />
       )}
+
+      {/* After the selection bounds, so the highlight reads on top. Kept while handles hide: editing a table's cells still shows what it links to. */}
+      <RelatedOutlines related={related} viewport={viewport} color={relatedColor} />
+      {hovered &&
+        (hovered.type === 'connector' ? (
+          <polyline data-testid="hover-outline" data-hover-id={hovered.id} points={toScreen(hovered.points)} fill="none" stroke={SELECTION} strokeWidth={4} strokeOpacity={0.35} pointerEvents="none" />
+        ) : (
+          <polygon data-testid="hover-outline" data-hover-id={hovered.id} points={outline(hovered, viewport)} fill="none" stroke={SELECTION} strokeWidth={1} pointerEvents="none" />
+        ))}
 
       {/* Before the resize handles, so a handle wins where the two overlap. Groups and tables keep rotation 0. */}
       {single &&

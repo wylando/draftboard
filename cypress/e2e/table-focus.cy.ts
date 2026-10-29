@@ -131,6 +131,20 @@ describe('Table focus highlight', () => {
     });
   });
 
+  it('hides while the view is wheel-panned and comes back once the wheel settles', () => {
+    selectAB();
+    cy.get('[data-testid=route-popup]').should('exist');
+    // A frozen clock holds the wheel's settle timer, so the hidden state can't pass by before it is checked.
+    cy.clock();
+    cy.get('[data-testid=canvas]').then(($c) => {
+      const win = $c[0]!.ownerDocument.defaultView!;
+      $c[0]!.dispatchEvent(new win.WheelEvent('wheel', { deltaX: 30, bubbles: true, cancelable: true }));
+    });
+    cy.get('[data-testid=route-popup]').should('not.exist');
+    cy.tick(1000);
+    cy.get('[data-testid=route-popup]').should('exist');
+  });
+
   it('keeps the highlight while a cell of the table is being edited', () => {
     cy.canvasClick(A);
     expectFocusOnA();
@@ -255,6 +269,25 @@ describe('Table focus highlight for two selected tables', () => {
     // Imported foreign keys are many to one, so entering orders or owners from accounts may find no row.
     cy.get('[data-testid=route-popup-guaranteed]').should('not.exist');
     expectRelated([link('accounts', 'owners'), link('owners', 'orders')], [ids.owners]);
+  });
+
+  it('paints the highlight over the dashed selection bounds, and route pills in front of everything', () => {
+    pick('accounts', 'orders');
+    expectRelated([link('accounts', 'owners'), link('owners', 'orders')], [ids.owners]);
+    // Overview, so the table names' layer is there too.
+    cy.zoomMenu('zoom-out');
+    cy.zoomMenu('zoom-out');
+    cy.zoomMenu('zoom-out');
+    cy.get('[data-node-type=table]').should('have.attr', 'data-detail', 'overview');
+    // SVG paints in document order, so later means on top.
+    const after = (q: string, later: string) =>
+      cy.get(q).last().then(($first) => {
+        cy.get(later).each(($el) => expect($first[0]!.compareDocumentPosition($el[0]!) & Node.DOCUMENT_POSITION_FOLLOWING, `${later} after ${q}`).to.be.greaterThan(0));
+      });
+    after('[data-testid=selection-bounds]', '[data-testid=related-connector]');
+    after('[data-testid=selection-bounds]', '[data-testid=related-table]');
+    after('[data-testid=selection-overlay]', '[data-testid=overview-name]');
+    after('[data-testid=overview-name]', '[data-testid=route-step]');
   });
 
   it('follows the selection order: the other way round the direct link enters a primary key', () => {
