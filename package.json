@@ -15,9 +15,12 @@
     "cy:open": "env -u ELECTRON_RUN_AS_NODE cypress open",
     "cy:run": "env -u ELECTRON_RUN_AS_NODE cypress run",
     "test:unit": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:e2e": "start-server-and-test 'vite --port 5199 --strictPort' http://localhost:5199 'env -u ELECTRON_RUN_AS_NODE cypress run'",
     "test:e2e:dist": "start-server-and-test 'vite preview --port 5199 --strictPort' http://localhost:5199 'env -u ELECTRON_RUN_AS_NODE cypress run'",
-    "verify": "npm run lint && npm run typecheck && npm run test:unit && npm run build && npm run test:e2e:dist",
+    "test:e2e:burn": "start-server-and-test 'vite --port 5199 --strictPort' http://localhost:5199 'sh scripts/burn-in.sh'",
+    "test:e2e:burn:dist": "start-server-and-test 'vite preview --port 5199 --strictPort' http://localhost:5199 'sh scripts/burn-in.sh'",
+    "verify": "npm run lint && npm run typecheck && npm run test:coverage && npm run build && npm run test:e2e:dist && npm run test:e2e:burn:dist",
     "prepare": "panda codegen && { git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true; }"
   },
   "dependencies": {
@@ -38,6 +41,7 @@
     "@types/react-dom": "19.3.0",
     "@types/sql.js": "1.4.11",
     "@vitejs/plugin-react": "5.2.0",
+    "@vitest/coverage-v8": "^5.0.5",
     "cypress": "15.21.1",
     "eslint": "10.12.0",
     "eslint-plugin-react-hooks": "7.1.1",

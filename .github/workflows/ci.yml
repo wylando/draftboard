@@ -44,8 +44,9 @@ jobs:
         run: npm run typecheck
       - name: Unit tests
         # Run even if an earlier step failed, so one CI run reports every problem.
+        # Fails when coverage drops under the floor in vite.config.ts.
         if: ${{ !cancelled() }}
-        run: npm run test:unit
+        run: npm run test:coverage
 
   e2e:
     name: Build & E2E
@@ -53,9 +54,13 @@ jobs:
     # that don't lint or compile.
     needs: checks
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Burn-in reruns a PR's changed specs 5 times, on top of the full run.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Burn-in diffs against the base branch, so it needs history back to the merge base.
+          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
@@ -71,6 +76,12 @@ jobs:
         run: npm run build
       - name: E2E tests (against the production build)
         run: npm run test:e2e:dist
+      - name: Burn in changed specs
+        # Catches a flaky new or changed spec before it lands; a single pass can hide one.
+        if: ${{ github.event_name == 'pull_request' }}
+        run: npm run test:e2e:burn:dist
+        env:
+          BURN_IN_BASE: origin/${{ github.base_ref }}
       - name: Upload failure screenshots
         if: ${{ failure() }}
         uses: actions/upload-artifact@v7
