@@ -1,3 +1,5 @@
+import { seedWorkspace } from '../support/workspace';
+
 const table = () => cy.get('[data-node-type=table]');
 
 describe('Tables: level of detail', () => {
@@ -57,8 +59,7 @@ describe('Tables: overview names inside a frame', () => {
   };
 
   it('clips the name to the frame and fades it with the frame', () => {
-    const workspace = { version: 1, activeId: 'b1', boards: [{ id: 'b1', name: 'Board 1', nodes: [frame, inner] }] };
-    cy.visit('/', { onBeforeLoad: (win) => win.localStorage.setItem('draftboard:workspace:v1', JSON.stringify(workspace)) });
+    seedWorkspace([frame, inner]);
     cy.get('[data-testid=node-inner]').should('have.attr', 'data-detail', 'full');
     cy.zoomMenu('zoom-out');
     cy.zoomMenu('zoom-out');
@@ -93,8 +94,7 @@ describe('Tables: level of detail with long names', () => {
   };
 
   beforeEach(() => {
-    const workspace = { version: 1, activeId: 'b1', boards: [{ id: 'b1', name: 'Board 1', nodes: [tableNode] }] };
-    cy.visit('/', { onBeforeLoad: (win) => win.localStorage.setItem('draftboard:workspace:v1', JSON.stringify(workspace)) });
+    seedWorkspace([tableNode]);
     cy.get('[data-testid=node-narrow]').should('have.attr', 'data-detail', 'full');
   });
 

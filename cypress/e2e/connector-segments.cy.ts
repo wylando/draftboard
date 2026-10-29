@@ -1,6 +1,8 @@
 // A module, so its helpers don't clash with other specs' in the shared spec scope.
 export {};
 
+import { savedNodes } from '../support/workspace';
+
 interface Pt {
   x: number;
   y: number;
@@ -33,30 +35,19 @@ const linked = () => {
   cy.get('[data-node-type=connector]').should('have.length', 1);
 };
 
-const read = (win: Cypress.AUTWindow): SavedConnector | undefined => {
-  const raw = win.localStorage.getItem('draftboard:workspace:v1');
-  const nodes = raw ? (JSON.parse(raw) as { boards: Array<{ nodes: SavedConnector[] }> }).boards[0]!.nodes : [];
-  return nodes.find((n) => n.type === 'connector');
-};
-
-/** Retries `check` against the saved connector until the debounced save has caught up. */
+/** Retries `check` against the saved connector, and yields it. */
 const saved = (check: (connector: SavedConnector) => void) =>
-  cy.window().should((win) => {
-    const connector = read(win);
+  savedNodes<SavedConnector>((nodes) => {
+    const connector = nodes.find((n) => n.type === 'connector');
     expect(connector, 'saved connector').to.not.equal(undefined);
     check(connector as SavedConnector);
-  });
+  }).then((nodes) => nodes.find((n) => n.type === 'connector') as SavedConnector);
 
 const savedTables = (check: (tables: Array<{ x: number; y: number }>) => void) =>
-  cy.window().should((win) => {
-    const raw = win.localStorage.getItem('draftboard:workspace:v1');
-    const nodes = raw ? (JSON.parse(raw) as { boards: Array<{ nodes: Array<{ type: string; x: number; y: number }> }> }).boards[0]!.nodes : [];
-    check(nodes.filter((n) => n.type === 'table').sort((p, q) => p.x - q.x));
-  });
+  savedNodes<{ type: string; x: number; y: number }>((nodes) => check(nodes.filter((n) => n.type === 'table').sort((p, q) => p.x - q.x)));
 
 /** The saved connector, once its route has the expected elbow (at least three segments). */
-const elbow = () =>
-  saved((c) => expect(c.points.length, 'route points').to.be.greaterThan(3)).then((win) => read(win as unknown as Cypress.AUTWindow) as SavedConnector);
+const elbow = () => saved((c) => expect(c.points.length, 'route points').to.be.greaterThan(3));
 
 /** Index of the vertical interior segment: the one between two points that share an x. */
 const verticalSegment = (points: Pt[]) => points.findIndex((p, i) => i > 0 && i < points.length - 2 && p.x === (points[i + 1] as Pt).x);
@@ -142,9 +133,7 @@ describe('Reshaping an elbow connector by dragging its segments', () => {
     cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'connector');
     cy.canvasDrag([80, row], [740, row]);
     const jog = (points: Pt[]) => points.findIndex((p, i) => i > 0 && i < points.length - 2 && p.y === (points[i + 1] as Pt).y && p.y !== row);
-    saved((c) => expect(jog(c.points), 'a detour round B').to.be.greaterThan(0));
-    cy.window().then((win) => {
-      const points = (read(win) as SavedConnector).points;
+    saved((c) => expect(jog(c.points), 'a detour round B').to.be.greaterThan(0)).then(({ points }) => {
       const j = jog(points);
       const away = Math.sign((points[j] as Pt).y - row) * 20;
       dragHandle(j, [0, away]);
@@ -165,9 +154,7 @@ describe('Reshaping an elbow connector by dragging its segments', () => {
     linked();
     elbow().then((before) => {
       dragHandle(verticalSegment(before.points), [60, 0]);
-      saved((c) => expect(c.bends, 'manual shape').to.not.equal(undefined));
-      cy.window().then((win) => {
-        const shaped = read(win) as SavedConnector;
+      saved((c) => expect(c.bends, 'manual shape').to.not.equal(undefined)).then((shaped) => {
         const bends = shaped.bends as Pt[];
 
         cy.pressKey('a', { code: 'KeyA', metaKey: true });

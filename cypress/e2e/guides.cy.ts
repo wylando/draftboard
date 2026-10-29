@@ -1,3 +1,5 @@
+import { savedNodes, seedWorkspace } from '../support/workspace';
+
 const wheel = (deltaX: number, deltaY: number) =>
   cy.get('[data-testid=canvas]').then(($c) => {
     const win = $c[0]!.ownerDocument.defaultView!;
@@ -174,7 +176,7 @@ describe('Smart guides', () => {
     cy.get('[data-testid=snap-to-layers]').should('have.attr', 'data-state', 'unchecked');
     cy.window().its('localStorage').invoke('getItem', 'draftboard:preferences:v1').should('contain', '"snapToLayers":false');
     // Document saves are debounced; the drag below needs the rects to survive the reload.
-    cy.window().its('localStorage').invoke('getItem', 'draftboard:workspace:v1').should('contain', 'Rectangle 2');
+    savedNodes((nodes) => expect(nodes.map((n) => n.name)).to.include('Rectangle 2'));
 
     cy.reload();
     cy.get('[data-testid=nav-canvas]').click();
@@ -189,14 +191,6 @@ describe('Smart guides', () => {
 
 const base = { rotation: 0, fill: '#d9d9d9', stroke: '#000000', strokeWidth: 0, opacity: 1, visible: true, cornerRadius: 0 };
 
-const visitWith = (nodes: object[]) =>
-  cy.visit('/', {
-    onBeforeLoad: (win) => {
-      win.localStorage.clear();
-      win.localStorage.setItem('draftboard:document:v1', JSON.stringify({ version: 1, nodes }));
-    },
-  });
-
 describe('Smart guides on nested layers', () => {
   it('ignores a layer clipped out of sight by its frame', () => {
     const nodes = [
@@ -205,7 +199,7 @@ describe('Smart guides on nested layers', () => {
       { ...base, id: 'c', type: 'rect', name: 'Clipped', parentId: 'f', x: 400, y: 300, width: 50, height: 50 },
       { ...base, id: 'm', type: 'rect', name: 'Mover', parentId: null, x: 600, y: 600, width: 100, height: 100 },
     ];
-    visitWith(nodes);
+    seedWorkspace(nodes);
     cy.get('[data-testid=layers-panel]').should('contain', 'Clipped');
 
     // Unsnapped, Mover's left edge lands 4 px from Clipped's right edge (450).

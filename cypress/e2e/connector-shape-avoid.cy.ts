@@ -1,6 +1,8 @@
 // A module, so its helpers don't clash with other specs' in the shared spec scope.
 export {};
 
+import { savedNodes } from '../support/workspace';
+
 interface Pt {
   x: number;
   y: number;
@@ -57,9 +59,7 @@ const centre = () =>
 
 /** The saved tables (left to right: A, B, C by their x at the start) and the connector, retried until saved. */
 const saved = (check: (tables: Saved[], connector: Saved) => void) =>
-  cy.window().should((win) => {
-    const raw = win.localStorage.getItem('draftboard:workspace:v1');
-    const nodes = raw ? (JSON.parse(raw) as { boards: Array<{ nodes: Saved[] }> }).boards[0]!.nodes : [];
+  savedNodes<Saved>((nodes) => {
     const connector = nodes.find((n) => n.type === 'connector');
     expect(connector, 'saved connector').to.not.equal(undefined);
     check(nodes.filter((n) => n.type === 'table'), connector as Saved);

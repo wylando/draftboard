@@ -58,7 +58,8 @@ Cypress (only queries and assertions retry; actions run once; `.then` never retr
   element re-renders): the held element goes stale. Re-query with a fresh `cy.get`.
 - Holding an element across a re-render with `cy.wrap($el)` inside `.then`.
 - Animations and transitions: the side-panel View Transition puts an overlay over the page for about 220 ms. After a
-  panel toggle, assert the new state (e.g. the counterpart button's focus) before touching the canvas.
+  panel toggle, assert the new state (e.g. the counterpart button's focus) and wait for `[data-morphing]` to clear
+  (EditorBody sets it for the whole transition, and ignores toggle clicks meanwhile) before the next toggle or canvas action.
 - Selecting by CSS class, by layout position, or by shortcut display text ("⌘D" is "Ctrl+D" on Linux CI). Use
   `data-testid`, role or label, and `data-binding="Mod+D"`. Record keys with `code` (`pressKey('b', { code: 'KeyB' })`).
 - State leaking between tests or depending on test order (shared variables written in one `it` and read in another).
@@ -96,10 +97,12 @@ environment (CI fonts, viewport, browser).
   "object mother" file of named examples that grows into a god-object.
 - **Vitest 5 fixtures** (`test.extend`, lazily created, composable, `test.override` per `describe`) suit expensive
   or shared setup such as a parsed schema or a loaded sql.js database. Don't use them for a one-line value.
-- **E2E seeds state, not clicks,** when the UI isn't what's being tested: write the workspace to `localStorage`
-  (`draftboard:workspace:v1`) before visiting, or use an existing custom command (`visitEmpty`, `drawShape`,
-  `canvasDrag`, `pressKey`, `prop`). Drive the canvas only through these commands; they dispatch real
-  `PointerEvent`s at `elementFromPoint`.
+- **E2E seeds state, not clicks,** when the UI isn't what's being tested: `seedWorkspace(nodes)` from
+  `cypress/support/workspace.ts`, with nodes built from the app's factories imported from `src/editor/model`, or use
+  an existing custom command (`visitEmpty`, `drawShape`, `canvasDrag`, `pressKey`, `prop`). Read what was saved with
+  that module's retrying `savedNodes` / `savedWorkspace`, not a hand-parsed `localStorage` read. Don't seed the
+  legacy `draftboard:document:v1` key unless the test is about migration. Drive the canvas only through these
+  commands; they dispatch real `PointerEvent`s at `elementFromPoint`.
 - **Shared helpers.** A helper copied into three or more specs, or one whose copies have started to drift, moves
   to `cypress/support/` (a plain imported module, or a custom command if it chains off Cypress); before then, a
   local copy is fine. When a new test needs a helper that already exists in support, require it over a new copy.

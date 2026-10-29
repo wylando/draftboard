@@ -1,6 +1,8 @@
 // A module, so its helpers don't clash with other specs' in the shared spec scope.
 export {};
 
+import { savedNodes, seedWorkspace } from '../support/workspace';
+
 const placeTable = (at: [number, number]) => {
   cy.pressKey('d', { code: 'KeyD' });
   cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'table');
@@ -206,7 +208,7 @@ describe('Connectors', () => {
   it('survives a reload, and a saved connector whose table is gone loads as a loose end', () => {
     twoTables();
     connectIdRows();
-    cy.window().its('localStorage').invoke('getItem', 'draftboard:workspace:v1').should('contain', 'connector');
+    savedNodes((nodes) => expect(nodes.map((n) => n.type)).to.include('connector'));
     cy.reload();
     line().should('have.attr', 'data-broken', 'false');
 
@@ -215,12 +217,7 @@ describe('Connectors', () => {
       rotation: 0, fill: '#ffffff', stroke: '#757575', strokeWidth: 1.5, opacity: 1, visible: true, routing: 'orthogonal',
       from: { kind: 'point', x: 50, y: 60 }, to: { kind: 'node', nodeId: 'gone' }, points: [{ x: 50, y: 60 }, { x: 250, y: 60 }],
     };
-    cy.visit('/', {
-      onBeforeLoad: (win) => {
-        win.localStorage.clear();
-        win.localStorage.setItem('draftboard:document:v1', JSON.stringify({ version: 1, nodes: [connector] }));
-      },
-    });
+    seedWorkspace([connector]);
     line().should('have.attr', 'data-broken', 'true');
     route((points) => expect(points[points.length - 1]).to.deep.equal([250, 60]));
   });

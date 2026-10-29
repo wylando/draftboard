@@ -1,6 +1,8 @@
 // A module, so its helpers don't clash with other specs' in the shared spec scope.
 export {};
 
+import { savedNodes } from '../support/workspace';
+
 const placeTable = (at: [number, number]) => {
   cy.pressKey('d', { code: 'KeyD' });
   cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'table');
@@ -227,8 +229,7 @@ describe('Table focus highlight for two selected tables', () => {
     cy.get('[data-testid=import-submit]').click();
     cy.get('[data-testid=dialog]').should('not.exist');
     cy.get('[data-node-type=connector]').should('have.length', 3);
-    cy.window().should((win) => {
-      const nodes = (JSON.parse(win.localStorage.getItem('draftboard:workspace:v1') ?? '{"boards":[{"nodes":[]}]}') as { boards: Array<{ nodes: Saved[] }> }).boards[0]!.nodes;
+    savedNodes<Saved>((nodes) => {
       const tables = nodes.filter((n) => n.type === 'table');
       const connectors = nodes.filter((n) => n.type === 'connector');
       expect(tables).to.have.length(3);
