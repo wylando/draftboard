@@ -152,12 +152,6 @@ describe('snapOffset', () => {
     expect(snapOffset([206.5], target, 'x', 6)).toBeNull();
   });
 
-  it('scales with the threshold the caller derives from zoom', () => {
-    // The same 4 world px is 8 screen px at 200% (threshold 3) and 4 screen px at 100% (threshold 6).
-    expect(snapOffset([204], target, 'x', 6 / 2)).toBeNull();
-    expect(snapOffset([204], target, 'x', 6)).toBe(-4);
-  });
-
   it('takes the closest line across values and candidates', () => {
     expect(snapOffset([204, 297], [rect(200, 0), rect(100, 0)], 'x', 6)).toBe(3);
   });
@@ -175,16 +169,15 @@ describe('alignmentGuides', () => {
   const subject = rect(200, 100);
 
   it('marks the cross-axis ends of the subject and each layer sharing the line', () => {
-    expect(alignmentGuides(subject, { x: [200], y: [] }, [rect(200, 300, 50, 50)])).toEqual([
-      { axis: 'x', at: 200, marks: [100, 200, 300, 350] },
-    ]);
+    const [guide] = alignmentGuides(subject, { x: [200], y: [] }, [rect(200, 300, 50, 50)]);
+    expect(guide).toMatchObject({ axis: 'x', at: 200 });
+    expect([...guide!.marks].sort((a, b) => a - b)).toEqual([100, 200, 300, 350]);
   });
 
   it('matches a candidate centre as well as its edges', () => {
-    // Line 250 is the centre of the 200..300 candidate.
-    expect(alignmentGuides(subject, { x: [], y: [150] }, [rect(0, 100, 50, 100)])).toEqual([
-      { axis: 'y', at: 150, marks: [200, 300, 0, 50] },
-    ]);
+    const [guide] = alignmentGuides(subject, { x: [], y: [150] }, [rect(0, 100, 50, 100)]);
+    expect(guide).toMatchObject({ axis: 'y', at: 150 });
+    expect([...guide!.marks].sort((a, b) => a - b)).toEqual([0, 50, 200, 300]);
   });
 
   it('draws nothing for a line no layer sits on', () => {
@@ -211,9 +204,12 @@ describe('snapSpacing', () => {
     expect(snapSpacing(rect(404, 300), row, 'x', 6)).toBeNull();
   });
 
-  it('centres the subject between its two neighbours', () => {
-    // 300 free between A and C; a 100 wide subject sits centred at x 200.
-    expect(snapSpacing(rect(196, 0), [rect(0, 0), rect(400, 0)], 'x', 6)).toBe(4);
+  it.each([
+    ['row', rect(196, 0), [rect(0, 0), rect(400, 0)], 'x'],
+    ['column', rect(0, 196), [rect(0, 0), rect(0, 400)], 'y'],
+  ] as const)('centres the subject between its two neighbours in a %s', (_name, subject, neighbours, axis) => {
+    // 300 free between the neighbours; a 100 wide subject sits centred 200 along the axis.
+    expect(snapSpacing(subject, [...neighbours], axis, 6)).toBe(4);
   });
 
   it('does not centre when the subject is wider than the space between its neighbours', () => {

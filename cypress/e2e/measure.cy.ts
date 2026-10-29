@@ -16,7 +16,6 @@ const hover = (at: [number, number]) => cy.canvasPointer('pointermove', at, { bu
 const measure = (axis: 'x' | 'y', distance: number) =>
   cy.get(`[data-testid=distance-measure][data-axis=${axis}][data-distance="${distance}"]`);
 
-// Which distances and leaders are drawn is pinned by the measureBetween unit tests in geometry.test.ts.
 describe('Measuring distances with Alt', () => {
   beforeEach(() => {
     altDown = false;
@@ -41,6 +40,15 @@ describe('Measuring distances with Alt', () => {
     measure('x', 100).should('exist');
     cy.window().then((win) => win.dispatchEvent(new win.Event('blur')));
     cy.get('[data-testid=distance-measure]').should('not.exist');
+
+    // A layer diagonally away is joined to its gap by dashed leaders.
+    holdAlt(false);
+    cy.drawShape('rect', [500, 400], [560, 460]);
+    holdAlt(true);
+    hover([150, 150]);
+    measure('x', 300).should('exist');
+    measure('y', 200).should('exist');
+    cy.get('[data-testid=measure-leader]').should('have.length', 2);
   });
 
   it('shows nothing over the selection itself, or after the canvas moves under a still pointer', () => {

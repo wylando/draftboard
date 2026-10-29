@@ -122,7 +122,7 @@ describe('Smart guides', () => {
     cy.prop('x').should('have.value', '550');
   });
 
-  // Gap choice and centring are pinned in geometry.test.ts (snapSpacing, spacingGuides); this only shows the overlay.
+  // Overlay only; gap choice is a unit concern.
   it('snaps to a gap already used in the row, and marks every equal gap', () => {
     // Rect 1 and rect 2 sit 100 apart; this one starts 60 right of rect 2.
     cy.drawShape('rect', [460, 100], [560, 200]);
@@ -198,7 +198,6 @@ const visitWith = (nodes: object[]) =>
   });
 
 describe('Smart guides on nested layers', () => {
-  // Which gaps count between nested layers is pinned by the snapSpacing unit tests in geometry.test.ts.
   it('ignores a layer clipped out of sight by its frame', () => {
     const nodes = [
       { ...base, id: 'f', type: 'frame', name: 'Frame 1', parentId: null, x: 100, y: 300, width: 200, height: 200, fill: '#ffffff' },
