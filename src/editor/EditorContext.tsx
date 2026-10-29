@@ -1,6 +1,9 @@
+import { flushSync } from 'react-dom';
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, type Dispatch, type ReactNode } from 'react';
+import { dismissNotice, notify } from '../design-system';
 import { useLatest } from '../shared/useLatest';
 import type { EditorAction, EditorState } from './model/editorReducer';
+import { isUndoable, toastFor, type DeleteMark } from './toasts';
 import { initialWorkspace, sameSavedParts, workspaceReducer, type WorkspaceAction } from './model/workspace';
 import { loadWorkspace, saveWorkspace } from './persistence';
 
@@ -23,6 +26,8 @@ interface BoardsContextValue {
   dispatch: Dispatch<WorkspaceAction>;
 }
 
+const TOAST_ACTIONS = new Set<string>(['copySelection', 'cutSelection', 'pasteClipboard', 'duplicateSelection', 'deleteSelection']);
+
 const EditorContext = createContext<EditorContextValue | null>(null);
 const BoardsContext = createContext<BoardsContextValue | null>(null);
 
@@ -31,9 +36,39 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     const saved = loadWorkspace();
     return initialWorkspace(saved.boards, saved.activeId);
   });
-  const dispatch = useCallback((action: EditorAction) => workspaceDispatch({ type: 'editor', action }), []);
-
   const latest = useLatest(workspace);
+  // The delete a visible "Undo" belongs to: its board, and the document it removed (the top of history after it).
+  const deleted = useRef<DeleteMark | null>(null);
+
+  const dispatch = useCallback(
+    (action: EditorAction) => {
+      if (!TOAST_ACTIONS.has(action.type)) return workspaceDispatch({ type: 'editor', action });
+      const ws = latest.current;
+      const board = ws.boards.find((b) => b.id === ws.activeId);
+      const plan = board && toastFor(board.editor, action);
+      if (board && plan) {
+        const mark = { boardId: board.id, nodes: board.editor.nodes };
+        const undo = () => {
+          if (deleted.current === mark && isUndoable(latest.current, mark)) workspaceDispatch({ type: 'editor', action: { type: 'undo' } });
+        };
+        if (plan.undoable) deleted.current = mark;
+        notify(plan.message, { id: plan.id, action: plan.undoable ? { label: 'Undo', onClick: undo } : undefined });
+      }
+      // Committed at once, so a key pressed right after reads the result of this one: the toast decides from
+      // `latest`, which updates on commit. Only these five actions pay for it.
+      flushSync(() => workspaceDispatch({ type: 'editor', action }));
+    },
+    [latest],
+  );
+
+  // The delete toast's Undo is only good while the delete is the newest history entry on its board.
+  useEffect(() => {
+    if (deleted.current && !isUndoable(workspace, deleted.current)) {
+      deleted.current = null;
+      dismissNotice('delete');
+    }
+  }, [workspace]);
+
   const scheduled = useRef(workspace);
   const timer = useRef<number | undefined>(undefined);
   // Not cleaned up per change: a pan right after an edit must not cancel the edit's pending save.

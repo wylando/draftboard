@@ -14,7 +14,7 @@ import { Block, descClass, mutedClass, Terms, termClass } from './sectionParts';
 
 const NO_MOUNTED: ReadonlySet<string> = new Set();
 const NO_CHILDREN: ReadonlyMap<string | null, DesignNode[]> = new Map();
-const NO_RELATIONS: Relations = { foreignKeys: new Map(), mismatched: new Set(), relationalEnds: new Set() };
+export const NO_RELATIONS: Relations = { foreignKeys: new Map(), typeMismatches: new Map(), relationalEnds: new Set() };
 const IDENTITY_VIEWPORT = { x: 0, y: 0, zoom: 1 };
 
 const SAMPLE_WIDTH = 96;
@@ -67,6 +67,22 @@ const linkedTable: TableNode = {
   indexes: [],
 };
 const LINKED_VIEWBOX = `-4 -4 ${linkedTable.width + 8} ${linkedTable.height + 8}`;
+const ownerId = createColumn('owner_id', 'int');
+const mismatchTable: TableNode = {
+  ...sampleTable,
+  id: 'symbol-sample-mismatch',
+  name: 'orders',
+  width: 150,
+  columns: [ownerId],
+  height: tableHeight(1),
+  indexes: [],
+};
+const MISMATCH_VIEWBOX = `-4 -4 ${mismatchTable.width + 8} ${mismatchTable.height + 8}`;
+const mismatchRelations: Relations = {
+  ...NO_RELATIONS,
+  foreignKeys: new Map([[mismatchTable.id, new Set([ownerId.id])]]),
+  typeMismatches: new Map([[`${mismatchTable.id}:${ownerId.id}`, 'Types differ: int → uuid']]),
+};
 const rowsRelations: Relations = {
   ...NO_RELATIONS,
   foreignKeys: new Map([[rowsTable.id, new Set([fk.id, pfk.id, ufk.id])]]),
@@ -78,13 +94,13 @@ const stackClass = css({ display: 'grid', gap: '1', justifyItems: 'start' });
 const rowsLayoutClass = css({ display: 'flex', flexWrap: 'wrap', gap: '4', alignItems: 'flex-start' });
 const rowsTermsClass = css({ flexGrow: '1', flexBasis: '[16rem]', minWidth: '0' });
 
-function Sample({ nodes, viewBox, relations = NO_RELATIONS, overlay, scale = 1 }: { nodes: DesignNode[]; viewBox: string; relations?: Relations; overlay?: ReactNode; scale?: number }) {
+export function Sample({ nodes, viewBox, relations = NO_RELATIONS, overlay, scale = 1 }: { nodes: DesignNode[]; viewBox: string; relations?: Relations; overlay?: ReactNode; scale?: number }) {
   const [, , width, height] = viewBox.split(' ').map(Number);
   return (
     <svg className={canvasClass} aria-hidden="true" width={width! * scale} height={height! * scale} viewBox={viewBox}>
       <RelationsContext.Provider value={relations}>
         {nodes.map((n) => (
-          <NodeView key={n.id} node={n} childrenOf={NO_CHILDREN} mounted={NO_MOUNTED} editingId={null} />
+          <NodeView key={n.id} node={n} childrenOf={NO_CHILDREN} mounted={NO_MOUNTED} editingId={null} detail="full" scale={1} fullDetailId={null} />
         ))}
       </RelationsContext.Provider>
       {overlay}
@@ -167,10 +183,11 @@ export function SymbolsSection() {
         </Entry>
         <Entry
           testId="symbol-warning"
-          term="Warning triangle"
-          sample={<Line id="symbol-sample-warning" relations={{ ...NO_RELATIONS, mismatched: new Set(['symbol-sample-warning']) }} />}
+          term="Amber dot on a key row"
+          sample={<Sample nodes={[mismatchTable]} viewBox={MISMATCH_VIEWBOX} relations={mismatchRelations} scale={1.25} />}
         >
-          The two columns of a foreign key have different types.
+          The foreign-key column’s type doesn’t fit the column it references. Hover the dot to see both types.
+          Types of the same kind, such as serial and int or varchar and text, fit.
         </Entry>
         <Entry
           testId="symbol-highlight"
@@ -190,8 +207,9 @@ export function SymbolsSection() {
           }
         >
           The links of the selected tables are drawn over in the highlight color, and the tables they link to are
-          outlined. With exactly two tables selected, only the estimated fastest route between them is shown. Pick
-          the color under Settings → Canvas.
+          outlined, while unrelated tables and links fade. With exactly two tables selected, only the estimated
+          fastest route between them is shown, and its tables are numbered from Start to End. Pick the color
+          under Settings → Canvas.
         </Entry>
       </Block>
 

@@ -80,8 +80,11 @@ describe('Editing connectors', () => {
     cy.canvasClick([200, 118]);
     cy.prop('name').should('have.value', 'Table 1');
     cy.pressKey('Backspace');
+    // Once Table 1 is gone the connector is redrawn with its loose end at the old table edge (x 340), so
+    // (420, 250) is no longer on it. Wait for the redraw instead of clicking before React has rendered the delete.
+    cy.get('[data-testid=connector-line]').should('have.attr', 'data-broken', 'true');
     // A copy of a broken connector is broken too: still a lost link, so it counts.
-    cy.canvasClick([420, 250]);
+    cy.canvasClick([340, 250]);
     cy.prop('name').should('have.value', 'Connector 1');
     cy.pressKey('d', { code: 'KeyD', metaKey: true });
     cy.get('[data-node-type=connector] [data-testid=connector-line]').eq(1).should('have.attr', 'data-broken', 'true');

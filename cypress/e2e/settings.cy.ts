@@ -21,6 +21,10 @@ describe('Settings: keyboard shortcuts', () => {
     openSettings();
   });
 
+  it('lists the align commands, unbound by default', () => {
+    row('arrange.alignLeft').should('exist').find('[data-binding]').should('not.exist');
+  });
+
   it('opens from the toolbar and returns to the canvas', () => {
     cy.url().should('include', '#/settings');
     cy.get('[data-testid=shortcuts-section]').should('be.visible');
@@ -43,7 +47,7 @@ describe('Settings: keyboard shortcuts', () => {
   it('rebinds Rectangle from R to B and the canvas uses the new key', () => {
     record('tool.rect', 'b', 'KeyB');
     chip('tool.rect', 'B').should('exist');
-    row('tool.rect').find('[data-binding="R"]').parent().find('[data-testid=remove-binding]').click();
+    chip('tool.rect', 'R').find('[data-testid=remove-binding]').click();
     chip('tool.rect', 'R').should('not.exist');
 
     cy.get('[data-testid=close-settings]').click();
@@ -56,6 +60,22 @@ describe('Settings: keyboard shortcuts', () => {
     cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'select');
     cy.pressKey('b', { code: 'KeyB' });
     cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'rect');
+  });
+
+  it('shows remove inside the key chip and Add only on hover or focus, both keyboard reachable', () => {
+    row('tool.rect').find('[data-testid="record-tool.rect"]').should('have.css', 'opacity', '0');
+    chip('tool.rect', 'R').find('[data-testid=remove-binding]').should('have.css', 'opacity', '0');
+
+    chip('tool.rect', 'R').find('[data-testid=remove-binding]').should('have.attr', 'aria-label').and('match', /^Remove .+ from Rectangle$/);
+    chip('tool.rect', 'R').find('[data-testid=remove-binding]').focus();
+    chip('tool.rect', 'R').find('[data-testid=remove-binding]').should('have.css', 'opacity', '1');
+    row('tool.rect').find('[data-testid="record-tool.rect"]').should('have.css', 'opacity', '1');
+
+    // Cypress can't press Enter on a button for real; a focused <button> is what makes the browser do it.
+    cy.focused().should('have.attr', 'data-testid', 'remove-binding').and('match', 'button').click();
+    chip('tool.rect', 'R').should('not.exist');
+    // With nothing assigned the Add control stays visible: it is the only way in.
+    row('tool.rect').find('[data-testid="record-tool.rect"]').should('have.css', 'opacity', '1');
   });
 
   it('keeps custom bindings after a reload', () => {
@@ -203,7 +223,7 @@ describe('Settings: getting started guide', () => {
     openSettings();
     cy.get('[data-testid=nav-guide]').click();
     cy.get('[data-testid=getting-started-section]').should('be.visible');
-    cy.get('[data-testid=guide-screen]').should('contain', 'Layers').and('contain', 'Design panel');
+    cy.get('[data-testid=guide-screen]').should('contain', 'Layers').and('contain', 'Design');
     cy.get('[data-testid=guide-tools]').should('contain', 'Rectangle').find('kbd').should('have.length.at.least', 7);
     cy.get('[data-testid=guide-options]').should('contain', 'Appearance').and('contain', 'opacity');
   });
@@ -225,10 +245,10 @@ describe('Settings: symbols', () => {
     cy.get('[data-testid=symbol-end-attached] [data-testid=connector-end][data-attached=true]').should('exist');
     cy.get('[data-testid=symbol-end-loose] [data-testid=connector-end][data-attached=false]').should('exist');
     cy.get('[data-testid=symbol-end-broken] [data-testid=connector-line][data-broken=true]').should('exist');
-    cy.get('[data-testid=symbol-warning] [data-testid=connector-warning]').should('exist');
+    cy.get('[data-testid=symbol-warning] [data-testid=type-mismatch]').should('exist');
     // The default highlight colour from the preferences.
-    cy.get('[data-testid=symbol-highlight] [data-testid=related-connector]').should('have.attr', 'stroke', '#80caff');
-    cy.get('[data-testid=symbol-highlight] [data-testid=related-table]').should('have.attr', 'stroke', '#80caff');
+    cy.get('[data-testid=symbol-highlight] [data-testid=related-connector]').should('have.attr', 'stroke', '#8b5cf6');
+    cy.get('[data-testid=symbol-highlight] [data-testid=related-table]').should('have.attr', 'stroke', '#8b5cf6');
 
     cy.get('[data-testid=symbols-rows] [data-testid=column-badge]').should(($b) => {
       expect($b.toArray().map((e) => e.textContent)).to.include.members(['PK', 'UQ', 'FK', 'PFK', 'UFK']);

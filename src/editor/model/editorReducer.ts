@@ -1,10 +1,10 @@
-import { boxCenter, mapBoxBetween, rotatePoint } from '../geometry';
+import { boxCenter, mapBoxBetween, rotatedBounds, rotatePoint } from '../geometry';
 import type { Anchor, Box, ConnectorNode, DesignNode, NodePatch, Point, ToolId, Viewport } from './types';
 import { createId, nameKey, nameTaken, uniqueName } from './names';
 import { createGroup } from './nodes';
 import { allowsManyToMany, bendsMoveWith, isMany, linkKind, linksToItself, nextCardinality, relationDefaults, routeConnector, sameAnchor, shiftConnector, visibleTables } from './connector';
 import { applyTableEdit, type TableEdit } from './table';
-import { byIdOf, descendantIds, type ById, frameAt, isContainer, mapSiblings, normalizeTree, topLevelIds } from './tree';
+import { byIdOf, descendantIds, type ById, frameAt, isContainer, isEffectivelyVisible, mapSiblings, normalizeTree, topLevelIds } from './tree';
 
 const HISTORY_LIMIT = 200;
 const PASTE_OFFSET = 10;
@@ -41,7 +41,7 @@ export type EditorAction =
   | { type: 'escape' }
   /** `parentAt`: put the node in the deepest frame under this world point. */
   | { type: 'addNode'; node: DesignNode; select?: boolean; parentAt?: Point }
-  /** Nodes must have fresh ids; they're added at the top level as one undo step, selecting the tables. */
+  /** Nodes must have fresh ids; they're added at the top level as one undo step, leaving nothing selected. */
   | { type: 'importNodes'; nodes: DesignNode[] }
   /** Transient: does not snapshot history. Pair with a prior checkpoint. */
   | { type: 'updateNodes'; patches: Record<string, NodePatch> }
@@ -92,6 +92,13 @@ export type EditorAction =
   /** Paste the clipboard 10px from where it was copied; the next paste goes 10px further. */
   | { type: 'pasteClipboard' }
   | { type: 'reorderSelection'; direction: 'forward' | 'backward' | 'front' | 'back' }
+  /**
+   * Lines the top-level selected layers' axis-aligned bounds up with the selection's bounds, as one undo
+   * step. Connectors are left out: attached ends follow their layers, loose ends stay.
+   */
+  | { type: 'alignSelection'; align: 'left' | 'centerX' | 'right' | 'top' | 'centerY' | 'bottom' }
+  /** Equal gaps between three or more layers, in position order; the outermost two stay put. One undo step. */
+  | { type: 'distributeSelection'; axis: 'horizontal' | 'vertical' }
   | { type: 'loadDocument'; nodes: DesignNode[] };
 
 /** Saved or imported documents may repeat a name; the first layer in tree order keeps it. */
@@ -253,6 +260,27 @@ function transformPatches(
   return patches;
 }
 
+/** Moves each layer (with its subtree) by its own delta; null when no layer would move. */
+function moveByDeltas(nodes: DesignNode[], deltas: Map<string, Point>): DesignNode[] | null {
+  const patches: Record<string, NodePatch> = {};
+  const byId = byIdOf(nodes);
+  for (const [id, d] of deltas) {
+    if (Math.abs(d.x) < 1e-9 && Math.abs(d.y) < 1e-9) continue;
+    const n = byId.get(id) as DesignNode;
+    Object.assign(patches, transformPatches(nodes, id, { x: n.x + d.x, y: n.y + d.y }));
+  }
+  return patchNodes(nodes, patches);
+}
+
+/** The selected layers that align and distribute act on, with their bounds. Connectors and hidden layers take no part. */
+function arrangeable(state: EditorState): Array<{ id: string; box: Box }> {
+  const byId = byIdOf(state.nodes);
+  return topLevelIds(byId, state.selection).flatMap((id) => {
+    const n = byId.get(id) as DesignNode;
+    return n.type === 'connector' || !isEffectivelyVisible(byId, n) ? [] : [{ id, box: rotatedBounds(n, n.rotation) }];
+  });
+}
+
 /** The picked column, if it is still in the one selected table. */
 function livePick(state: EditorState): { tableId: string; columnId: string } | null {
   const picked = state.selectedColumn;
@@ -372,7 +400,7 @@ function reduce(state: EditorState, action: EditorAction): EditorState {
       return {
         ...s,
         nodes: normalizeTree([...s.nodes, ...action.nodes.map((n) => ({ ...n, parentId: null }))]),
-        selection: action.nodes.filter((n) => n.type === 'table').map((n) => n.id),
+        selection: [],
       };
     }
 
@@ -621,6 +649,58 @@ function reduce(state: EditorState, action: EditorAction): EditorState {
       const s = pushHistory(state);
       const selected = new Set(state.selection);
       return { ...s, nodes: mapSiblings(s.nodes, (siblings) => reorderSiblings(siblings, selected, action.direction)) };
+    }
+
+    case 'alignSelection': {
+      const items = arrangeable(state);
+      if (items.length < 2) return state;
+      const left = Math.min(...items.map((i) => i.box.x));
+      const right = Math.max(...items.map((i) => i.box.x + i.box.width));
+      const top = Math.min(...items.map((i) => i.box.y));
+      const bottom = Math.max(...items.map((i) => i.box.y + i.box.height));
+      const deltas = new Map(
+        items.map(({ id, box }): [string, Point] => {
+          switch (action.align) {
+            case 'left':
+              return [id, { x: left - box.x, y: 0 }];
+            case 'centerX':
+              return [id, { x: (left + right) / 2 - (box.x + box.width / 2), y: 0 }];
+            case 'right':
+              return [id, { x: right - (box.x + box.width), y: 0 }];
+            case 'top':
+              return [id, { x: 0, y: top - box.y }];
+            case 'centerY':
+              return [id, { x: 0, y: (top + bottom) / 2 - (box.y + box.height / 2) }];
+            case 'bottom':
+              return [id, { x: 0, y: bottom - (box.y + box.height) }];
+          }
+        }),
+      );
+      const nodes = moveByDeltas(state.nodes, deltas);
+      return nodes ? { ...pushHistory(state), nodes } : state;
+    }
+
+    case 'distributeSelection': {
+      const items = arrangeable(state);
+      if (items.length < 3) return state;
+      const horizontal = action.axis === 'horizontal';
+      const start = (b: Box) => (horizontal ? b.x : b.y);
+      const size = (b: Box) => (horizontal ? b.width : b.height);
+      const sorted = [...items].sort((a, b) => start(a.box) - start(b.box));
+      const first = start(sorted[0]!.box);
+      // The last layer's own end, not the largest end: a wide layer spanning the others would otherwise push it outside.
+      const lastBox = sorted[sorted.length - 1]!.box;
+      const end = start(lastBox) + size(lastBox);
+      const gap = (end - first - sorted.reduce((sum, i) => sum + size(i.box), 0)) / (sorted.length - 1);
+      let cursor = first;
+      const deltas = new Map<string, Point>();
+      for (const { id, box } of sorted) {
+        const shift = cursor - start(box);
+        deltas.set(id, horizontal ? { x: shift, y: 0 } : { x: 0, y: shift });
+        cursor += size(box) + gap;
+      }
+      const nodes = moveByDeltas(state.nodes, deltas);
+      return nodes ? { ...pushHistory(state), nodes } : state;
     }
 
     case 'loadDocument':

@@ -1,8 +1,24 @@
 import { describe, expect, it } from 'vitest';
-import { nextCullWindow, placePopup, viewWorldBox } from './geometry';
+import { fitBox, nextCullWindow, placePopup, viewWorldBox } from './geometry';
 import type { Box } from './model/types';
 
 const view: Box = { x: 1000, y: 500, width: 800, height: 600 };
+
+describe('fitBox', () => {
+  const size = { width: 1000, height: 800 };
+
+  it('never zooms in past 100%, however small the box', () => {
+    const vp = fitBox({ x: 0, y: 0, width: 50, height: 50 }, size);
+    expect(vp.zoom).toBe(1);
+    expect(vp.x).toBe(500 - 25);
+  });
+
+  it('shrinks a large box to fit with padding, centred', () => {
+    const vp = fitBox({ x: 0, y: 0, width: 4000, height: 1000 }, size);
+    expect(vp.zoom).toBeCloseTo((1000 - 128) / 4000);
+    expect(vp.x + 2000 * vp.zoom).toBeCloseTo(500);
+  });
+});
 
 describe('viewWorldBox', () => {
   it('is the world area the canvas shows', () => {

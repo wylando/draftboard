@@ -8,6 +8,7 @@ import { useBoards } from '../EditorContext';
 import type { EditorAction, EditorState } from '../model/editorReducer';
 import { byIdOf, isEffectivelyVisible } from '../model/tree';
 import { useCloseBoard } from './useCloseBoard';
+import type { FileActions } from './FileActions';
 
 const NUDGE = 1;
 const NUDGE_LARGE = 10;
@@ -19,7 +20,9 @@ interface Options {
   zoomOut: () => void;
   zoomTo100: () => void;
   zoomToFit: () => void;
-  openSettings: () => void;
+  /** `section` is a Settings deep-link slug, such as 'getting-started'. */
+  openSettings: (section?: string) => void;
+  files: FileActions;
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -97,6 +100,22 @@ function runCommand(id: CommandId, o: Options, b: BoardControls): void {
       return dispatch({ type: 'groupSelection' });
     case 'arrange.ungroup':
       return dispatch({ type: 'ungroupSelection' });
+    case 'arrange.alignLeft':
+      return dispatch({ type: 'alignSelection', align: 'left' });
+    case 'arrange.alignCenterX':
+      return dispatch({ type: 'alignSelection', align: 'centerX' });
+    case 'arrange.alignRight':
+      return dispatch({ type: 'alignSelection', align: 'right' });
+    case 'arrange.alignTop':
+      return dispatch({ type: 'alignSelection', align: 'top' });
+    case 'arrange.alignCenterY':
+      return dispatch({ type: 'alignSelection', align: 'centerY' });
+    case 'arrange.alignBottom':
+      return dispatch({ type: 'alignSelection', align: 'bottom' });
+    case 'arrange.distributeH':
+      return dispatch({ type: 'distributeSelection', axis: 'horizontal' });
+    case 'arrange.distributeV':
+      return dispatch({ type: 'distributeSelection', axis: 'vertical' });
     case 'view.zoomIn':
       return o.zoomIn();
     case 'view.zoomOut':
@@ -134,6 +153,16 @@ function runCommand(id: CommandId, o: Options, b: BoardControls): void {
     }
     case 'app.openSettings':
       return o.openSettings();
+    case 'app.gettingStarted':
+      return o.openSettings('getting-started');
+    case 'file.importSchema':
+      return o.files.importSchema();
+    case 'file.importBoard':
+      return o.files.importBoard();
+    case 'file.exportSchema':
+      return o.files.exportSchema();
+    case 'file.exportBoard':
+      return o.files.exportBoard();
   }
 }
 
@@ -152,7 +181,11 @@ export function useKeyboardShortcuts(options: Options) {
       // neither may also nudge the selection. Alt combos (board commands) don't use those keys, so they pass.
       if (latest.current.dialogOpen || isTypingTarget(e.target) || (inOwnKeys(e.target) && !e.altKey)) return;
       const binding = bindingFromEvent(e);
-      const id = binding ? latest.current.commandFor(binding) : undefined;
+      let id = binding ? latest.current.commandFor(binding) : undefined;
+      // Bindings use the physical key, so a layout that types "?" elsewhere (Shift+- on German) finds nothing above;
+      // the typed character then stands in for Shift+/, still through the user's own bindings.
+      // Not with Ctrl/Cmd/Alt: Cmd+Shift+/ is the OS and browser Help shortcut, which must stay theirs.
+      if (!id && e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) id = latest.current.commandFor('Shift+/');
       if (!id) return;
       e.preventDefault();
       // Holding a nudge key should keep nudging, but holding Alt+N shouldn't keep adding boards.

@@ -169,7 +169,7 @@ describe('Table focus highlight', () => {
     cy.get('[data-testid=open-settings]').click();
     cy.get('[data-testid=nav-canvas]').click();
     cy.get('[data-testid=relation-highlight]').clear().type('FF00AA{enter}');
-    cy.get('[data-testid=relation-highlight]').should('have.value', 'FF00AA');
+    cy.get('[data-testid=relation-highlight]').should('have.value', '#FF00AA');
     cy.get('[data-testid=close-settings]').click();
     cy.canvasClick(A);
     relatedConnectors().should('have.attr', 'stroke', '#ff00aa');
@@ -179,10 +179,10 @@ describe('Table focus highlight', () => {
     cy.get('[data-testid=open-settings]').click();
     cy.get('[data-testid=nav-canvas]').click();
     cy.get('[data-testid=relation-highlight-reset]').click();
-    cy.get('[data-testid=relation-highlight]').should('have.value', '80CAFF');
+    cy.get('[data-testid=relation-highlight]').should('have.value', '#8B5CF6');
     cy.get('[data-testid=close-settings]').click();
     cy.canvasClick(A);
-    relatedConnectors().should('have.attr', 'stroke', '#80caff');
+    relatedConnectors().should('have.attr', 'stroke', '#8b5cf6');
   });
 });
 
@@ -205,12 +205,12 @@ describe('Table focus highlight for two selected tables', () => {
 
   beforeEach(() => {
     cy.visitEmpty();
-    cy.get('[data-testid=app-menu]').click();
+    cy.get('[data-testid=import-menu]').click();
     cy.get('[data-testid=import-schema]').click();
     cy.get('[data-testid=schema-source]').should('be.visible').type(SQL, { delay: 0, parseSpecialCharSequences: false });
     cy.contains('button', 'Preview').click();
     cy.get('[data-testid=import-summary]').should('contain', '3 tables').and('contain', '3 relationships');
-    cy.get('[data-testid=import-add]').click();
+    cy.get('[data-testid=import-submit]').click();
     cy.get('[data-testid=dialog]').should('not.exist');
     cy.get('[data-node-type=connector]').should('have.length', 3);
     cy.window().should((win) => {

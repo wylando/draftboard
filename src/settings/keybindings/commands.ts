@@ -51,6 +51,15 @@ export const COMMANDS = {
   'arrange.group': { label: 'Group selection', category: 'arrange', defaults: ['Mod+G'], description: 'Put the selected layers in a new group, which moves and resizes them together.' },
   'arrange.ungroup': { label: 'Ungroup', category: 'arrange', defaults: ['Mod+Shift+G'], description: 'Remove the selected groups and keep their layers where they are.' },
   'arrange.back': { label: 'Send to back', category: 'arrange', defaults: ['Mod+Alt+['], description: 'Move the selection to the bottom of the layer order.' },
+  // No defaults: browsers and OSes use most Alt/Mod letter combos. Bind one in Settings, or use the Design panel buttons.
+  'arrange.alignLeft': { label: 'Align left', category: 'arrange', defaults: [], description: 'Line the selected layers up with the left edge of the selection.' },
+  'arrange.alignCenterX': { label: 'Align horizontal centers', category: 'arrange', defaults: [], description: 'Center the selected layers on the selection’s horizontal middle.' },
+  'arrange.alignRight': { label: 'Align right', category: 'arrange', defaults: [], description: 'Line the selected layers up with the right edge of the selection.' },
+  'arrange.alignTop': { label: 'Align top', category: 'arrange', defaults: [], description: 'Line the selected layers up with the top edge of the selection.' },
+  'arrange.alignCenterY': { label: 'Align vertical centers', category: 'arrange', defaults: [], description: 'Center the selected layers on the selection’s vertical middle.' },
+  'arrange.alignBottom': { label: 'Align bottom', category: 'arrange', defaults: [], description: 'Line the selected layers up with the bottom edge of the selection.' },
+  'arrange.distributeH': { label: 'Distribute horizontally', category: 'arrange', defaults: [], description: 'Give three or more layers equal horizontal gaps; the outermost two stay put.' },
+  'arrange.distributeV': { label: 'Distribute vertically', category: 'arrange', defaults: [], description: 'Give three or more layers equal vertical gaps; the outermost two stay put.' },
 
   'view.zoomIn': { label: 'Zoom in', category: 'view', defaults: ['Mod+='], description: 'Double the zoom around the canvas center.' },
   'view.zoomOut': { label: 'Zoom out', category: 'view', defaults: ['Mod+-'], description: 'Halve the zoom around the canvas center.' },
@@ -74,6 +83,13 @@ export const COMMANDS = {
 
   // No default: ⌘, is usually taken by the browser's own settings. Use the gear button or bind one.
   'app.openSettings': { label: 'Open settings', category: 'app', defaults: [], description: 'Open this Settings page.' },
+  // "?" is Shift+/ on a US layout. Bindings follow the physical key, so useKeyboardShortcuts also accepts the typed "?" for layouts that put it elsewhere.
+  'app.gettingStarted': { label: 'Getting started', category: 'app', defaults: ['Shift+/'], description: 'Open the Getting started guide in Settings.' },
+  // No defaults: the top bar's Import and Export menus are the main way in; bind one here for a shortcut.
+  'file.importSchema': { label: 'Import schema', category: 'app', defaults: [], description: 'Open the schema import dialog (SQL, DBML or a SQLite file).' },
+  'file.importBoard': { label: 'Import board file', category: 'app', defaults: [], description: 'Choose a board .json file to load into the open board.' },
+  'file.exportSchema': { label: 'Export schema', category: 'app', defaults: [], description: 'Open the schema export dialog (SQL or DBML).' },
+  'file.exportBoard': { label: 'Export board file', category: 'app', defaults: [], description: 'Download the open board as a .json file.' },
 } as const satisfies Record<string, CommandDef>;
 
 export type CommandId = keyof typeof COMMANDS;

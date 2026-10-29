@@ -13,6 +13,7 @@ export function useCloseBoard() {
         title: `Close "${board.name}"?`,
         description: "Its design is deleted. This can't be undone.",
         confirmLabel: 'Close board',
+        destructive: true,
       });
       if (!ok) return;
     }

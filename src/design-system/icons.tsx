@@ -57,6 +57,16 @@ export const icons = {
       <path d="M4 6l4 4 4-4" />
     </Icon>
   ),
+  importFile: () => (
+    <Icon>
+      <path d="M8 2v7.5M5 6.75l3 3 3-3M2.5 10.5v3h11v-3" />
+    </Icon>
+  ),
+  exportFile: () => (
+    <Icon>
+      <path d="M8 9.5V2M5 4.75l3-3 3 3M2.5 10.5v3h11v-3" />
+    </Icon>
+  ),
   /** The app mark: two tables joined by a connector. */
   logo: () => (
     <Icon>
@@ -173,6 +183,97 @@ export const icons = {
     <Icon>
       <rect x="2" y="2" width="12" height="12" rx="1.5" />
       <path d="M10 2v12" />
+    </Icon>
+  ),
+  alignLeft: () => (
+    <Icon>
+      <path d="M2.5 2v12" />
+      <rect x="4.5" y="4" width="9" height="3" />
+      <rect x="4.5" y="9" width="5.5" height="3" />
+    </Icon>
+  ),
+  alignCenterX: () => (
+    <Icon>
+      <path d="M8 2v12" />
+      <rect x="3" y="4" width="10" height="3" />
+      <rect x="5" y="9" width="6" height="3" />
+    </Icon>
+  ),
+  alignRight: () => (
+    <Icon>
+      <path d="M13.5 2v12" />
+      <rect x="2.5" y="4" width="9" height="3" />
+      <rect x="6" y="9" width="5.5" height="3" />
+    </Icon>
+  ),
+  alignTop: () => (
+    <Icon>
+      <path d="M2 2.5h12" />
+      <rect x="4" y="4.5" width="3" height="9" />
+      <rect x="9" y="4.5" width="3" height="5.5" />
+    </Icon>
+  ),
+  alignCenterY: () => (
+    <Icon>
+      <path d="M2 8h12" />
+      <rect x="4" y="3" width="3" height="10" />
+      <rect x="9" y="5" width="3" height="6" />
+    </Icon>
+  ),
+  alignBottom: () => (
+    <Icon>
+      <path d="M2 13.5h12" />
+      <rect x="4" y="2.5" width="3" height="9" />
+      <rect x="9" y="6" width="3" height="5.5" />
+    </Icon>
+  ),
+  distributeH: () => (
+    <Icon>
+      <path d="M2.5 2v12M13.5 2v12" />
+      <rect x="6.5" y="4" width="3" height="8" />
+    </Icon>
+  ),
+  distributeV: () => (
+    <Icon>
+      <path d="M2 2.5h12M2 13.5h12" />
+      <rect x="4" y="6.5" width="8" height="3" />
+    </Icon>
+  ),
+  bringToFront: () => (
+    <Icon>
+      <path d="M9.5 6.5v-4h-7v7h4" />
+      <rect x="6.5" y="6.5" width="7" height="7" />
+    </Icon>
+  ),
+  sendToBack: () => (
+    <Icon>
+      <path d="M6.5 9.5v4h7v-7h-4" />
+      <rect x="2.5" y="2.5" width="7" height="7" />
+    </Icon>
+  ),
+  duplicate: () => (
+    <Icon>
+      <rect x="5.5" y="5.5" width="8" height="8" rx="1" />
+      <path d="M10.5 5.5v-2h-7v7h2" />
+    </Icon>
+  ),
+  ungroup: () => (
+    <Icon>
+      <path d="M2.5 5.5v-3h3M10.5 2.5h3v3M13.5 10.5v3h-3M5.5 13.5h-3v-3" />
+      <rect x="5.5" y="5.5" width="5" height="5" />
+    </Icon>
+  ),
+  strokeWidth: () => (
+    <Icon>
+      <path d="M2.5 3.5h11" strokeWidth={0.75} />
+      <path d="M2.5 7.5h11" strokeWidth={1.5} />
+      <path d="M2.5 12h11" strokeWidth={2.5} />
+    </Icon>
+  ),
+  opacity: () => (
+    <Icon>
+      <circle cx="8" cy="8" r="5.5" />
+      <path d="M4.5 11.5l7-7M8 13.5l5-5M3 8l5-5" />
     </Icon>
   ),
 } as const;

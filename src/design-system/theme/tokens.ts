@@ -34,6 +34,24 @@ export const tokens = defineTokens({
     },
     red: {
       500: { value: '#f24822' },
+      /** Ours: danger buttons; white text on it is about 5.3:1, which red.500 (3.7:1) doesn't reach. */
+      600: { value: '#c9331a' },
+      /** Ours: error text; red.500 is only 3.67:1 on white. */
+      700: { value: '#c4320a' },
+      /** Ours: error text in the dark theme (5.3:1 on grey.800). */
+      400: { value: '#ff7b5f' },
+      /** Ours: hover for danger buttons. */
+      800: { value: '#a82a15' },
+    },
+    /** Ours: dark-theme selection fills, a deep blue that keeps text.DEFAULT above 4.5:1. */
+    navy: {
+      700: { value: '#17324f' },
+      800: { value: '#10253b' },
+    },
+    /** Ours: cool greys for secondary text (6.05:1 on white) and control boundaries (3.35:1), which grey.500 misses. */
+    slate: {
+      400: { value: '#868d98' },
+      600: { value: '#5c6370' },
     },
     /** Ours: a soft amber for warnings. */
     amber: {
@@ -50,16 +68,22 @@ export const tokens = defineTokens({
   fontWeights: {
     default: { value: '400' },
     strong: { value: '500' },
+    /** Ours: emphasis and headings; 500 barely differs from 400 at small sizes. */
+    heading: { value: '600' },
   },
   fontSizes: {
-    bodySmall: { value: '0.5625rem' }, // 9px
-    bodyMedium: { value: '0.6875rem' }, // 11px
     bodyLarge: { value: '0.8125rem' }, // 13px
+    /** Ours: inspector and control text; 11px is too dense for a default. */
+    ui: { value: '0.75rem' }, // 12px
+    /** Ours: page and title headings. */
+    headingPage: { value: '1rem' }, // 16px
+    headingTitle: { value: '1.25rem' }, // 20px
   },
   lineHeights: {
-    bodySmall: { value: '0.875rem' },
-    bodyMedium: { value: '1rem' },
     bodyLarge: { value: '1.375rem' },
+    ui: { value: '1rem' },
+    headingPage: { value: '1.5rem' },
+    headingTitle: { value: '1.75rem' },
   },
   spacing: {
     0: { value: '0' },
@@ -97,8 +121,10 @@ export const tokens = defineTokens({
     /** A sidebar's title bar, which holds its hide button. */
     panelHeader: { value: '40px' },
     /** How far into a sidebar its resize handle can be grabbed. */
-    resizeGrab: { value: '4px' },
+    resizeGrab: { value: '8px' },
     control: { value: '28px' },
+    /** Ours: smallest pointer target (WCAG 2.5.8). */
+    target: { value: '24px' },
     swatch: { value: '16px' },
     layerRow: { value: '32px' },
     /** Layers tree: compact rows and one indent step (chevron width), as in code-editor file trees. */
@@ -110,7 +136,7 @@ export const tokens = defineTokens({
     boardTab: { value: '36px' },
     boardTabMin: { value: '96px' },
     boardTabMax: { value: '180px' },
-    boardTabClose: { value: '20px' },
+    boardTabClose: { value: '24px' },
     kbd: { value: '20px' },
     content: { value: '760px' },
     dialog: { value: '400px' },

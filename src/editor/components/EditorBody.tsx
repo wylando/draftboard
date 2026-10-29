@@ -2,9 +2,10 @@ import { Splitter, useSplitter, type SplitterPanelData as PanelData } from '@ark
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { css, cx } from 'styled-system/css';
 import { splitter as splitterRecipe } from 'styled-system/recipes';
-import { IconButton, icons } from '../../design-system';
+import { IconButton, icons, ToastRegion } from '../../design-system';
 import { useEditor } from '../EditorContext';
 import { useSectionFolds } from '../SectionFoldsContext';
+import { EmptyState } from './EmptyState';
 import {
   clampPanelWidth,
   loadPanelLayout,
@@ -59,7 +60,7 @@ const headerClass = css({
   '[data-side=left] > &': { paddingInlineStart: '4' },
   '[data-side=right] > &': { paddingInlineEnd: '4' },
 });
-const titleClass = css({ flex: '1', margin: '0', textStyle: 'body.mediumStrong' });
+const titleClass = css({ flex: '1', margin: '0', textStyle: 'heading.section' });
 const canvasPanelClass = css({ position: 'relative' });
 // Over the canvas but a sibling of it: the canvas starts gestures on pointer-down.
 const chipClass = css({
@@ -178,13 +179,15 @@ function useSidePanels() {
 }
 
 interface EditorBodyProps {
+  /** Opens the Getting started guide, from the empty-board card. */
+  onOpenGuide: () => void;
   layers: ReactNode;
   canvas: ReactNode;
   properties: ReactNode;
 }
 
 /** Layers | canvas | Design. Each sidebar collapses into a button in its corner of the canvas. */
-export function EditorBody({ layers, canvas, properties }: EditorBodyProps) {
+export function EditorBody({ onOpenGuide, layers, canvas, properties }: EditorBodyProps) {
   const classes = splitterRecipe();
   const { splitter, layout, toggle, rootRef, canvasPanel } = useSidePanels();
   const { foldAll } = useSectionFolds();
@@ -283,8 +286,10 @@ export function EditorBody({ layers, canvas, properties }: EditorBodyProps) {
       />
       <Splitter.Panel id="canvas" ref={canvasPanel} className={cx(classes.panel, canvasPanelClass)}>
         {canvas}
+        <EmptyState onOpenGuide={onOpenGuide} />
         {chip('layers')}
         {chip('properties')}
+        <ToastRegion />
       </Splitter.Panel>
       <Splitter.ResizeTrigger
         id="canvas:properties"

@@ -30,6 +30,15 @@ describe('Properties panel', () => {
     cy.prop('w').should('have.value', '100');
   });
 
+  it('names every field in full, with one inline-prefix pattern', () => {
+    for (const name of ['X', 'Y', 'Width', 'Height', 'Rotation', 'Corner radius', 'Fill', 'Stroke', 'Stroke width', 'Opacity']) {
+      cy.get(`[data-testid=properties-panel] input[aria-label="${name}"]`).should('exist');
+    }
+    cy.get('[data-testid=properties-panel] h3').should('not.exist');
+    cy.prop('stroke-width').parent().should('have.attr', 'title', 'Stroke width');
+    cy.prop('fill').should('have.value', '#D9D9D9');
+  });
+
   it('hides a layer from the layers panel', () => {
     cy.get('[data-testid=layers-panel] [aria-label="Hide layer"]').click({ force: true });
     cy.get('[data-node-type=rect]').should('not.exist');

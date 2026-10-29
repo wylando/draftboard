@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { css } from 'styled-system/css';
 
 const blockClass = css({ marginTop: '6' });
-const headingClass = css({ margin: '0', marginBottom: '2', textStyle: 'body.largeStrong' });
+const headingClass = css({ margin: '0', marginBottom: '2', textStyle: 'heading.page' });
 export const mutedClass = css({ margin: '0', color: 'text.secondary' });
 const termGridClass = css({
   display: 'grid',
@@ -12,7 +12,7 @@ const termGridClass = css({
   alignItems: 'baseline',
   margin: '0',
 });
-export const termClass = css({ textStyle: 'body.largeStrong' });
+export const termClass = css({ textStyle: 'heading.section' });
 export const descClass = css({ margin: '0' });
 const pairClass = css({ display: 'contents' });
 

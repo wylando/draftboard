@@ -1,11 +1,33 @@
 import { css } from 'styled-system/css';
+import { RelatedOutlines } from '../editor/components/SelectionOverlay';
+import { createConnector } from '../editor/model/connector';
+import { createNode } from '../editor/model/nodes';
+import { createColumn, tableHeight } from '../editor/model/table';
+import { normalizeTree } from '../editor/model/tree';
+import type { DesignNode, TableNode } from '../editor/model/types';
 import { Kbd } from '../design-system';
 import { COMMAND_IDS, COMMANDS } from './keybindings/commands';
 import { formatBinding } from './keybindings/keys';
 import { useKeybindings } from './keybindings/KeybindingsContext';
+import { usePreferences } from './preferences/PreferencesContext';
 import { Block, mutedClass, Terms } from './sectionParts';
+import { NO_RELATIONS, Sample } from './SymbolsSection';
 
-const listClass = css({ margin: '0', paddingInlineStart: '4', display: 'grid', gap: '1' });
+const listClass = css({ margin: '0', padding: '0', listStyle: 'none', display: 'grid', gap: '3' });
+const numberClass = css({
+  flex: 'none',
+  display: 'grid',
+  placeItems: 'center',
+  width: '[1.5rem]',
+  height: '[1.5rem]',
+  borderRadius: 'full',
+  bg: 'bg.selected',
+  textStyle: 'body.mediumStrong',
+  fontVariantNumeric: 'tabular-nums',
+});
+const stepClass = css({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '3' });
+const stepTextClass = css({ flex: '1', flexBasis: '[16rem]', minWidth: '0' });
+const IDENTITY_VIEWPORT = { x: 0, y: 0, zoom: 1 };
 
 /** Current shortcut for a command, reflecting the user's own bindings. */
 function Shortcut({ binding }: { binding: string | undefined }) {
@@ -19,6 +41,70 @@ function Shortcut({ binding }: { binding: string | undefined }) {
   );
 }
 
+// The walkthrough's pictures are drawn by the canvas's own renderer from literal nodes, like the Symbols page.
+const TABLE_WIDTH = 120;
+const TABLE_GAP = 60;
+function makeTable(index: number, name: string, columns: ReturnType<typeof createColumn>[]): TableNode {
+  const base = createNode('table', { x: index * (TABLE_WIDTH + TABLE_GAP), y: 0, width: TABLE_WIDTH, height: 1 }, []) as TableNode;
+  return { ...base, id: `guide-table-${index}`, name, columns, height: tableHeight(columns.length) };
+}
+const customerId = createColumn('id', 'int', true);
+const orderId = createColumn('id', 'int', true);
+const orderCustomer = createColumn('customer_id', 'int');
+const itemOrder = createColumn('order_id', 'int');
+const customers = makeTable(0, 'customers', [customerId, createColumn('name', 'text')]);
+const orders = makeTable(1, 'orders', [orderId, orderCustomer, createColumn('placed_at', 'time')]);
+const items = makeTable(2, 'order_items', [createColumn('id', 'int', true), itemOrder]);
+const ordersToCustomers = createConnector(
+  { kind: 'column', tableId: orders.id, columnId: orderCustomer.id },
+  { kind: 'column', tableId: customers.id, columnId: customerId.id },
+  'guide-link-1',
+  new Map<string, DesignNode>([[orders.id, orders], [customers.id, customers]]),
+);
+const itemsToOrders = createConnector(
+  { kind: 'column', tableId: items.id, columnId: itemOrder.id },
+  { kind: 'column', tableId: orders.id, columnId: orderId.id },
+  'guide-link-2',
+  new Map<string, DesignNode>([[items.id, items], [orders.id, orders]]),
+);
+const foreignKeys = { ...NO_RELATIONS, foreignKeys: new Map([[orders.id, new Set([orderCustomer.id])], [items.id, new Set([itemOrder.id])]]) };
+// Routed the way the canvas routes them, so the lines match what the reader will see.
+const routed = (nodes: DesignNode[]) => normalizeTree(nodes);
+const viewBoxFor = (nodes: DesignNode[]) => {
+  const tables = nodes.filter((n) => n.type === 'table');
+  const right = Math.max(...tables.map((t) => t.x + t.width));
+  const height = Math.max(...tables.map((t) => t.height));
+  return `-4 -4 ${right + 8} ${height + 8}`;
+};
+
+const linksAnd = (tableId: string) => (nodes: DesignNode[]) => nodes.filter((n) => n.type === 'connector' || n.id === tableId);
+
+function Picture({ nodes, outline }: { nodes: DesignNode[]; outline?: (routedNodes: DesignNode[]) => DesignNode[] }) {
+  const { preferences } = usePreferences();
+  const drawn = routed(nodes);
+  return (
+    <Sample
+      nodes={drawn}
+      viewBox={viewBoxFor(drawn)}
+      relations={foreignKeys}
+      scale={0.75}
+      overlay={outline && <RelatedOutlines related={outline(drawn)} viewport={IDENTITY_VIEWPORT} color={preferences.relationHighlight} />}
+    />
+  );
+}
+
+function Step({ n, children, picture }: { n: number; children: React.ReactNode; picture: React.ReactNode }) {
+  return (
+    <li>
+      <div className={stepClass}>
+        <span className={numberClass} data-testid="guide-step-number">{n}</span>
+        <div className={stepTextClass}>{children}</div>
+        {picture}
+      </div>
+    </li>
+  );
+}
+
 export function GettingStartedSection() {
   const { bindings } = useKeybindings();
   const toolIds = COMMAND_IDS.filter((id) => COMMANDS[id].category === 'tools');
@@ -27,37 +113,36 @@ export function GettingStartedSection() {
     <section data-testid="getting-started-section">
       <h1>Getting started</h1>
       <p className={mutedClass}>
-        Draftboard is a small design canvas that runs entirely on your computer. If you have used another design
-        tool, most things will feel familiar; if not, start here.
+        Draftboard is a database schema canvas that runs entirely on your computer. Your boards save in this browser as you work.
       </p>
 
       <Block title="The screen" testId="guide-screen">
         <Terms
           items={[
-            ['Toolbar (top)', 'Tools on the left, undo/redo in the middle, then Import, Export, zoom and Settings.'],
-            ['Layers (left)', 'Every layer as a tree, top layer first; connectors are links between layers, always shown, so they get no row. Layers inside a frame or group are indented under it; click the arrow to fold them away. Click to select, Shift-click to add, double-click to rename, eye icon to hide, drag to reorder or move into a frame or group.'],
-            ['Canvas (center)', 'Where you draw. Scroll to pan, ⌘/Ctrl + scroll to zoom. Change the background grid (dots, lines or none) and turn snapping on or off under Settings → Canvas.'],
-            ['Design panel (right)', 'Properties of the selected layer. Shows a hint when nothing is selected.'],
-            ['Panel size', 'Drag the inner edge of the Layers or Design panel to resize it. The button in a panel’s title bar (or a drag past its narrowest) folds it into a button in the canvas corner; click that to bring it back. Sizes are remembered.'],
+            ['Top bar', 'The logo menu (this guide and Settings), your board tabs, then Import, Export and the zoom menu.'],
+            ['Tool dock (bottom)', 'The floating tools, with undo and redo beside them.'],
+            ['Layers (left)', 'Every layer as a tree. Click to select, Shift-click to add, double-click to rename, drag to reorder or nest. Connectors are links, so they get no row.'],
+            ['Canvas (center)', 'Where you draw. Scroll to pan, ⌘/Ctrl + scroll to zoom.'],
+            ['Design (right)', 'Properties of the selection: a table’s name and columns, a connector’s cardinality, a shape’s fill.'],
           ]}
         />
       </Block>
 
-      <Block title="Your first design">
+      <Block title="First schema" testId="guide-first-schema">
         <ol className={listClass}>
-          <li>
-            Press <Shortcut binding={bindings['tool.rect'][0]} /> (Rectangle) and drag on the canvas.
-          </li>
-          <li>The new layer is selected: drag it to move it, drag a corner handle to resize, or drag just outside a corner to rotate.</li>
-          <li>Draw a second shape and drag it near the first: its edges and centers snap into line, and guide lines show what lined up. Hold ⌘/Ctrl once you’ve started dragging to place it freely.</li>
-          <li>With one shape selected, hold Alt/Option and point at the other to see the distance between them.</li>
-          <li>Change its color under Fill in the Design panel; type a hex value and press Enter.</li>
-          <li>
-            Press <Shortcut binding={bindings['tool.text'][0]} /> and click to add text. Type, then press Enter.
-          </li>
-          <li>
-            Made a mistake? <Shortcut binding={bindings['edit.undo'][0]} /> undoes it.
-          </li>
+          <Step n={1} picture={<Picture nodes={[customers]} />}>
+            Add a table: press <Shortcut binding={bindings['tool.table'][0]} /> and click the canvas, or import SQL, DBML or a SQLite file from the Import menu.
+          </Step>
+          <Step n={2} picture={<Picture nodes={[{ ...orders, x: 0 }]} />}>Select the table and edit its name, columns and indexes in the Design panel.</Step>
+          <Step n={3} picture={<Picture nodes={[customers, orders, ordersToCustomers]} />}>
+            Press <Shortcut binding={bindings['tool.connector'][0]} /> and drag from one column to another to link them.
+          </Step>
+          <Step n={4} picture={<Picture nodes={[customers, orders, ordersToCustomers]} outline={linksAnd(customers.id)} />}>
+            Select one table to see its links outlined, along with the tables they reach.
+          </Step>
+          <Step n={5} picture={<Picture nodes={[customers, orders, items, ordersToCustomers, itemsToOrders]} outline={linksAnd(orders.id)} />}>
+            Select two tables to see the estimated fastest route of joins between them.
+          </Step>
         </ol>
       </Block>
 
@@ -109,9 +194,9 @@ export function GettingStartedSection() {
       <Block title="Saving your work" testId="guide-saving">
         <Terms
           items={[
-            ['Autosave', 'Your design saves in this browser as you work and reopens next time.'],
-            ['Export', 'Downloads the design as a .json file, for backups or moving to another computer.'],
-            ['Import', 'Opens a previously exported .json file, replacing the current design. If the canvas has anything on it, you are asked first: importing also clears undo history.'],
+            ['Autosave', 'Your boards save in this browser as you work and reopen next time.'],
+            ['Export', 'Downloads the board as a .json file, or exports its tables as SQL or DBML.'],
+            ['Import', 'Opens a board .json file, replacing the current design (you are asked first if the board has layers), or adds tables from SQL, DBML or SQLite.'],
           ]}
         />
       </Block>

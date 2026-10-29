@@ -22,6 +22,8 @@ declare global {
     interface Chainable {
       /** Fresh editor with empty storage. */
       visitEmpty(): Chainable<void>;
+      /** Emulate the OS colour scheme (Chromium only). e2e.ts sets 'light' before every test so specs don't depend on the machine's setting. */
+      colorScheme(scheme: 'light' | 'dark'): Chainable<void>;
       /** Dispatch a pointer event at canvas-relative coordinates. */
       canvasPointer(type: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercancel', at: Pt, opts?: PointerOpts): Chainable<void>;
       /** Press and release at one point without moving. */
@@ -43,6 +45,16 @@ declare global {
     }
   }
 }
+
+Cypress.Commands.add('colorScheme', (scheme) => {
+  cy.wrap(
+    Cypress.automation('remote:debugger:protocol', {
+      command: 'Emulation.setEmulatedMedia',
+      params: { features: [{ name: 'prefers-color-scheme', value: scheme }] },
+    }),
+    { log: false },
+  ).then(() => undefined);
+});
 
 Cypress.Commands.add('visitEmpty', () => {
   cy.visit('/', { onBeforeLoad: (win) => win.localStorage.clear() });

@@ -37,8 +37,12 @@ describe('Relationships', () => {
     marker('from').should('have.attr', 'data-cardinality', 'many');
     marker('to').should('have.attr', 'data-cardinality', 'one');
     badge(1, 1).should('have.text', 'FK');
-    // column_1 is text, Table 1's id is uuid.
-    cy.get('[data-testid=connector-warning]').should('exist');
+    // column_1 is text, Table 1's id is uuid: the amber dot sits on column_1's row, not on the line.
+    cy.get('[data-testid=connector-warning]').should('not.exist');
+    cy.get('[data-node-type=table]').eq(1).find('[data-testid=table-column]').eq(1).find('[data-testid=type-mismatch]')
+      .should('have.attr', 'aria-label', 'Types differ: text → uuid')
+      .find('title').should('have.text', 'Types differ: text → uuid');
+    cy.get('[data-testid=type-mismatch]').should('have.length', 1);
 
     // Selected by its vertical run; the Design panel names the two types.
     cy.canvasClick([420, 300]);
@@ -48,18 +52,19 @@ describe('Relationships', () => {
     cy.get('[data-testid=connector-fk]').should('have.attr', 'data-state', 'checked').click();
     cy.get('[data-testid=connector-fk]').should('have.attr', 'data-state', 'unchecked');
     badge(1, 1).should('not.exist');
-    cy.get('[data-testid=connector-warning]').should('not.exist');
+    cy.get('[data-testid=type-mismatch]').should('not.exist');
     cy.pressKey('z', { code: 'KeyZ', metaKey: true });
     badge(1, 1).should('have.text', 'FK');
 
     // Matching types clear the warning.
     cy.canvasClick([550, 318]);
-    cy.get('[data-testid=column-editor]').eq(1).find('[data-testid=column-type]').clear().type('uuid{enter}');
-    cy.get('[data-testid=connector-warning]').should('not.exist');
+    cy.get('[data-testid=column-row]').eq(1).click();
+    cy.get('[data-testid=column-editor] [data-testid=column-type]').clear().type('uuid{enter}');
+    cy.get('[data-testid=type-mismatch]').should('not.exist');
     badge(1, 1).should('have.text', 'FK');
 
     // A unique foreign key shows both.
-    cy.get('[data-testid=column-editor]').eq(1).find('[data-testid=column-unique]').click();
+    cy.get('[data-testid=column-editor] [data-testid=column-unique]').click();
     badge(1, 1).should('have.text', 'UFK');
   });
 

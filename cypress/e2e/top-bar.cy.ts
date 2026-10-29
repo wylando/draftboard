@@ -12,18 +12,41 @@ describe('Top bar', () => {
   it('lines its controls up with the board tabs', () => {
     cy.get('[role=tab][aria-selected=true]').then(($tab) => {
       const row = centerY($tab[0]!);
-      for (const id of ['app-menu', 'board-new', 'zoom-level']) {
+      for (const id of ['app-menu', 'board-new', 'import-menu', 'export-menu', 'zoom-level']) {
         // Within a pixel: layout lands on sub-pixel positions that differ between platforms.
         cy.get(`[data-testid=${id}]`).should(($el) => expect(centerY($el[0]!)).to.be.closeTo(row, 1));
       }
     });
   });
 
-  it('keeps file actions and Settings in the app menu', () => {
+  it('is a light surface in the default theme, and the page opts in to light and dark native controls', () => {
+    // Relative luminance of a computed `rgb(r, g, b)` background, WCAG weights.
+    const luminance = (rgb: string) => {
+      const [r, g, b] = (rgb.match(/\d+/g) ?? []).slice(0, 3).map((c) => {
+        const v = Number(c) / 255;
+        return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+      }) as [number, number, number];
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    cy.get('[data-testid=toolbar]').should(($bar) => {
+      expect(luminance(getComputedStyle($bar[0]!).backgroundColor), 'top bar luminance').to.be.greaterThan(0.8);
+    });
+    cy.document().its('documentElement').should('have.css', 'color-scheme', 'light dark');
+    cy.get('meta[name=color-scheme]').should('have.attr', 'content', 'light dark');
+  });
+
+  it('follows the OS dark preference with a dark top bar', () => {
+    cy.colorScheme('dark');
+    cy.get('[data-testid=toolbar]').should(($bar) => {
+      const [r] = (getComputedStyle($bar[0]!).backgroundColor.match(/\d+/g) ?? []).map(Number);
+      expect(r, 'top bar red channel').to.be.lessThan(80);
+    });
+  });
+
+  it('keeps Settings and Getting started in the app menu, with a hairline divider', () => {
     cy.get('[data-testid=app-menu]').click();
-    for (const id of ['import-board', 'export-board', 'import-schema', 'export-schema']) {
-      cy.get(`[data-testid=${id}]`).should('be.visible');
-    }
+    cy.get('[data-testid=open-guide]').should('be.visible');
+    cy.get('[data-testid=open-settings]').should('be.visible');
     // A 1px hairline in the border colour: the browser's own <hr> border once drew a heavy dark rule here.
     cy.get('[role=menu] [data-part=separator]').first().should(($hr) => {
       const style = getComputedStyle($hr[0]!);

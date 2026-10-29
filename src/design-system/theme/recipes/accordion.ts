@@ -27,15 +27,15 @@ export const accordionRecipe = defineSlotRecipe({
       font: 'inherit',
       textAlign: 'start',
       cursor: 'pointer',
-      _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.selected', outlineOffset: '1px' },
+      _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.focus', outlineOffset: '1px' },
     },
     itemIndicator: {
       display: 'flex',
       flex: 'none',
       color: 'icon',
       '[data-part=item-trigger]:hover > &': { color: 'text' },
-      // chevronRight points down while the row is open.
-      '&[data-state=open]': { transform: 'rotate(90deg)' },
+      // chevronDown turns over while the row is open.
+      '&[data-state=open]': { transform: 'rotate(180deg)' },
     },
   },
 });

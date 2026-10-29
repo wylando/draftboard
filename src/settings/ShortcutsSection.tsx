@@ -9,7 +9,7 @@ import { useKeyRecorder } from './useKeyRecorder';
 
 const toolbarClass = css({ display: 'flex', alignItems: 'center', gap: '3', marginBlock: '4' });
 const searchClass = css({ flex: '1' });
-const groupTitleClass = css({ margin: '0', marginTop: '6', marginBottom: '1', textStyle: 'body.largeStrong' });
+const groupTitleClass = css({ margin: '0', marginTop: '6', marginBottom: '1', textStyle: 'heading.page' });
 const mutedClass = css({ margin: '0', color: 'text.secondary' });
 const footnoteClass = css({ marginTop: '6', marginBottom: '0', color: 'text.secondary' });
 const fixedRowClass = css({
@@ -94,6 +94,7 @@ export function ShortcutsSection() {
               title: 'Reset all shortcuts?',
               description: 'Every command goes back to its default keys. Your custom shortcuts are removed.',
               confirmLabel: 'Reset all',
+              destructive: true,
             });
             if (confirmed) resetAll();
           }}

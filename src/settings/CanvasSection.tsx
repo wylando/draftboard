@@ -10,7 +10,7 @@ import { SQL_DIALECT_IDS, SQL_DIALECTS, type SqlDialect } from '../editor/model/
 const classes = radioGroup();
 const switchClasses = toggleSwitch();
 const headingClass = css({ margin: '0', marginTop: '6' });
-const sectionHeadingClass = css({ margin: '0', marginTop: '6', textStyle: 'body.largeStrong' });
+const sectionHeadingClass = css({ margin: '0', marginTop: '6', textStyle: 'heading.page' });
 const mutedClass = css({ margin: '0', color: 'text.secondary' });
 const colorRowClass = css({ display: 'flex', alignItems: 'center', gap: '2', marginTop: '2', maxWidth: 'sidebarWidth' });
 

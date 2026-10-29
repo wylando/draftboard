@@ -18,6 +18,7 @@ import {
   splitterRecipe,
   semanticTokens,
   tabsRecipe,
+  toastRecipe,
   textStyles,
   toggleSwitchRecipe,
   tokens,
@@ -61,6 +62,7 @@ export default defineConfig({
       accordion: accordionRecipe,
       combobox: comboboxRecipe,
       popup: popupRecipe,
+      toast: toastRecipe,
     },
     keyframes: {
       popupIn: {
@@ -70,6 +72,8 @@ export default defineConfig({
     },
   },
   globalCss: {
+    // Native controls, scrollbars and colour pickers follow the OS, like the semantic tokens do.
+    ':root': { colorScheme: 'light dark' },
     'html, body, #root': { height: 'full', margin: '0' },
     body: {
       textStyle: 'body.medium',

@@ -8,7 +8,7 @@ import { defineSlotRecipe } from '@pandacss/dev';
  */
 export const boardTabsRecipe = defineSlotRecipe({
   className: 'board-tabs',
-  description: 'Board tabs on the toolbar: raised open tab, dimmer others, close button on hover',
+  description: 'Board tabs on the toolbar: raised open tab, dimmer others, close button on the open tab and on hover',
   jsx: ['BoardTabs'],
   slots: ['root', 'list', 'tab', 'trigger', 'input', 'close'],
   base: {
@@ -44,13 +44,16 @@ export const boardTabsRecipe = defineSlotRecipe({
       _hover: { bg: 'bg.tabHover', color: 'text.onToolbar' },
       '&[data-selected]': { bg: 'bg.tabActive', color: 'text.onToolbar' },
       '&:hover [data-board-close], &[data-selected] [data-board-close], & [data-board-close]:focus-visible': { opacity: '1' },
+      // Touch has no hover, so every tab shows its close button there.
+      '@media (hover: none)': { '& [data-board-close]': { opacity: '1' } },
     },
     trigger: {
       flex: '1',
       minWidth: '0',
       height: 'full',
       paddingInlineStart: '3',
-      paddingInlineEnd: '6',
+      // Room for the close button (inset 4px) plus a 4px gap.
+      paddingInlineEnd: '[calc(token(sizes.boardTabClose) + 8px)]',
       border: 'none',
       borderRadius: 'inherit',
       bg: 'transparent',
@@ -62,7 +65,7 @@ export const boardTabsRecipe = defineSlotRecipe({
       textOverflow: 'ellipsis',
       cursor: 'pointer',
       '&[data-selected]': { textStyle: 'body.mediumStrong' },
-      _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.selected', outlineOffset: '-2px' },
+      _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.focusOnToolbar', outlineOffset: '-2px' },
     },
     input: {
       flex: '1',
@@ -76,7 +79,7 @@ export const boardTabsRecipe = defineSlotRecipe({
       textStyle: 'body.medium',
       outlineWidth: '2px',
       outlineStyle: 'solid',
-      outlineColor: 'border.selected',
+      outlineColor: 'border.focusOnToolbar',
       outlineOffset: '-2px',
     },
     close: {
@@ -97,7 +100,7 @@ export const boardTabsRecipe = defineSlotRecipe({
       opacity: '0',
       cursor: 'pointer',
       _hover: { bg: 'bg.toolbarHover' },
-      _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.selected' },
+      _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.focusOnToolbar' },
     },
   },
 });

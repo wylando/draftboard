@@ -27,8 +27,9 @@ const headerClass = css({
   paddingInline: '2',
   bg: 'bg.topBar',
   color: 'text.onToolbar',
+  boxShadow: '[inset 0 -1px 0 0 var(--colors-border)]',
 });
-const titleClass = css({ textStyle: 'body.largeStrong' });
+const titleClass = css({ textStyle: 'heading.page' });
 const tabsClasses = tabs();
 const bodyClass = css({ flex: '1' });
 const navClass = css({
@@ -44,12 +45,22 @@ const mainClass = css({
   overflowY: 'auto',
   paddingBlock: '6',
   paddingInline: '6',
-  '& h1': { margin: '0', marginBottom: '2', fontSize: 'bodyLarge', lineHeight: 'bodyLarge', fontWeight: 'strong' },
+  textStyle: 'body.large',
+  '& h1': { margin: '0', marginBottom: '2', textStyle: 'heading.title' },
 });
-const innerClass = css({ maxWidth: 'content', marginInline: 'auto' });
+const innerClass = css({ maxWidth: 'content' });
 
-export function SettingsPage({ onClose }: { onClose: () => void }) {
-  const [section, setSection] = useState<SectionId>('shortcuts');
+// Deep-link slugs (`#/settings/<slug>`); the guide's id predates its public name.
+const SLUGS: Record<string, SectionId> = {
+  shortcuts: 'shortcuts',
+  canvas: 'canvas',
+  'getting-started': 'guide',
+  symbols: 'symbols',
+};
+
+/** `section` is a deep-link slug; an unknown one opens the default section. The page is keyed by it, so a new link remounts. */
+export function SettingsPage({ onClose, section: slug }: { onClose: () => void; section: string | null }) {
+  const [section, setSection] = useState<SectionId>((slug !== null && Object.hasOwn(SLUGS, slug) ? SLUGS[slug] : undefined) ?? 'shortcuts');
 
   return (
     <div className={pageClass} data-testid="settings-page">

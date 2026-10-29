@@ -18,7 +18,7 @@ export const buttonRecipe = defineRecipe({
     cursor: 'pointer',
     whiteSpace: 'nowrap',
     _disabled: { opacity: '0.4', cursor: 'default' },
-    _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.selected', outlineOffset: '1px' },
+    _focusVisible: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.focus', outlineOffset: '1px' },
   },
   variants: {
     variant: {
@@ -33,17 +33,24 @@ export const buttonRecipe = defineRecipe({
         color: 'text.onBrand',
         _hover: { bg: 'bg.brandHover' },
       },
+      danger: {
+        borderColor: 'transparent',
+        bg: 'bg.danger',
+        color: 'text.onBrand',
+        _hover: { bg: 'bg.dangerHover' },
+      },
       ghost: {
         borderColor: 'transparent',
         bg: 'transparent',
         _hover: { bg: 'bg.hover' },
       },
-      /** Ghost button on the dark toolbar. */
+      /** Ghost button on the top bar. */
       toolbar: {
         borderColor: 'transparent',
         bg: 'transparent',
         color: 'text.onToolbar',
         _hover: { bg: 'bg.toolbarHover' },
+        _focusVisible: { outlineColor: 'border.focusOnToolbar' },
       },
     },
   },

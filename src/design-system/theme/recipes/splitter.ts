@@ -39,6 +39,8 @@ export const splitterRecipe = defineSlotRecipe({
       '&[data-side=left]::after': { right: '-1px' },
       '&[data-side=right]::after': { left: '-1px' },
       '&:hover::after, &[data-dragging]::after, &:focus-visible::after': { opacity: '1' },
+      // Hover and drag keep the selection blue; the keyboard focus line must meet 3:1, which that blue misses on white.
+      '&:focus-visible::after': { bg: 'border.focus' },
     },
   },
 });

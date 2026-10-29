@@ -1,11 +1,15 @@
 import { useState, type DragEvent, type ReactElement } from 'react';
 import { IconButton, icons, Panel, Section } from '../../design-system';
 import { useEditor } from '../EditorContext';
+import { useIsHovered, useSetHovered } from '../HoverContext';
 import { nameTaken } from '../model/names';
 import { ancestorIds, byIdOf, childrenByParent, isContainer, topLevelIds } from '../model/tree';
 import type { DesignNode, NodeType } from '../model/types';
 import { emptyHint, fieldError, sidebar } from '../styles';
 import { css, cx } from 'styled-system/css';
+
+// Plain text rather than a bordered Section: an empty panel has nothing to group.
+const emptyHintClass = cx(emptyHint, css({ paddingBlock: '3', paddingInline: '4' }));
 
 type DropPosition = 'above' | 'below' | 'inside';
 
@@ -20,6 +24,7 @@ const rowClass = css({
   cursor: 'default',
   _hover: { bg: 'bg.hover' },
 });
+const rowHoveredClass = css({ bg: 'bg.hover' });
 const rowSelectedClass = css({ bg: 'bg.selected', _hover: { bg: 'bg.selected' } });
 const rowInSelectionClass = css({ bg: 'bg.selectedChild' });
 const rowDraggingClass = css({ opacity: '0.5' });
@@ -154,6 +159,8 @@ interface LayerRowProps {
 function LayerRow({ row, selected, dragging, expanded, onToggle, drop, dragHandlers }: LayerRowProps) {
   const { node, depth, hasChildren } = row;
   const { state, dispatch } = useEditor();
+  const hovered = useIsHovered(node.id);
+  const setHovered = useSetHovered();
   const [renaming, setRenaming] = useState(false);
   // Shown under this row, so it stays in view however long the tree is.
   const [renameError, setRenameError] = useState<string | null>(null);
@@ -186,6 +193,7 @@ function LayerRow({ row, selected, dragging, expanded, onToggle, drop, dragHandl
         className={cx(
           'group',
           rowClass,
+          hovered && rowHoveredClass,
           selected && rowSelectedClass,
           row.inSelection && rowInSelectionClass,
           dragging && rowDraggingClass,
@@ -200,6 +208,9 @@ function LayerRow({ row, selected, dragging, expanded, onToggle, drop, dragHandl
         data-drop={drop ?? undefined}
         data-dragging={dragging || undefined}
         data-in-selection={row.inSelection || undefined}
+        data-hovered={hovered || undefined}
+        onPointerEnter={() => setHovered(node.id)}
+        onPointerLeave={() => setHovered(null)}
         draggable={!renaming}
         onClick={(e) => select(e.shiftKey)}
         onDoubleClick={() => setRenaming(true)}
@@ -338,10 +349,10 @@ export function LayersPanel() {
 
   return (
     <Panel className={sidebar} data-testid="layers-panel">
-      <Section>
-        {rows.length === 0 ? (
-          <p className={emptyHint}>Pick a tool and drag on the canvas to add a layer.</p>
-        ) : (
+      {rows.length === 0 ? (
+        <p className={emptyHintClass}>Pick a tool and drag on the canvas to add a layer.</p>
+      ) : (
+        <Section>
           <ul className={listClass} role="tree" aria-label="Layers" aria-multiselectable="true">
             {rows.map((row) => (
               <LayerRow
@@ -356,8 +367,8 @@ export function LayersPanel() {
               />
             ))}
           </ul>
-        )}
-      </Section>
+        </Section>
+      )}
     </Panel>
   );
 }

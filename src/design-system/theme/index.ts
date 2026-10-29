@@ -18,3 +18,4 @@ export { splitterRecipe } from './recipes/splitter';
 export { accordionRecipe } from './recipes/accordion';
 export { comboboxRecipe } from './recipes/combobox';
 export { popupRecipe } from './recipes/popup';
+export { toastRecipe } from './recipes/toast';

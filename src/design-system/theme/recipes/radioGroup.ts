@@ -37,11 +37,11 @@ export const radioGroupRecipe = defineSlotRecipe({
       height: 'radio',
       borderWidth: '1px',
       borderStyle: 'solid',
-      borderColor: 'border.strong',
+      borderColor: 'border.control',
       borderRadius: 'full',
       bg: 'bg',
       '&[data-state=checked]': { borderWidth: '4px', borderColor: 'bg.brand' },
-      '&[data-focus-visible]': { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.selected', outlineOffset: '1px' },
+      '&[data-focus-visible]': { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.focus', outlineOffset: '1px' },
     },
     itemText: {
       textStyle: 'body.largeStrong',
