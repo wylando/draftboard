@@ -18,6 +18,15 @@ describe('default ink for new text and lines', () => {
     expect(defaultInk([frame('#1e1e1e')], { x: 50, y: 50 }, false)).toBe(INK_DARK_BACKGROUND);
   });
 
+  it('treats a visible table like a frame, by its body fill', () => {
+    const table = { ...createNode('table', { x: 0, y: 0, width: 240, height: 100 }, []), fill: '#ffffff' };
+    expect(defaultInk([table], { x: 50, y: 50 }, true)).toBe(INK_LIGHT_BACKGROUND);
+    expect(defaultInk([table], { x: 500, y: 50 }, true)).toBe(INK_DARK_BACKGROUND);
+    expect(defaultInk([{ ...table, visible: false }], { x: 50, y: 50 }, true)).toBe(INK_DARK_BACKGROUND);
+    // A table drawn over a frame is on top of it.
+    expect(defaultInk([frame('#1e1e1e'), table], { x: 50, y: 50 }, true)).toBe(INK_LIGHT_BACKGROUND);
+  });
+
   it('uses the canvas outside every frame', () => {
     expect(defaultInk([frame('#ffffff')], { x: 900, y: 900 }, true)).toBe(INK_DARK_BACKGROUND);
   });

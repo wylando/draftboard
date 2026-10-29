@@ -5,6 +5,7 @@ import type { Cardinality, ConnectorNode, DesignNode, Point, TableNode } from '.
 import { CANVAS_FONT_FAMILY, CANVAS_MONO_FAMILY, measureText, TEXT_LINE_HEIGHT } from '../textMetrics';
 import { css } from 'styled-system/css';
 import { token } from 'styled-system/tokens';
+import { isDark } from '../color';
 
 /**
  * Facts about layers that come from other layers: which table columns are
@@ -101,18 +102,6 @@ const noSelectClass = css({ userSelect: 'none' });
 /** Invisible stroke width (world px) that makes thin lines easy to grab. */
 const LINE_HIT_WIDTH = 8;
 
-
-/** Whether `color` (#rrggbb) is dark enough that white text reads better on it than black. */
-function isDark(color: string): boolean {
-  const hex = /^#?([0-9a-f]{6})$/i.exec(color)?.[1];
-  if (!hex) return false;
-  const [r, g, b] = [0, 2, 4].map((i) => {
-    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
-    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-  }) as [number, number, number];
-  // At this relative luminance black and white text have equal contrast.
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b < 0.179;
-}
 
 /** `text`, cut short with an ellipsis if it is wider than `max` world px. */
 function fitText(text: string, max: number, size: number, family: string, weight = 400): string {

@@ -79,11 +79,13 @@ describe('Drawing shapes', () => {
       savedInk('text', '#e6e6e6');
     });
 
-    it('follows the frame a text lands in, not the OS theme', () => {
-      cy.colorScheme('dark');
+    it('follows the fill of the frame a text lands in, not the OS theme', () => {
       cy.drawShape('frame', [400, 100], [800, 400]);
+      cy.prop('fill').clear().type('222222{enter}');
+      cy.get('[data-node-type=frame] rect').first().should('have.attr', 'fill', '#222222');
       cy.drawShape('text', [450, 150], [650, 190]);
-      savedInk('text', '#000000');
+      savedInk('text', '#e6e6e6');
     });
+
   });
 });
