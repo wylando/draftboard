@@ -37,7 +37,7 @@ declare global {
       /** Open the top bar's zoom menu and pick an item (`zoom-in`, `zoom-out`, `zoom-fit`, `zoom-100`). */
       zoomMenu(item: 'zoom-in' | 'zoom-out' | 'zoom-fit' | 'zoom-100'): Chainable<void>;
       /** Open the top bar's Import menu and pick an item. */
-      importMenu(item: 'import-schema' | 'import-board'): Chainable<void>;
+      importMenu(item: 'import-schema'): Chainable<void>;
       /** Dispatch a keydown (and keyup) on the window. */
       pressKey(key: string, opts?: { code?: string; shiftKey?: boolean; metaKey?: boolean; altKey?: boolean; repeat?: boolean }): Chainable<void>;
       /** Read a node's committed property value from the properties panel. */
