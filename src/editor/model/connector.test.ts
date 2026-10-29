@@ -102,11 +102,16 @@ describe('live rerouting', () => {
     return perFrame;
   };
 
-  it.each([[64, 12000], [100, 4000]])('drags a table among %i jittered tables and 100 far-apart connectors without a search blowing up', (tableCount, budget) => {
-    const nodes = normalizeTree(jitteredSchema(tableCount, 100));
-    const frames = drag(nodes, nodes[Math.floor(tableCount / 2)]!.id, 5, 1);
-    // Measured average per frame: 4640 at 64 tables, 1410 at 100.
-    expect(frames.reduce((sum, n) => sum + n, 0) / frames.length).toBeLessThanOrEqual(budget);
+  // Measured: 4640 average at 64 tables, 1410 at 100; the 20-connector hub's worst frame is 41725 (the original slow-frame check).
+  it.each([
+    { tables: 64, links: 100, hub: 0, mover: 32, frames: 5, step: 1, worst: false, budget: 12000 },
+    { tables: 100, links: 100, hub: 0, mover: 50, frames: 5, step: 1, worst: false, budget: 4000 },
+    { tables: 100, links: 80, hub: 20, mover: 50, frames: 20, step: 12, worst: true, budget: 100000 },
+  ])('drags a table among $tables tables with $links connectors and a $hub-connector hub without a search blowing up', ({ tables, links, hub, mover, frames, step, worst, budget }) => {
+    const nodes = normalizeTree(jitteredSchema(tables, links, hub));
+    const perFrame = drag(nodes, nodes[mover]!.id, frames, step);
+    const measured = worst ? Math.max(...perFrame) : perFrame.reduce((sum, n) => sum + n, 0) / perFrame.length;
+    expect(measured).toBeLessThanOrEqual(budget);
   });
 
   it('routes 100 jittered tables and 100 connectors from scratch without a search blowing up', () => {
@@ -114,13 +119,6 @@ describe('live rerouting', () => {
     const n = expansionsOf(() => { normalizeTree(nodes); });
     // Measured: 194740 expansions.
     expect(n).toBeLessThanOrEqual(500000);
-  });
-
-  it('drags a table with 20 connectors through 100 tables without a frame blowing up', () => {
-    const nodes = normalizeTree(jitteredSchema(100, 80, 20));
-    const frames = drag(nodes, nodes[50]!.id, 20, 12);
-    // Worst frame, as the original slow-frame check was. Measured worst: 41725.
-    expect(Math.max(...frames)).toBeLessThanOrEqual(100000);
   });
 
   // The claim is the expansion budget, not speed; under coverage instrumentation CI needs about 7 s, past the 5 s default.
