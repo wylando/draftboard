@@ -31,7 +31,7 @@ const tablesWithColumn = () => {
 describe('Relationships', () => {
   beforeEach(() => cy.visitEmpty());
 
-  it('a column-to-column link is a many-to-one foreign key, warns when the types differ, and can be made visual only', () => {
+  it('a column-to-column link is a many-to-one foreign key, warns when the types differ, can be made visual only, and shows PFK until its table is gone', () => {
     tablesWithColumn();
     connect([550, 378], [150, 150]);
     marker('from').should('have.attr', 'data-cardinality', 'many');
@@ -66,11 +66,8 @@ describe('Relationships', () => {
     // A unique foreign key shows both.
     cy.get('[data-testid=column-editor] [data-testid=column-unique]').click();
     badge(1, 1).should('have.text', 'UFK');
-  });
 
-  it('a primary key that is also a foreign key shows both, until the table it points at is gone', () => {
-    placeTable([100, 100]);
-    placeTable([500, 300]);
+    // A primary key that is also a foreign key shows both, until the table it points at is gone.
     connect([550, 350], [150, 150]);
     badge(1, 0).should('have.text', 'PFK');
     cy.canvasClick([200, 118]);
