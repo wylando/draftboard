@@ -2,12 +2,14 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { useDialogs } from '../../design-system';
 import { useLatest } from '../../shared/useLatest';
 import { useEditor } from '../EditorContext';
+import { useHoveredId, useSetHovered } from '../HoverContext';
 import { measureBetween, nextCullWindow, rotatedBounds, screenToWorld, unionBoxes, viewWorldBox, type Guides } from '../geometry';
 import { useCanvasGestures, type ConnectPreview, type Marquee } from '../hooks/useCanvasGestures';
 import {
   anchorAt,
   anchorBox,
   foreignKeyColumns,
+  foreignKeyTypes,
   linksToItself,
   relationalEnd,
   routeBetween,
@@ -21,7 +23,7 @@ import { CANVAS_FONT_FAMILY, measureText } from '../textMetrics';
 import { usePreferences } from '../../settings/preferences/PreferencesContext';
 import { CanvasGrid } from './CanvasGrid';
 import { detailLevel, overviewScale } from '../tableDetail';
-import { FrameLabel, NodeView, RelationsContext, type Relations } from './NodeView';
+import { DimmedContext, FrameLabel, NodeView, RelationsContext, type Relations } from './NodeView';
 import { RoutePopup } from './RoutePopup';
 import { SelectionOverlay } from './SelectionOverlay';
 import { TableCellEditor } from './TableCellEditor';
@@ -38,6 +40,7 @@ const canvasClass = css({
   userSelect: 'none',
 });
 const svgClass = css({ display: 'block' });
+const NOTHING_DIMMED: ReadonlySet<string> = new Set();
 const noticeClass = css({
   position: 'absolute',
   left: '[50%]',
@@ -83,6 +86,10 @@ export function Canvas() {
   /** The selection (ids in order) whose route popup was closed; any other selection brings the popup back. */
   const [routeClosedFor, setRouteClosedFor] = useState<string | null>(null);
   const dialogOpen = useLatest(useDialogs().isOpen);
+  const setHovered = useSetHovered();
+  const hoveredId = useHoveredId();
+  // The Layers panel shares this store; a board switch remounts the canvas, so clear what it set.
+  useEffect(() => () => setHovered(null), [setHovered]);
 
   // Measured before the first paint as well: ResizeObserver reports only later, and until the size is
   // known no layer counts as on screen, so a drag started straight after load would snap to nothing.
@@ -103,6 +110,23 @@ export function Canvas() {
     return () => observer.disconnect();
   }, [dispatch]);
 
+  const byId = useMemo(() => byIdOf(state.nodes), [state.nodes]);
+  const lastPointer = useRef<{ x: number; y: number } | null>(null);
+  // Resolved as a press would resolve it (including Mod for deep select), so the outline names what a click selects.
+  const resolveHovered = (hitId: string | null, deep: boolean) => {
+    const { selection, tool: current } = state;
+    if (!hitId || current !== 'select' || spacePressed) return setHovered(null);
+    setHovered(selectTarget(byId, hitId, enteredScopes(byId, selection, false), deep));
+  };
+  // A key or the end of a pan changes what is under a resting pointer without moving it.
+  const rehit = (deep: boolean) => {
+    const at = lastPointer.current;
+    const el = at ? document.elementFromPoint(at.x, at.y) : null;
+    const inside = el && containerRef.current?.contains(el) && !el.closest('[data-canvas-popup]');
+    resolveHovered(inside ? (el.closest('[data-node-id]')?.getAttribute('data-node-id') ?? null) : null, deep);
+  };
+  const rehitRef = useLatest(rehit);
+
   useEffect(() => {
     const isTyping = (t: EventTarget | null) => t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement;
     const down = (e: KeyboardEvent) => {
@@ -114,10 +138,14 @@ export function Canvas() {
       }
       // Option-typing accents in a field shouldn't flash measurements over the canvas.
       if (e.key === 'Alt' && !isTyping(e.target)) setAltPressed(true);
+      if (e.key === 'Meta' || e.key === 'Control') rehitRef.current(true);
+      if (e.code === 'Space') setHovered(null);
     };
     const up = (e: KeyboardEvent) => {
       if (e.code === 'Space') setSpacePressed(false);
       if (e.key === 'Alt') setAltPressed(false);
+      if (e.key === 'Meta' || e.key === 'Control') rehitRef.current(false);
+      if (e.code === 'Space') rehitRef.current(e.metaKey || e.ctrlKey);
     };
     // Switching windows with Alt held never delivers its keyup here.
     const blur = () => setAltPressed(false);
@@ -129,7 +157,7 @@ export function Canvas() {
       window.removeEventListener('keyup', up);
       window.removeEventListener('blur', blur);
     };
-  }, [dialogOpen]);
+  }, [dialogOpen, rehitRef, setHovered]);
 
   const onEditText = useCallback((id: string) => setEditingId(id), []);
   const { onPointerDown, onDoubleClick } = useCanvasGestures({
@@ -148,7 +176,10 @@ export function Canvas() {
     },
     onRowDrop: setRowDrop,
     onConnect: setConnectPreview,
-    onBusy: setBusy,
+    onBusy: (b) => {
+      setBusy(b);
+      if (!b) rehitRef.current(false);
+    },
   });
 
   const onHover = (e: ReactPointerEvent) => {
@@ -157,15 +188,18 @@ export function Canvas() {
     // A popup covers the canvas there, so nothing under it is hovered (elementsFromPoint would see through it).
     if ((e.target as Element).closest('[data-canvas-popup]')) {
       setHover(null);
+      setHovered(null);
       return;
     }
     const hitId = e.buttons === 0 ? (e.target as Element).closest('[data-node-id]')?.getAttribute('data-node-id') : null;
     const { viewport, nodes } = state;
+    lastPointer.current = { x: e.clientX, y: e.clientY };
+    resolveHovered(hitId ?? null, e.metaKey || e.ctrlKey);
     // Found exactly as a release would find it, so the highlight never disagrees with the result.
     // Only the Connector tool needs it; tracking rows otherwise would re-render on every row crossed.
     const rect = containerRef.current?.getBoundingClientRect();
     const world = screenToWorld({ x: e.clientX - (rect?.left ?? 0), y: e.clientY - (rect?.top ?? 0) }, viewport);
-    const found = state.tool === 'connector' && e.buttons === 0 ? anchorAt(document.elementsFromPoint(e.clientX, e.clientY), world, byIdOf(nodes)) : null;
+    const found = state.tool === 'connector' && e.buttons === 0 ? anchorAt(document.elementsFromPoint(e.clientX, e.clientY), world, byId) : null;
     const anchor = found?.kind === 'point' ? null : found;
     const same = (a: Anchor | null, b: Anchor | null) => a === b || (a !== null && b !== null && sameAnchor(a, b));
     setHover((prev) =>
@@ -211,17 +245,17 @@ export function Canvas() {
     [inWindow, unmountedPins, nodes, nextWindow],
   );
   const childrenOf = useMemo(() => childrenByParent(nodes), [nodes]);
-  const byId = useMemo(() => byIdOf(nodes), [nodes]);
   const relations = useMemo<Relations>(() => {
-    const mismatched = new Set<string>();
+    const typeMismatches = new Map<string, string>();
     const relationalEnds = new Set<string>();
     for (const n of nodes) {
       if (n.type !== 'connector') continue;
-      if (typeMismatch(n, byId)) mismatched.add(n.id);
+      const types = typeMismatch(n, byId) ? foreignKeyTypes(n, byId) : null;
+      if (types && n.from.kind === 'column') typeMismatches.set(`${n.from.tableId}:${n.from.columnId}`, `Types differ: ${types.from} → ${types.to}`);
       if (relationalEnd(n.from, byId)) relationalEnds.add(`${n.id}:from`);
       if (relationalEnd(n.to, byId)) relationalEnds.add(`${n.id}:to`);
     }
-    return { foreignKeys: foreignKeyColumns(nodes), mismatched, relationalEnds };
+    return { foreignKeys: foreignKeyColumns(nodes), typeMismatches, relationalEnds };
   }, [nodes, byId]);
   const joinPath = useMemo(() => cheapestJoinPath(selection, byId), [selection, byId]);
   const guaranteedPath = useMemo(() => joinPath && cheapestJoinPath(selection, byId, true), [joinPath, selection, byId]);
@@ -232,6 +266,16 @@ export function Canvas() {
     const { connectors, tables } = joinPath ?? relatedToTables(selection, byId);
     return nodes.filter((n) => connectors.has(n.id) || tables.has(n.id));
   }, [joinPath, selection, nodes, byId]);
+  // Fades what the highlight leaves out, so the linked tables stand apart without more colour.
+  const dimmed = useMemo(() => {
+    if (related.length === 0) return NOTHING_DIMMED;
+    const kept = new Set([...selection, ...related.map((n) => n.id)]);
+    return new Set(nodes.filter((n) => (n.type === 'table' || n.type === 'connector') && !kept.has(n.id)).map((n) => n.id));
+  }, [related, selection, nodes]);
+  const routeTables = useMemo(
+    () => (joinPath?.route ?? []).map((step) => byId.get(step.table)).filter((n): n is TableNode => n?.type === 'table'),
+    [joinPath, byId],
+  );
   const selectedSet = new Set(selection);
   const selected = nodes.filter((n) => selectedSet.has(n.id) && isEffectivelyVisible(byId, n));
   const picked = state.selectedColumn;
@@ -260,6 +304,7 @@ export function Canvas() {
       ? { kind: connectAnchor.kind, box: connectBox, columnId: connectAnchor.kind === 'column' ? connectAnchor.columnId : undefined }
       : null;
   const previewRoute = drawing ? routeBetween(drawing.from, drawing.to, drawing.routing, byId) : null;
+  const hovered = hoveredId && tool === 'select' && !spacePressed && !busy && editingId === null && !selectedSet.has(hoveredId) ? byId.get(hoveredId) : undefined;
   const measureId = altPressed && hoverHit && editingId === null ? selectTarget(byId, hoverHit, enteredScopes(byId, selection, false)) : null;
   // A connector's box is only its route's bounds, so it is neither measured from nor to.
   const measureNode = measureId && !selectedSet.has(measureId) ? byId.get(measureId) : undefined;
@@ -287,7 +332,11 @@ export function Canvas() {
         onPointerDown(e);
       }}
       onPointerMove={onHover}
-      onPointerLeave={() => setHover(null)}
+      onPointerLeave={() => {
+        lastPointer.current = null;
+        setHover(null);
+        setHovered(null);
+      }}
       onDoubleClick={onDoubleClick}
     >
       <svg className={svgClass} width="100%" height="100%">
@@ -298,9 +347,11 @@ export function Canvas() {
           transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.zoom})`}
         >
           <RelationsContext.Provider value={relations}>
-            {(childrenOf.get(null) ?? []).filter((n) => mounted.has(n.id)).map((n) => (
-              <NodeView key={n.id} node={n} childrenOf={childrenOf} mounted={mounted} editingId={editingId} detail={detail} scale={detail === 'full' ? 1 : overviewScale(viewport.zoom)} fullDetailId={editingTableId ?? null} />
-            ))}
+            <DimmedContext.Provider value={dimmed}>
+              {(childrenOf.get(null) ?? []).filter((n) => mounted.has(n.id)).map((n) => (
+                <NodeView key={n.id} node={n} childrenOf={childrenOf} mounted={mounted} editingId={editingId} detail={detail} scale={detail === 'full' ? 1 : overviewScale(viewport.zoom)} fullDetailId={editingTableId ?? null} />
+              ))}
+            </DimmedContext.Provider>
           </RelationsContext.Provider>
           {nodes.filter((n) => mounted.has(n.id)).map((n) => (
             <FrameLabel key={`label-${n.id}`} node={n} zoom={viewport.zoom} />
@@ -320,6 +371,8 @@ export function Canvas() {
           hideHandles={editingId !== null || editingTable !== undefined || tool === 'connector'}
           related={related}
           relatedColor={relationHighlight}
+          routeTables={routeTables}
+          hovered={hovered && isEffectivelyVisible(byId, hovered) ? hovered : null}
         />
       </svg>
       {editingTable && tableCell && (

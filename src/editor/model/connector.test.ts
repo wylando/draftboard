@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createConnector, bendsMoveWith, dragSegment, repairConnectorData, shapePoints, ROUTE_MARGIN, routeBetween, shiftConnector } from './connector';
+import { typesCompatible, createConnector, bendsMoveWith, dragSegment, repairConnectorData, shapePoints, ROUTE_MARGIN, routeBetween, shiftConnector } from './connector';
 import { editorReducer, initialEditorState } from './editorReducer';
 import { createGroup, createNode } from './nodes';
 import { routeWork, segmentHitsBox } from './orthogonalRoute';
@@ -874,5 +874,58 @@ describe('cheapestJoinPath', () => {
     expect(cheapestJoinPath([a.id, b.id, c.id], byId)).toBeNull();
     expect(cheapestJoinPath([a.id, rect.id], byId)).toBeNull();
     expect(cheapestJoinPath([a.id, b.id, rect.id], byId)).not.toBeNull();
+  });
+});
+
+describe('typesCompatible', () => {
+  const compatible = [
+    ['serial', 'int'],
+    ['integer', 'int4'],
+    ['mediumint', 'INT'],
+    ['bigserial', 'bigint'],
+    ['int8', 'serial8'],
+    ['smallserial', 'int2'],
+    ['varchar(255)', 'text'],
+    ['character varying(40)', 'char(3)'],
+    ['nvarchar(10)', 'string'],
+    ['timestamp', 'timestamp without time zone'],
+    ['datetime', 'timestamp'],
+    ['timestamptz', 'timestamp with time zone'],
+    ['numeric(10, 2)', 'decimal'],
+    ['real', 'float4'],
+    ['double precision', 'float8'],
+    ['float', 'double'],
+    ['bool', 'boolean'],
+    ['json', 'jsonb'],
+    ['uuid', ' UUID '],
+    ['citext', 'CITEXT'],
+    ['int unsigned', 'integer unsigned'],
+    ['int(10) unsigned', 'mediumint unsigned'],
+    ['tinyint(1)', 'boolean'],
+    ['tinyint(4)', 'tinyint'],
+  ] as const;
+  it.each(compatible)('%s fits %s', (a, b) => {
+    expect(typesCompatible(a, b)).toBe(true);
+    expect(typesCompatible(b, a)).toBe(true);
+  });
+
+  const incompatible = [
+    ['int', 'bigint'],
+    ['smallint', 'int'],
+    ['int', 'uuid'],
+    ['text', 'uuid'],
+    ['timestamp', 'timestamptz'],
+    ['date', 'timestamp'],
+    ['numeric', 'float'],
+    ['boolean', 'int'],
+    ['citext', 'text'],
+    // MySQL rejects a foreign key between signed and unsigned columns.
+    ['int unsigned', 'int'],
+    ['bigint(20) unsigned', 'bigint'],
+    ['tinyint', 'tinyint(1)'],
+    ['tinyint(1)', 'int'],
+  ] as const;
+  it.each(incompatible)('%s does not fit %s', (a, b) => {
+    expect(typesCompatible(a, b)).toBe(false);
   });
 });

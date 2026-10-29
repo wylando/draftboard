@@ -179,10 +179,10 @@ describe('Table focus highlight', () => {
     cy.get('[data-testid=open-settings]').click();
     cy.get('[data-testid=nav-canvas]').click();
     cy.get('[data-testid=relation-highlight-reset]').click();
-    cy.get('[data-testid=relation-highlight]').should('have.value', '80CAFF');
+    cy.get('[data-testid=relation-highlight]').should('have.value', '8B5CF6');
     cy.get('[data-testid=close-settings]').click();
     cy.canvasClick(A);
-    relatedConnectors().should('have.attr', 'stroke', '#80caff');
+    relatedConnectors().should('have.attr', 'stroke', '#8b5cf6');
   });
 });
 

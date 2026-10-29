@@ -1,5 +1,6 @@
-import { createContext, memo, useContext } from 'react';
+import { createContext, memo, useContext, type ReactNode } from 'react';
 import { TABLE_COLORS, TABLE_HEADER_HEIGHT, TABLE_ROW_HEIGHT, TABLE_STYLE } from '../model/table';
+import { isDark } from '../color';
 import { isBroken } from '../model/connector';
 import type { Cardinality, ConnectorNode, DesignNode, Point, TableNode } from '../model/types';
 import { compactSizes, ellipsize, overviewAvail, overviewLabel, type TableDetail } from '../tableDetail';
@@ -9,17 +10,34 @@ import { token } from 'styled-system/tokens';
 
 /**
  * Facts about layers that come from other layers: which table columns are
- * foreign keys, and which connectors join columns of different types. Canvas
- * derives them once per document change.
+ * foreign keys, and which of those join a column of an incompatible type.
+ * Canvas derives them once per document change.
  */
 export interface Relations {
   foreignKeys: ReadonlyMap<string, ReadonlySet<string>>;
-  mismatched: ReadonlySet<string>;
+  /** Foreign-key columns whose type doesn't fit the column they reference: "<tableId>:<columnId>" to a tooltip text. */
+  typeMismatches: ReadonlyMap<string, string>;
   /** Connector ends ("<id>:from") on a table or a row, which always offer a marker to click. */
   relationalEnds: ReadonlySet<string>;
 }
 
-export const RelationsContext = createContext<Relations>({ foreignKeys: new Map(), mismatched: new Set(), relationalEnds: new Set() });
+export const RelationsContext = createContext<Relations>({ foreignKeys: new Map(), typeMismatches: new Map(), relationalEnds: new Set() });
+
+/**
+ * Tables and connectors faded while a table's links are highlighted. UI only; its own context so that a selection
+ * change re-renders the small wrapper per layer, not every layer.
+ */
+export const DimmedContext = createContext<ReadonlySet<string>>(new Set());
+const DIMMED_OPACITY = 0.35;
+
+function Dimmable({ id, children }: { id: string; children: ReactNode }) {
+  const dimmed = useContext(DimmedContext).has(id);
+  return (
+    <g opacity={dimmed ? DIMMED_OPACITY : undefined} data-dimmed={dimmed || undefined}>
+      {children}
+    </g>
+  );
+}
 
 const WARNING_BG = token.var('colors.warning.bg');
 const WARNING_INK = token.var('colors.warning.ink');
@@ -103,18 +121,6 @@ const noSelectClass = css({ userSelect: 'none' });
 const LINE_HIT_WIDTH = 8;
 
 
-/** Whether `color` (#rrggbb) is dark enough that white text reads better on it than black. */
-function isDark(color: string): boolean {
-  const hex = /^#?([0-9a-f]{6})$/i.exec(color)?.[1];
-  if (!hex) return false;
-  const [r, g, b] = [0, 2, 4].map((i) => {
-    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
-    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-  }) as [number, number, number];
-  // At this relative luminance black and white text have equal contrast.
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b < 0.179;
-}
-
 /** `text`, cut short with an ellipsis if it is wider than `max` world px. */
 function fitText(text: string, max: number, size: number, family: string, weight = 400): string {
   return ellipsize(text, max, (t) => measureText(t, size, family, weight).width);
@@ -173,6 +179,17 @@ function OverviewName({
   );
 }
 
+/** Amber dot just after a foreign-key row's badge (`x` is its centre, so it clears a wide PFK/UFK badge); off the connector, so it never crowds the route. */
+function TypeMismatchMarker({ text, columnId, x, y }: { text: string; columnId: string; x: number; y: number }) {
+  return (
+    <g data-testid="type-mismatch" data-column-id={columnId} role="img" aria-label={text} transform={`translate(${x} ${y})`}>
+      <title>{text}</title>
+      <circle r={4.5} fill={WARNING_BG} stroke={WARNING_INK} strokeWidth={1.2} />
+      <path d="M0 -2.5V0.5M0 2.5V2.6" stroke={WARNING_INK} strokeWidth={1.3} strokeLinecap="round" />
+    </g>
+  );
+}
+
 /**
  * Header with the table's name on its accent, then one row per column: key
  * badge, name, an index marker for indexed columns, and the type (with `?`
@@ -194,7 +211,8 @@ function TableShape({ node, detail, scale }: { node: TableNode; detail: TableDet
   const badgeSize = compact ? sizes.badge : TABLE_STYLE.badgeSize;
   const clipId = `table-clip-${node.id}`;
   const indexed = new Set(node.indexes.flatMap((i) => i.columnIds));
-  const foreign = useContext(RelationsContext).foreignKeys.get(node.id);
+  const relations = useContext(RelationsContext);
+  const foreign = relations.foreignKeys.get(node.id);
   const headerDark = isDark(node.accent);
   const bodyDark = isDark(node.fill);
   const ink = bodyDark ? TABLE_COLORS.onDark : TABLE_COLORS.text;
@@ -263,6 +281,14 @@ function TableShape({ node, detail, scale }: { node: TableNode; detail: TableDet
                   {badge}
                 </text>
               )}
+              {!overview && isForeign && relations.typeMismatches.has(`${node.id}:${c.id}`) && (
+                <TypeMismatchMarker
+                  text={relations.typeMismatches.get(`${node.id}:${c.id}`) ?? ''}
+                  columnId={c.id}
+                  x={TABLE_STYLE.pad + (badge ? measureText(badge, badgeSize, CANVAS_FONT_FAMILY).width : 0) + 7}
+                  y={mid}
+                />
+              )}
               {!overview && (
                 <text {...text} data-testid="column-name" x={nameX} y={mid} fontSize={columnSize} fill={ink}>
                   {name}
@@ -317,15 +343,10 @@ function ConnectorShape({ node }: { node: ConnectorNode }) {
   const relations = useContext(RelationsContext);
   // With no stroke the line is hidden, and so is everything drawn on it.
   const drawn = node.strokeWidth > 0;
-  const mismatched = drawn && relations.mismatched.has(node.id);
   // A plain link's 'none' end has nothing to show or click; an end on a table can always be given one.
   const showMarker = (end: 'from' | 'to', c: Cardinality) => drawn && (c !== 'none' || relations.relationalEnds.has(`${node.id}:${end}`));
   const first = node.points[0];
   const last = node.points[node.points.length - 1];
-  // The warning sits on the middle segment, where the eye looks for the link's label.
-  const middle = Math.floor((node.points.length - 1) / 2);
-  const m0 = node.points[middle];
-  const m1 = node.points[middle + 1] ?? m0;
   const ends = [
     { anchor: node.from, at: node.points[0] },
     { anchor: node.to, at: node.points[node.points.length - 1] },
@@ -366,18 +387,6 @@ function ConnectorShape({ node }: { node: ConnectorNode }) {
       )}
       {last && showMarker('to', node.toCardinality) && (
         <Marker at={last} next={node.points[node.points.length - 2]} cardinality={node.toCardinality} end="to" node={node} />
-      )}
-      {mismatched && m0 && m1 && (
-        <g
-          data-testid="connector-warning"
-          role="img"
-          aria-label="The two columns’ types differ"
-          transform={`translate(${(m0.x + m1.x) / 2 - node.x} ${(m0.y + m1.y) / 2 - node.y})`}
-        >
-          <title>The two columns’ types differ</title>
-          <path d="M0 -7L7 6H-7Z" fill={WARNING_BG} stroke={node.stroke} strokeWidth={1} strokeLinejoin="round" />
-          <path d="M0 -2.5V1.5M0 3.5V3.6" stroke={WARNING_INK} strokeWidth={1.4} strokeLinecap="round" />
-        </g>
       )}
     </>
   );
@@ -485,7 +494,7 @@ export const NodeView = memo(function NodeView({ node, childrenOf, mounted, edit
       <Shape node={node} detail={shown} scale={scale} />
     </g>
   );
-  if (children.length === 0) return own;
+  if (children.length === 0) return node.type === 'table' || node.type === 'connector' ? <Dimmable id={node.id}>{own}</Dimmable> : own;
 
   // Design choice: frames clip their content; groups don't.
   const clipId = node.type === 'frame' ? `clip-${node.id}` : undefined;
