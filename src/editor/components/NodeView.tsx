@@ -191,37 +191,47 @@ function TypeMismatchMarker({ text, columnId, x, y }: { text: string; columnId: 
 }
 
 /**
- * The names of overview cards, as one layer above every layer and the selection overlay: a name is how a card reads
- * from afar, so connectors, outlines and handles never cover it. Never takes a press. Memoized: the caller pans it
- * with a transform, so a pan re-measures nothing.
+ * One overview card's name, drawn in a layer above every layer and the selection overlay (see Canvas): a name is
+ * how a card reads from afar, so connectors, outlines and handles never cover it. Never takes a press. Outside its
+ * ancestors' subtrees, so it takes their opacity as `opacity` and their frames' clips by id (`clips`, outermost
+ * first, one per line, a string so the memo holds). Memoized, so a drag re-measures only the tables that changed.
  */
-export const OverviewNames = memo(function OverviewNames({ tables, scale, dimmed }: { tables: TableNode[]; scale: number; dimmed: ReadonlySet<string> }) {
-  return tables.map((node) => {
-    // Sized for the screen, not the card: a small card's label may be taller than it is.
-    const label = overviewLabel(node.name, overviewAvail(node.width, scale, TABLE_STYLE.pad), scale, (t, size) => measureText(t, size, CANVAS_FONT_FAMILY, 600).width);
-    if (!label.lines.some(Boolean)) return null;
-    return (
-      <g
-        key={node.id}
-        data-testid="overview-name"
-        data-table-id={node.id}
-        transform={nodeTransform(node)}
-        opacity={dimmed.has(node.id) ? DIMMED_OPACITY * node.opacity : node.opacity}
-      >
-        <OverviewName
-          name={node.name}
-          lines={label.lines}
-          size={label.size}
-          scale={scale}
-          x={node.width / 2}
-          y={node.height / 2}
-          fill={node.fill}
-          stroke={node.stroke}
-          ink={isDark(node.fill) ? TABLE_COLORS.onDark : TABLE_COLORS.text}
-        />
-      </g>
-    );
-  });
+export const OverviewTableName = memo(function OverviewTableName({
+  node,
+  scale,
+  opacity,
+  dimmed,
+  clips,
+}: {
+  node: TableNode;
+  scale: number;
+  opacity: number;
+  dimmed: boolean;
+  clips: string;
+}) {
+  // Sized for the screen, not the card: a small card's label may be taller than it is.
+  const label = overviewLabel(node.name, overviewAvail(node.width, scale, TABLE_STYLE.pad), scale, (t, size) => measureText(t, size, CANVAS_FONT_FAMILY, 600).width);
+  if (!label.lines.some(Boolean)) return null;
+  const name = (
+    <g data-testid="overview-name" data-table-id={node.id} transform={nodeTransform(node)} opacity={dimmed ? DIMMED_OPACITY * opacity : opacity}>
+      <OverviewName
+        name={node.name}
+        lines={label.lines}
+        size={label.size}
+        scale={scale}
+        x={node.width / 2}
+        y={node.height / 2}
+        fill={node.fill}
+        stroke={node.stroke}
+        ink={isDark(node.fill) ? TABLE_COLORS.onDark : TABLE_COLORS.text}
+      />
+    </g>
+  );
+  // The frames' clip paths are in world space, so they wrap the name outside its own transform.
+  return clips
+    .split('\n')
+    .filter(Boolean)
+    .reduceRight((inner, id) => <g clipPath={`url(#clip-${id})`}>{inner}</g>, name);
 });
 
 /**

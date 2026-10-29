@@ -23,7 +23,7 @@ import { CANVAS_FONT_FAMILY, measureText } from '../textMetrics';
 import { usePreferences } from '../../settings/preferences/PreferencesContext';
 import { CanvasGrid } from './CanvasGrid';
 import { detailLevel, overviewScale } from '../tableDetail';
-import { DimmedContext, FrameLabel, NodeView, RelationsContext, OverviewNames, type Relations } from './NodeView';
+import { DimmedContext, FrameLabel, NodeView, RelationsContext, OverviewTableName, type Relations } from './NodeView';
 import { RoutePopup } from './RoutePopup';
 import { RouteSteps, SelectionOverlay } from './SelectionOverlay';
 import { TableCellEditor } from './TableCellEditor';
@@ -277,10 +277,20 @@ export function Canvas() {
     [joinPath, byId],
   );
   // The cell-edited table stays at full detail, so it has no overview name.
-  const overviewTables = useMemo(
-    () => nodes.filter((n): n is TableNode => n.type === 'table' && n.id !== editingTableId && mounted.has(n.id) && isEffectivelyVisible(byId, n)),
-    [nodes, editingTableId, mounted, byId],
-  );
+  const overviewNames = useMemo(() => {
+    if (detail !== 'overview') return [];
+    return nodes
+      .filter((n): n is TableNode => n.type === 'table' && n.id !== editingTableId && mounted.has(n.id) && isEffectivelyVisible(byId, n))
+      .map((node) => {
+        let opacity = node.opacity;
+        const clips: string[] = [];
+        for (let p = node.parentId ? byId.get(node.parentId) : undefined; p; p = p.parentId ? byId.get(p.parentId) : undefined) {
+          opacity *= p.opacity;
+          if (p.type === 'frame') clips.unshift(p.id);
+        }
+        return { node, opacity, clips: clips.join('\n') };
+      });
+  }, [detail, nodes, editingTableId, mounted, byId]);
   const selectedSet = new Set(selection);
   const selected = nodes.filter((n) => selectedSet.has(n.id) && isEffectivelyVisible(byId, n));
   const picked = state.selectedColumn;
@@ -380,7 +390,9 @@ export function Canvas() {
         />
         {detail === 'overview' && (
           <g transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.zoom})`}>
-            <OverviewNames tables={overviewTables} scale={overviewScale(viewport.zoom)} dimmed={dimmed} />
+            {overviewNames.map(({ node, opacity, clips }) => (
+              <OverviewTableName key={node.id} node={node} scale={overviewScale(viewport.zoom)} opacity={opacity} dimmed={dimmed.has(node.id)} clips={clips} />
+            ))}
           </g>
         )}
         <RouteSteps tables={routeTables} viewport={viewport} color={relationHighlight} />

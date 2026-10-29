@@ -47,6 +47,29 @@ describe('Tables: level of detail', () => {
   });
 });
 
+describe('Tables: overview names inside a frame', () => {
+  // The table runs past the frame's right edge (400), and the frame is half transparent.
+  const frame = { id: 'f1', type: 'frame', name: 'Frame 1', parentId: null, x: 100, y: 100, width: 300, height: 200, rotation: 0, fill: '#ffffff', stroke: '#e6e6e6', strokeWidth: 0, cornerRadius: 0, opacity: 0.5, visible: true };
+  const inner = {
+    id: 'inner', type: 'table', name: 'inner_table', parentId: 'f1', x: 300, y: 150, width: 240, height: 64, rotation: 0,
+    fill: '#ffffff', stroke: '#d9d9d9', strokeWidth: 1, opacity: 1, visible: true, accent: '#80caff', indexes: [],
+    columns: [{ id: 'c1', name: 'id', dataType: 'uuid', primaryKey: true, nullable: false, unique: false }],
+  };
+
+  it('clips the name to the frame and fades it with the frame', () => {
+    const workspace = { version: 1, activeId: 'b1', boards: [{ id: 'b1', name: 'Board 1', nodes: [frame, inner] }] };
+    cy.visit('/', { onBeforeLoad: (win) => win.localStorage.setItem('draftboard:workspace:v1', JSON.stringify(workspace)) });
+    cy.get('[data-testid=node-inner]').should('have.attr', 'data-detail', 'full');
+    cy.zoomMenu('zoom-out');
+    cy.zoomMenu('zoom-out');
+    cy.get('[data-testid=node-inner]').should('have.attr', 'data-detail', 'overview');
+    cy.get('[data-testid=overview-name][data-table-id=inner]').should(($name) => {
+      expect($name[0]!.closest('[clip-path]')?.getAttribute('clip-path')).to.equal('url(#clip-f1)');
+      expect($name.attr('opacity')).to.equal('0.5');
+    });
+  });
+});
+
 describe('Tables: level of detail with long names', () => {
   const col = (id: string, name: string, primaryKey = false) => ({ id, name, dataType: 'varchar(255)', primaryKey, nullable: false, unique: false });
   const tableNode = {
