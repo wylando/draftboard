@@ -77,6 +77,27 @@ describe('Schema export', () => {
     cy.get(PREVIEW).should('have.css', 'white-space', 'pre-wrap');
   });
 
+  it('keeps a left-out relationship with a long unbroken name inside the dialog', () => {
+    const name = 'GlSourceSyncIntegrityVerificationAuditHistoryRecordsArchive';
+    cy.get('[data-testid=import-menu]').click();
+    cy.get('[data-testid=import-schema]').click();
+    cy.get('[data-testid=schema-source]').type(
+      `CREATE TABLE users (id uuid PRIMARY KEY);\nCREATE TABLE ${name} (id uuid PRIMARY KEY, ${name}Id uuid REFERENCES users(id));`,
+      { delay: 0, parseSpecialCharSequences: false },
+    );
+    cy.contains('button', 'Preview').click();
+    cy.get('[data-testid=import-submit]').click();
+    cy.contains('[data-testid=layers-panel] [role=treeitem]', name).click();
+    cy.get('[data-testid=export-menu]').click();
+    cy.get('[data-testid=export-schema]').click();
+    cy.get('[data-testid=dialog-body]').then(($body) => {
+      const right = $body[0]!.getBoundingClientRect().right;
+      for (const q of ['[data-testid=export-notice]', PREVIEW]) {
+        cy.get(q).should(($el) => expect($el[0]!.getBoundingClientRect().right).to.be.lte(right));
+      }
+    });
+  });
+
   it('copies the preview and downloads it as a file named after the board', () => {
     importFixture();
     cy.get('[data-testid=export-menu]').click();
