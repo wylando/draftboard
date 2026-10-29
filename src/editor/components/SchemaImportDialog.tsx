@@ -64,7 +64,7 @@ const textareaClass = css({
   _focus: { outlineWidth: '2px', outlineStyle: 'solid', outlineColor: 'border.focus', borderColor: 'border.focus' },
 });
 // Never wraps: the dialect chips and the counts share one line at the dialog's width.
-const summaryClass = css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '2', flexWrap: 'nowrap', textStyle: 'body.largeStrong' });
+const summaryClass = css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '2', flexWrap: 'nowrap', textStyle: 'body.mediumStrong' });
 const summaryChipsClass = css({ flexWrap: 'nowrap' });
 const countsTextClass = css({ whiteSpace: 'nowrap', minWidth: '0', overflow: 'hidden', textOverflow: 'ellipsis' });
 const previewTableClass = css({

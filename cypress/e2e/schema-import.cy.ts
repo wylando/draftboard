@@ -81,7 +81,7 @@ describe('Schema import from SQL', () => {
 
   it('names the new board after the imported file', () => {
     cy.drawShape('rect', [100, 100], [200, 200]);
-    cy.get('[data-testid=app-menu]').click();
+    cy.get('[data-testid=import-menu]').click();
     cy.get('[data-testid=import-schema]').click();
     cy.get('[data-testid=schema-tab-file]').click();
     cy.fixture(FIXTURE_MYSQL, null).then((contents) => {
@@ -124,7 +124,7 @@ describe('Schema import from SQL', () => {
 
   it('zooms out to fit a schema too large for the canvas', () => {
     const sql = Array.from({ length: 60 }, (_, i) => `CREATE TABLE t${i} (id int PRIMARY KEY${i > 0 ? `, p int REFERENCES t${i - 1}(id)` : ''});`).join('\n');
-    cy.get('[data-testid=app-menu]').click();
+    cy.get('[data-testid=import-menu]').click();
     cy.get('[data-testid=import-schema]').click();
     cy.get('[data-testid=schema-source]').type(sql, { delay: 0, parseSpecialCharSequences: false });
     cy.contains('button', 'Preview').click();
@@ -143,7 +143,7 @@ describe('Schema import from SQL', () => {
 
   it('applies ticked guessed relationships when importing as a new board', () => {
     cy.drawShape('rect', [100, 100], [200, 200]);
-    cy.get('[data-testid=app-menu]').click();
+    cy.get('[data-testid=import-menu]').click();
     cy.get('[data-testid=import-schema]').click();
     cy.fixture('schema/no-fks.sql').then((sql: string) => {
       cy.get('[data-testid=schema-source]').type(sql, { delay: 0, parseSpecialCharSequences: false });

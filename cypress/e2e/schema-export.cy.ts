@@ -56,7 +56,7 @@ describe('Schema export', () => {
   it('names left-out relationships by their ends, above the preview, and can include the linked tables', () => {
     importFixture();
     cy.contains('[data-testid=layers-panel] [role=treeitem]', 'posts').click();
-    cy.get('[data-testid=app-menu]').click();
+    cy.get('[data-testid=export-menu]').click();
     cy.get('[data-testid=export-schema]').click();
     cy.get('[data-testid=export-notice]').should('contain', 'relationships left out').and('contain', 'posts.user_id → users.id');
     cy.get('[data-testid=export-notice]').should('not.contain', 'Connector');
@@ -72,7 +72,7 @@ describe('Schema export', () => {
 
   it('wraps long preview lines instead of clipping them', () => {
     importFixture();
-    cy.get('[data-testid=app-menu]').click();
+    cy.get('[data-testid=export-menu]').click();
     cy.get('[data-testid=export-schema]').click();
     cy.get(PREVIEW).should('have.css', 'white-space', 'pre-wrap');
   });
