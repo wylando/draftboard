@@ -51,14 +51,6 @@ describe('Schema import from SQL', () => {
 
     cy.pressKey('z', { metaKey: true });
     cy.get(NODES).should('not.exist');
-
-    // Nothing to lose on an empty canvas with no undo history, so Replace doesn't ask.
-    previewFixture();
-    cy.get('[data-testid=import-dest-replace]').click();
-    cy.get('[data-testid=import-submit]').click();
-    cy.get('[data-testid=dialog]').should('not.exist');
-    cy.get('[role=alertdialog]').should('not.exist');
-    cy.get('[data-node-type=table]').should('have.length', 3);
   });
 
   it('defaults to adding on an empty board and to a new board on one with layers', () => {
@@ -124,7 +116,17 @@ describe('Schema import from SQL', () => {
     cy.get('[data-testid=dialog]').should('not.exist');
     cy.get('[data-testid=selection-overlay] [data-handle]').should('not.exist');
     tablesInsideCanvas(3);
-    zoom().should('be.at.most', 1);
+  });
+
+  it('zooms out to fit a schema too large for the canvas', () => {
+    const sql = Array.from({ length: 60 }, (_, i) => `CREATE TABLE t${i} (id int PRIMARY KEY);`).join('\n');
+    cy.get('[data-testid=import-menu]').click();
+    cy.get('[data-testid=import-schema]').click();
+    cy.get('[data-testid=schema-source]').type(sql, { delay: 0, parseSpecialCharSequences: false });
+    cy.contains('button', 'Preview').click();
+    cy.get('[data-testid=import-submit]').click();
+    cy.get('[data-testid=dialog]').should('not.exist');
+    zoom().should('be.lt', 1);
   });
 
   it('applies ticked guessed relationships when importing as a new board', () => {
@@ -194,18 +196,6 @@ describe('Schema import from SQL', () => {
   });
 
   it('replaces the document with the plain imported tables after confirming, and clears history', () => {
-    // An empty canvas with undo history still asks.
-    cy.drawShape('rect', [100, 100], [200, 200]);
-    cy.pressKey('Backspace');
-    cy.get('[data-node-type=rect]').should('not.exist');
-    previewFixture();
-    cy.get('[data-testid=import-dest-replace]').click();
-    cy.get('[data-testid=import-submit]').click();
-    cy.get('[role=alertdialog]').should('be.visible');
-    cy.get('[data-testid=dialog-cancel]').click();
-    cy.get('[data-testid=dialog]').type('{esc}');
-    cy.get('[data-testid=dialog]').should('not.exist');
-
     cy.drawShape('rect', [100, 100], [200, 200]);
     previewFixture();
     cy.get('[data-testid=import-dest-add]').click();
@@ -242,6 +232,28 @@ describe('Schema import from SQL', () => {
     for (const name of ['users', 'posts', 'comments']) cy.contains('[data-node-type=table]', name).should('exist');
     cy.contains('[data-node-type=table]', 'users 2').should('not.exist');
     cy.get('[data-testid=undo]').should('be.disabled');
+  });
+
+  it('asks before replacing when the canvas is empty but has undo history', () => {
+    cy.drawShape('rect', [100, 100], [200, 200]);
+    cy.pressKey('Backspace');
+    cy.get('[data-node-type=rect]').should('not.exist');
+    previewFixture();
+    cy.get('[data-testid=import-dest-replace]').click();
+    cy.get('[data-testid=import-submit]').click();
+    cy.get('[role=alertdialog]').should('be.visible');
+    cy.get('[data-testid=dialog-cancel]').click();
+    cy.get('[role=alertdialog]').should('not.exist');
+    cy.get('[data-testid=import-submit]').should('be.visible');
+  });
+
+  it('replaces an empty canvas without asking', () => {
+    previewFixture();
+    cy.get('[data-testid=import-dest-replace]').click();
+    cy.get('[data-testid=import-submit]').click();
+    cy.get('[data-testid=dialog]').should('not.exist');
+    cy.get('[role=alertdialog]').should('not.exist');
+    cy.get('[data-node-type=table]').should('have.length', 3);
   });
 
   it('says so when the text has no tables, with a hint for the format', () => {
@@ -416,7 +428,10 @@ describe('Schema import from SQL', () => {
       cy.get('[data-testid=guess-0]').should('contain', 'posts.user_id → users.id');
       for (const i of [0, 1, 2]) box(i).should('not.be.checked');
 
-      cy.get('[data-testid=guess-group]').should('have.attr', 'role', 'group');
+      cy.get('[data-testid=guess-group]')
+        .should('have.attr', 'role', 'group')
+        .and('have.attr', 'aria-labelledby')
+        .then((id) => cy.get(`[id="${id}"]`).should('contain', 'Guessed relationships'));
       cy.get('[data-testid=import-counts]').should('have.attr', 'aria-live', 'polite');
     });
 
@@ -475,6 +490,8 @@ describe('Schema import from SQL', () => {
       cy.get('[data-testid=guess-all]').should('have.attr', 'data-state', 'indeterminate');
       // Screen readers hear "mixed" from the hidden input, not from data-state.
       cy.get('[data-testid=guess-all] input').should('have.prop', 'indeterminate', true);
+      // Both indicators would show if the recipe overrode Ark's `hidden`.
+      cy.get('[data-testid=guess-all] [data-part=indicator]:visible').should('have.length', 1);
 
       cy.get('[data-testid=guess-all]').click();
       cy.get('[data-testid=import-summary]').should('contain', '9 relationships');
