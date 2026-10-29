@@ -150,11 +150,12 @@ describe('splitStatements', () => {
     });
   });
 
-  it.each(['postgres', 'mysql'] as const)('scans a long dash comment line in linear time (%s)', (dialect) => {
+  it.each(['postgres', 'mysql'] as const)('scans a long dash comment line in linear time (%s)', { timeout: 1000 }, (dialect) => {
     expect(splitStatements(`-- ${'-'.repeat(200)}\nSELECT 1;`, dialect)).toEqual([{ sql: `-- ${'-'.repeat(200)}\nSELECT 1`, line: 2 }]);
-    // No timing: the scan is one native indexOf, too fast for a stable ratio on CI. A scan that went back
-    // over the line per character would never finish 8M characters, and the CI job's time limit fails that.
-    const sql = `-- ${'-'.repeat(8_000_000)}\nSELECT 1;`;
+    // No ratio: the scan is one native indexOf, too fast for a stable one on CI. A scan that went back over
+    // the line per character is quadratic: about 1M x 500k byte reads, far past the timeout (a sync test that
+    // finishes late still fails), where the linear scan takes about a millisecond.
+    const sql = `-- ${'-'.repeat(1_000_000)}\nSELECT 1;`;
     expect(splitStatements(sql, dialect)).toEqual([{ sql: sql.slice(0, -1), line: 2 }]);
   });
 

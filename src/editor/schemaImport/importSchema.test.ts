@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { createNode } from '../model/nodes';
 import type { ConnectorNode, DesignNode, TableNode } from '../model/types';
 import type { ImportedSchema, ImportedTable } from './types';
+import { EXAMPLE_SCHEMA } from './exampleSchema';
 import { planImport } from './importSchema';
+import { importedColumn } from './testSchemas';
 
 const table = (name: string): ImportedTable => ({
   name,
-  columns: [{ name: 'id', dataType: 'int', primaryKey: true, nullable: false, unique: false }],
+  columns: [importedColumn('id', 'int', { primaryKey: true, nullable: false })],
   indexes: [],
 });
 const schema = (over: Partial<ImportedSchema> = {}): ImportedSchema => ({
@@ -39,6 +41,10 @@ describe('planImport', () => {
     const clash = { ...rect, name: 'users' };
     const plan = await planImport(schema({ warnings: [{ line: 3, message: 'parse' }] }), [clash]);
     expect(plan.warnings.map((w) => w.message)).toEqual(['parse', '"users" already exists; imported as "users 2"']);
+  });
+
+  it('plans the example schema without warnings', async () => {
+    expect((await planImport(EXAMPLE_SCHEMA, [])).warnings).toEqual([]);
   });
 
   it('puts connectors after the tables', async () => {

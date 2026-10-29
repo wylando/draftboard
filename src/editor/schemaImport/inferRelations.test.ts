@@ -1,14 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { inferRelations } from './inferRelations';
+import { importedColumn } from './testSchemas';
 import type { ImportedColumn, ImportedRelation, ImportedSchema, ImportedTable } from './types';
 
-const col = (name: string, primaryKey = false): ImportedColumn => ({
-  name,
-  dataType: 'integer',
-  primaryKey,
-  nullable: !primaryKey,
-  unique: false,
-});
+const col = (name: string, primaryKey = false) => importedColumn(name, 'integer', { primaryKey, nullable: !primaryKey });
 
 const table = (name: string, ...columns: (string | ImportedColumn)[]): ImportedTable => ({
   name,
@@ -124,8 +119,8 @@ describe('inferRelations', () => {
   });
 
   it('skips when both types are known and differ', () => {
-    const typed = (t: string): ImportedColumn => ({ ...col('id', true), dataType: t });
-    const key = (t: string): ImportedColumn => ({ ...col('user_id'), dataType: t });
+    const typed = (t: string): ImportedColumn => importedColumn('id', t, { primaryKey: true, nullable: false });
+    const key = (t: string): ImportedColumn => importedColumn('user_id', t);
     const mk = (a: string, b: string) => schema([table('posts', pk(), key(a)), table('users', typed(b))]);
     expect(inferRelations(mk('uuid', 'text'))).toEqual([]);
     expect(inferRelations(mk('INTEGER', 'integer'))).toEqual([guess('posts', 'user_id', 'users', 'id')]);
