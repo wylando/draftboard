@@ -26,3 +26,9 @@ describe('parsePreferences: relation highlight', () => {
     }
   });
 });
+
+describe('parsePreferences: grid style', () => {
+  it('falls back to the default for an unknown style', () => {
+    expect(parsePreferences(JSON.stringify({ gridStyle: 'plaid' })).gridStyle).toBe(DEFAULT_PREFERENCES.gridStyle);
+  });
+});

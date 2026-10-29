@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { initialWorkspace, workspaceReducer } from './model/workspace';
+import { initialEditorState } from './model/editorReducer';
 import { createNode } from './model/nodes';
 import { documentFileName, parseDocument, parseWorkspace, serializeDocument, serializeWorkspace, workspaceFromStorage } from './persistence';
 
@@ -34,8 +35,10 @@ describe('parseWorkspace', () => {
 
   it('repairs a damaged table the way a single document does', () => {
     const table = { ...createNode('table', { x: 0, y: 0, width: 200, height: 100 }, []), columns: 'garbage' };
-    expect(parseWorkspace(wrap([{ id: 'a', name: 'T', nodes: [table] }]))!.boards).toHaveLength(1);
-    expect(parseDocument(JSON.stringify({ version: 1, nodes: [table] }))).not.toBeNull();
+    const keep = rect();
+    const loaded = parseWorkspace(wrap([{ id: 'a', name: 'T', nodes: [table, keep] }]))!;
+    expect(loaded.boards[0]!.nodes.map((n) => n.id)).toEqual([table.id, keep.id]);
+    expect(parseDocument(JSON.stringify({ version: 1, nodes: [table, keep] }))!.map((n) => n.id)).toEqual([table.id, keep.id]);
   });
 });
 
@@ -59,6 +62,15 @@ describe('workspaceFromStorage', () => {
   it('is empty when nothing usable is stored', () => {
     expect(workspaceFromStorage(null, null).boards).toEqual([]);
     expect(workspaceFromStorage(null, 'junk').boards).toEqual([]);
+  });
+});
+
+describe('loading a document', () => {
+  it('repairs repeated layer names on load, in any case; the first layer in tree order keeps its name', () => {
+    const first = { ...rect(), name: 'Old rect' };
+    const second = { ...rect(), name: 'OLD RECT' };
+    const state = initialEditorState(parseDocument(serializeDocument([first, second]))!);
+    expect(state.nodes.map((n) => n.name)).toEqual(['Old rect', 'OLD RECT 2']);
   });
 });
 
