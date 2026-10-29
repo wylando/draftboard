@@ -21,6 +21,10 @@ describe('Settings: keyboard shortcuts', () => {
     openSettings();
   });
 
+  it('lists the align commands, unbound by default', () => {
+    row('arrange.alignLeft').should('exist').find('[data-binding]').should('not.exist');
+  });
+
   it('opens from the toolbar and returns to the canvas', () => {
     cy.url().should('include', '#/settings');
     cy.get('[data-testid=shortcuts-section]').should('be.visible');

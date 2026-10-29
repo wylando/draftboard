@@ -100,6 +100,22 @@ function runCommand(id: CommandId, o: Options, b: BoardControls): void {
       return dispatch({ type: 'groupSelection' });
     case 'arrange.ungroup':
       return dispatch({ type: 'ungroupSelection' });
+    case 'arrange.alignLeft':
+      return dispatch({ type: 'alignSelection', align: 'left' });
+    case 'arrange.alignCenterX':
+      return dispatch({ type: 'alignSelection', align: 'centerX' });
+    case 'arrange.alignRight':
+      return dispatch({ type: 'alignSelection', align: 'right' });
+    case 'arrange.alignTop':
+      return dispatch({ type: 'alignSelection', align: 'top' });
+    case 'arrange.alignCenterY':
+      return dispatch({ type: 'alignSelection', align: 'centerY' });
+    case 'arrange.alignBottom':
+      return dispatch({ type: 'alignSelection', align: 'bottom' });
+    case 'arrange.distributeH':
+      return dispatch({ type: 'distributeSelection', axis: 'horizontal' });
+    case 'arrange.distributeV':
+      return dispatch({ type: 'distributeSelection', axis: 'vertical' });
     case 'view.zoomIn':
       return o.zoomIn();
     case 'view.zoomOut':
