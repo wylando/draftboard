@@ -191,6 +191,40 @@ function TypeMismatchMarker({ text, columnId, x, y }: { text: string; columnId: 
 }
 
 /**
+ * The names of overview cards, as one layer above every layer and the selection overlay: a name is how a card reads
+ * from afar, so connectors, outlines and handles never cover it. Never takes a press. Memoized: the caller pans it
+ * with a transform, so a pan re-measures nothing.
+ */
+export const OverviewNames = memo(function OverviewNames({ tables, scale, dimmed }: { tables: TableNode[]; scale: number; dimmed: ReadonlySet<string> }) {
+  return tables.map((node) => {
+    // Sized for the screen, not the card: a small card's label may be taller than it is.
+    const label = overviewLabel(node.name, overviewAvail(node.width, scale, TABLE_STYLE.pad), scale, (t, size) => measureText(t, size, CANVAS_FONT_FAMILY, 600).width);
+    if (!label.lines.some(Boolean)) return null;
+    return (
+      <g
+        key={node.id}
+        data-testid="overview-name"
+        data-table-id={node.id}
+        transform={nodeTransform(node)}
+        opacity={dimmed.has(node.id) ? DIMMED_OPACITY * node.opacity : node.opacity}
+      >
+        <OverviewName
+          name={node.name}
+          lines={label.lines}
+          size={label.size}
+          scale={scale}
+          x={node.width / 2}
+          y={node.height / 2}
+          fill={node.fill}
+          stroke={node.stroke}
+          ink={isDark(node.fill) ? TABLE_COLORS.onDark : TABLE_COLORS.text}
+        />
+      </g>
+    );
+  });
+});
+
+/**
  * Header with the table's name on its accent, then one row per column: key
  * badge, name, an index marker for indexed columns, and the type (with `?`
  * when nullable) right-aligned. When name and type don't both fit, the type
@@ -201,10 +235,6 @@ function TableShape({ node, detail, scale }: { node: TableNode; detail: TableDet
   const { width: w, height: h } = node;
   const compact = detail === 'compact';
   const overview = detail === 'overview';
-  // Sized for the screen, not the card: a small card's label may be taller than it is.
-  const label = overview
-    ? overviewLabel(node.name, overviewAvail(w, scale, TABLE_STYLE.pad), scale, (t, size) => measureText(t, size, CANVAS_FONT_FAMILY, 600).width)
-    : null;
   const sizes = compactSizes(scale);
   const nameSize = compact ? sizes.column : TABLE_STYLE.nameSize;
   const columnSize = compact ? sizes.column : TABLE_STYLE.columnSize;
@@ -229,7 +259,7 @@ function TableShape({ node, detail, scale }: { node: TableNode; detail: TableDet
       <g clipPath={`url(#${clipId})`}>
         <rect data-testid="table-body" width={w} height={h} fill={node.fill} />
         <rect data-testid="table-header" width={w} height={TABLE_HEADER_HEIGHT} fill={node.accent} />
-        {label ? (
+        {overview ? (
           // A light wash of the accent, so a name-only card still reads as its table.
           <rect width={w} height={h - TABLE_HEADER_HEIGHT} y={TABLE_HEADER_HEIGHT} fill={node.accent} opacity={0.15} />
         ) : (
@@ -324,9 +354,6 @@ function TableShape({ node, detail, scale }: { node: TableNode; detail: TableDet
           );
         })}
       </g>
-      {label && label.lines.some(Boolean) && (
-        <OverviewName name={node.name} lines={label.lines} size={label.size} scale={scale} x={w / 2} y={h / 2} fill={node.fill} stroke={node.stroke} ink={ink} />
-      )}
       <line x1={0} x2={w} y1={TABLE_HEADER_HEIGHT} y2={TABLE_HEADER_HEIGHT} stroke={node.stroke} strokeWidth={node.strokeWidth} />
       <rect width={w} height={h} rx={TABLE_STYLE.radius} fill="none" stroke={node.strokeWidth > 0 ? node.stroke : 'none'} strokeWidth={node.strokeWidth} />
     </>

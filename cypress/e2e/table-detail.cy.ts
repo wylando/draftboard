@@ -22,7 +22,7 @@ describe('Tables: level of detail', () => {
     cy.zoomMenu('zoom-out');
     cy.get('[data-testid=zoom-level]').should('have.text', '25%');
     table().should('have.attr', 'data-detail', 'overview');
-    table().find('[data-testid=table-name]').should('have.text', 'Table 1');
+    cy.get('[data-testid=overview-name] [data-testid=table-name]').should('have.text', 'Table 1');
     table().find('[data-testid=column-name]').should('not.exist');
     // Rows stay in the DOM so connectors and clicks still find them.
     table().find('[data-testid=table-column]').should('have.length', 1);
@@ -30,6 +30,20 @@ describe('Tables: level of detail', () => {
     cy.zoomMenu('zoom-100');
     cy.get('[data-testid=zoom-level]').should('have.text', '100%');
     table().should('have.attr', 'data-detail', 'full').find('[data-testid=column-type]').should('have.text', 'uuid');
+  });
+
+  it('draws overview names in front of every layer, connectors and the selection overlay included', () => {
+    cy.zoomMenu('zoom-out');
+    cy.zoomMenu('zoom-out');
+    table().should('have.attr', 'data-detail', 'overview');
+    cy.contains('[data-testid=layers-panel] [role=treeitem]', 'Table 1').click();
+    cy.get('[data-testid=selection-overlay] polygon').should('exist');
+    cy.get('[data-testid=overview-name]').should('contain', 'Table 1').then(($name) => {
+      // SVG paints in document order, so after the world (tables, connectors) and the overlay means on top.
+      for (const q of ['[data-testid=world]', '[data-testid=selection-overlay]']) {
+        cy.get(q).should(($o) => expect($o[0]!.compareDocumentPosition($name[0]!) & Node.DOCUMENT_POSITION_FOLLOWING, q).to.be.greaterThan(0));
+      }
+    });
   });
 });
 
@@ -77,7 +91,7 @@ describe('Tables: level of detail with long names', () => {
     cy.get('[data-testid=node-narrow]').should('have.attr', 'data-detail', 'overview');
     cy.get('[data-testid=node-narrow] [data-testid=column-name]').should('not.exist');
     cy.get('[data-testid=node-narrow] [data-testid=table-column]').should('have.length', 3);
-    cy.get('[data-testid=node-narrow] [data-testid=table-name-pill] title').should('have.text', 'customer_orders_archive_2024');
-    cy.get('[data-testid=node-narrow] [data-testid=table-name] tspan').should('have.length', 2);
+    cy.get('[data-testid=overview-name][data-table-id=narrow] [data-testid=table-name-pill] title').should('have.text', 'customer_orders_archive_2024');
+    cy.get('[data-testid=overview-name][data-table-id=narrow] [data-testid=table-name] tspan').should('have.length', 2);
   });
 });
