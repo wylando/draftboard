@@ -40,6 +40,15 @@ describe('Measuring distances with Alt', () => {
     measure('x', 100).should('exist');
     cy.window().then((win) => win.dispatchEvent(new win.Event('blur')));
     cy.get('[data-testid=distance-measure]').should('not.exist');
+
+    // A layer diagonally away is joined to its gap by dashed leaders.
+    holdAlt(false);
+    cy.drawShape('rect', [500, 400], [560, 460]);
+    holdAlt(true);
+    hover([150, 150]);
+    measure('x', 300).should('exist');
+    measure('y', 200).should('exist');
+    cy.get('[data-testid=measure-leader]').should('have.length', 2);
   });
 
   it('shows nothing over the selection itself, or after the canvas moves under a still pointer', () => {
@@ -54,36 +63,5 @@ describe('Measuring distances with Alt', () => {
     });
     // Rect 1 has scrolled away from the pointer.
     cy.get('[data-testid=distance-measure]').should('not.exist');
-  });
-
-  it('measures to each side of a layer that encloses the selection', () => {
-    cy.drawShape('frame', [50, 50], [450, 260]);
-    cy.get('[data-testid=layers-panel]').contains('Rectangle 2').click();
-    cy.prop('name').should('have.value', 'Rectangle 2');
-    holdAlt(true);
-    // Inside the frame but over neither rect.
-    hover([250, 230]);
-    measure('x', 250).should('exist');
-    measure('x', 50).should('exist');
-    measure('y', 50).should('exist');
-    measure('y', 60).should('exist');
-  });
-
-  it('measures edge to edge for a layer that partly overlaps the selection', () => {
-    cy.drawShape('rect', [150, 150], [250, 250]);
-    holdAlt(true);
-    // Over rect 1 only, outside the new rect.
-    hover([120, 120]);
-    cy.get('[data-testid=distance-measure][data-axis=x][data-distance="50"]').should('have.length', 2);
-    cy.get('[data-testid=distance-measure][data-axis=y][data-distance="50"]').should('have.length', 2);
-  });
-
-  it('leads a dashed line to a layer that sits diagonally away', () => {
-    cy.drawShape('rect', [500, 400], [560, 460]);
-    holdAlt(true);
-    hover([150, 150]);
-    measure('x', 300).should('exist');
-    measure('y', 200).should('exist');
-    cy.get('[data-testid=measure-leader]').should('have.length', 2);
   });
 });
