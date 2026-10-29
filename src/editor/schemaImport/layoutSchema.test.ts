@@ -14,13 +14,13 @@ const links = [
 ];
 
 describe('layoutSchema', () => {
-  it('positions every table, including unconnected ones', async () => {
+  it('positions every table, including unconnected ones, and never overlaps two boxes', async () => {
     const layout = await layoutSchema(tables, links);
     expect([...layout.keys()].sort()).toEqual(tables.map((t) => t.name).sort());
-  });
-
-  it('never overlaps two table boxes', async () => {
-    const layout = await layoutSchema(tables, links);
+    // Linked tables come from dagre, which reports arbitrary coordinates; the block must be shifted to the origin.
+    const points = [...layout.values()];
+    expect(Math.min(...points.map((p) => p.x))).toBe(0);
+    expect(Math.min(...points.map((p) => p.y))).toBe(0);
     for (const a of tables) {
       for (const b of tables) {
         if (a.name >= b.name) continue;
@@ -44,13 +44,6 @@ describe('layoutSchema', () => {
       const referencing = layout.get(l.fromTable)!;
       expect(referenced.x + width.get(l.toTable)!).toBeLessThanOrEqual(referencing.x);
     }
-  });
-
-  it('starts the block at the origin', async () => {
-    const layout = await layoutSchema(tables, links);
-    const points = [...layout.values()];
-    expect(Math.min(...points.map((p) => p.x))).toBe(0);
-    expect(Math.min(...points.map((p) => p.y))).toBe(0);
   });
 
   it('ignores unknown-table and self links', async () => {
