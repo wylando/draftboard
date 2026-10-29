@@ -5,6 +5,14 @@ import { formatBinding, formatBindingText, type Binding } from './keybindings/ke
 import { useKeybindings } from './keybindings/KeybindingsContext';
 
 const rowClass = css({
+  // The row's quiet controls: Add, and each chip's remove, appear on hover or keyboard focus. They stay in
+  // the tab order (opacity, not display), so a keyboard user reaches them and sees them as they arrive.
+  '& [data-quiet]': { opacity: '0' },
+  '&:hover [data-quiet=add], &:focus-within [data-quiet]': { opacity: '1' },
+  '& [data-chip]:hover [data-quiet=remove]': { opacity: '1' },
+  '& [data-quiet=add]:focus-visible': { opacity: '1' },
+  // No hover to reveal them on touch.
+  '@media (hover: none)': { '& [data-quiet]': { opacity: '1' } },
   display: 'grid',
   gridTemplateColumns: '1fr auto',
   alignItems: 'center',
@@ -17,8 +25,8 @@ const rowClass = css({
 const labelClass = css({ textStyle: 'heading.section' });
 const descriptionClass = css({ color: 'text.secondary' });
 const controlsClass = css({ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', gap: '1' });
-const chipClass = css({ display: 'inline-flex', alignItems: 'center', gap: '1' });
-const removeClass = css({ width: 'kbd', height: 'kbd' });
+// The remove control sits inside the chip, so it reads as part of that key, not of the command.
+const removeClass = css({ width: 'kbd', height: 'kbd', marginInlineEnd: '-1', borderRadius: 'small' });
 const hintClass = css({ color: 'text.secondary' });
 const noticeClass = css({
   gridColumn: '1 / -1',
@@ -83,21 +91,22 @@ export function ShortcutRow({ id, status, onRecord, onCancel, onConfirmReplace }
           <>
             {list.length === 0 && <span className={hintClass}>Not assigned</span>}
             {list.map((b) => (
-              <span key={b} className={chipClass}>
-                <Kbd state={customized ? 'customized' : 'default'} data-binding={b}>
-                  <KeyCombo binding={b} />
-                </Kbd>
+              <Kbd key={b} state={customized ? 'customized' : 'default'} data-binding={b} data-chip="">
+                <KeyCombo binding={b} />
                 <IconButton
                   className={removeClass}
+                  data-quiet="remove"
                   label={`Remove ${formatBindingText(b)} from ${command.label}`}
                   data-testid={`remove-binding`}
                   icon={<icons.close />}
                   onClick={() => setBindings(id, list.filter((x) => x !== b))}
                 />
-              </span>
+              </Kbd>
             ))}
             <IconButton
               label={`Add shortcut for ${command.label}`}
+              // With nothing assigned, Add is the row's only control, so it never hides.
+              data-quiet={list.length === 0 ? undefined : 'add'}
               data-testid={`record-${id}`}
               icon={<icons.plus />}
               onClick={onRecord}

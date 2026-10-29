@@ -2,7 +2,7 @@ import { Splitter, useSplitter, type SplitterPanelData as PanelData } from '@ark
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { css, cx } from 'styled-system/css';
 import { splitter as splitterRecipe } from 'styled-system/recipes';
-import { IconButton, icons } from '../../design-system';
+import { IconButton, icons, ToastRegion } from '../../design-system';
 import { useEditor } from '../EditorContext';
 import { useSectionFolds } from '../SectionFoldsContext';
 import { EmptyState } from './EmptyState';
@@ -289,6 +289,7 @@ export function EditorBody({ onOpenGuide, layers, canvas, properties }: EditorBo
         <EmptyState onOpenGuide={onOpenGuide} />
         {chip('layers')}
         {chip('properties')}
+        <ToastRegion />
       </Splitter.Panel>
       <Splitter.ResizeTrigger
         id="canvas:properties"

@@ -14,5 +14,6 @@ export { DialogProvider, useDialogs } from './components/DialogProvider';
 export type { AlertOptions, ConfirmOptions, DialogsApi } from './components/DialogProvider';
 export { CanvasPopup } from './components/CanvasPopup';
 export type { CanvasPopupProps } from './components/CanvasPopup';
+export { dismissNotice, notify, ToastRegion } from './components/Toast';
 export { icons } from './icons';
 export type { IconName } from './icons';

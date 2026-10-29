@@ -48,7 +48,7 @@ const mainClass = css({
   textStyle: 'body.large',
   '& h1': { margin: '0', marginBottom: '2', textStyle: 'heading.title' },
 });
-const innerClass = css({ maxWidth: 'content', marginInline: 'auto' });
+const innerClass = css({ maxWidth: 'content' });
 
 // Deep-link slugs (`#/settings/<slug>`); the guide's id predates its public name.
 const SLUGS: Record<string, SectionId> = {
