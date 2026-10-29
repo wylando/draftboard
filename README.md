@@ -155,7 +155,8 @@ src/
 ├── settings/         # Command registry, keybinding storage, Settings page
 └── shared/           # Small shared hooks
 cypress/
-└── e2e/              # One spec per feature area
+├── e2e/              # One spec per feature area
+└── support/          # Custom commands, workspace seed/read helpers, helpers shared by 3+ specs
 .claude/
 ├── agents/test-reviewer.md  # Claude Code agent that reviews new and changed tests
 └── hooks/                   # Reminds Claude to run it after a test file changes
