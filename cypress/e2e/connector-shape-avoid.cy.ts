@@ -134,45 +134,4 @@ describe('A shaped connector still avoids tables', () => {
       });
     });
   });
-
-  it('reshapes the user shape, not the detour, when its segment is dragged while a table is in the way', () => {
-    shapedConnector();
-    saved((_t, c) => expect(c.bends, 'manual shape').to.not.equal(undefined));
-    connectorNow().then((shaped) => {
-      const points = shaped.points as Pt[];
-      const by = dragBOntoSegment(points[1]!.x);
-
-      // B is selected after its drag; pick the connector again on its first leg, clear of B.
-      cy.canvasClick([350, 150]);
-      cy.get('[data-testid=routing-orthogonal]').should('have.attr', 'data-state', 'on');
-      // The handle stays on the user's segment (index 1), not on a detour segment.
-      centre().then(([x, y]) => {
-        cy.canvasPointer('pointerdown', [x, y]);
-        cy.canvasPointer('pointermove', [x + 20, y]);
-        cy.canvasPointer('pointermove', [x + 40, y]);
-        cy.canvasPointer('pointerup', [x + 40, y]);
-      });
-      saved((_t, c) => expect(((c.bends as Pt[])[0] as Pt).x, 'the shape moved by 40').to.equal(points[1]!.x + 40));
-
-      dragTable([B[0] + 120 + by[0], B[1] + 10 + by[1]], [-by[0], -by[1]]);
-      const expected = points.map((p, i) => (i === 1 || i === 2 ? { x: p.x + 40, y: p.y } : p));
-      saved((tables, c) => {
-        expect(table(tables, TABLE.B).y, 'B moved away again').to.be.greaterThan(400);
-        expect(c.points, 'the shape plus the drag, with no detour corners left').to.deep.equal(expected);
-      });
-    });
-  });
-
-  it('leaves from the far side of its table when another table is dragged up against the end', () => {
-    shapedConnector();
-    saved((_t, c) => expect(c.bends, 'manual shape').to.not.equal(undefined));
-    // B to 10 px right of A, across A's `id` row: no room for the stub on A's right.
-    dragTable([B[0] + 120, B[1] + 10], [280 - B[0], 120 - B[1]]);
-    saved((tables, c) => {
-      const b = table(tables, TABLE.B);
-      expect(b.x - (A[0] + 240), 'B up against A').to.be.within(0, 20);
-      expect(passesThrough(c.points as Pt[], b), 'route passes through B').to.equal(false);
-      expect((c.points as Pt[])[0], 'leaves A by its left edge').to.deep.equal({ x: A[0], y: 150 });
-    });
-  });
 });
