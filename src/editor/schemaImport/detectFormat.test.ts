@@ -173,10 +173,11 @@ describe('detectFormat', () => {
   it.each([
     ['dash', (n: number) => '-- ' + '-'.repeat(n)],
     ['slash', (n: number) => '/'.repeat(n)],
-  ])('skips a long %s comment line before content in linear time', (_kind, lineOf) => {
-    // No timing: the scan is one native indexOf, too fast for a stable ratio on CI. A scan that went back
-    // over the line per character would never finish 8M characters, and the CI job's time limit fails that.
-    const text = `${lineOf(8_000_000)}\nTable users {\n id int\n}`;
+  ])('skips a long %s comment line before content in linear time', { timeout: 1000 }, (_kind, lineOf) => {
+    // A deliberate exception to counting work (no counter is exposed) and to ratios (one native indexOf is too
+    // fast for a stable one). Linear finishes in about 1 ms; a quadratic scan of 1M chars takes about 8 s
+    // (measured), so this timeout catches it with ~1000x headroom. A sync test that finishes late still fails.
+    const text = `${lineOf(1_000_000)}\nTable users {\n id int\n}`;
     // The dash line is a SQL comment, so DBML is not recognized behind it.
     expect(detectFormat({ name: '', text }, 'sqlite')).toBe(_kind === 'slash' ? 'dbml' : 'sqlite');
   });
