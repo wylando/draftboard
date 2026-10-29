@@ -1,6 +1,6 @@
 import { savedWorkspace } from '../support/workspace';
+import { MOD } from '../support/canvas';
 
-const MOD = { metaKey: true, ctrlKey: true };
 const tab = (name: string) => cy.get(`[data-board-name="${name}"]`);
 const closeButton = (name: string) => cy.get(`[aria-label="Close ${name}"]`);
 const activeTab = (name: string) => tab(name).should('have.attr', 'aria-selected', 'true');

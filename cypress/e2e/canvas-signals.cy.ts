@@ -1,7 +1,7 @@
 // A module, so its helpers don't clash with other specs' in the shared spec scope.
 export {};
 
-import { placeTable } from '../support/canvas';
+import { layerRow, placeTable } from '../support/canvas';
 
 const connect = (from: [number, number], to: [number, number], count: number) => {
   cy.pressKey('c', { code: 'KeyC' });
@@ -12,7 +12,6 @@ const connect = (from: [number, number], to: [number, number], count: number) =>
 };
 const nodeId = (type: string, index: number) => cy.get(`[data-node-type=${type}]`).eq(index).invoke('attr', 'data-node-id');
 const hover = (at: [number, number]) => cy.canvasPointer('pointermove', at, { buttons: 0 });
-const layerRow = (name: string) => cy.contains('[data-testid=layers-panel] [role=treeitem]', name);
 
 // Table 1 (A) at (100, 100), Table 2 (B) at (500, 300), Table 3 (C) at (100, 500); headers are the first 36 px.
 // B links to A. World and screen coordinates coincide on a fresh board.

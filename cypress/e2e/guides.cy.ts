@@ -1,11 +1,5 @@
 import { savedNodes, seedWorkspace } from '../support/workspace';
 
-const wheel = (deltaX: number, deltaY: number) =>
-  cy.get('[data-testid=canvas]').then(($c) => {
-    const win = $c[0]!.ownerDocument.defaultView!;
-    $c[0]!.dispatchEvent(new win.WheelEvent('wheel', { deltaX, deltaY, bubbles: true, cancelable: true }));
-  });
-
 const guide = (axis: 'x' | 'y', at: number) => cy.get(`[data-testid=snap-guide][data-axis=${axis}][data-at="${at}"]`);
 
 /** Screen point for a world point, read from the world layer's current transform. */
@@ -59,7 +53,7 @@ describe('Smart guides', () => {
     cy.get('[data-testid=zoom-level]').should('have.text', '200%');
     // Zooming about the canvas center can push the rects off screen, and only layers on
     // screen are snap targets: scroll so the world origin sits at (20, 20).
-    toScreen(0, 0).then(([ox, oy]) => wheel(ox - 20, oy - 20));
+    toScreen(0, 0).then(([ox, oy]) => cy.canvasWheel({ deltaX: ox - 20, deltaY: oy - 20 }));
     cy.get('[data-testid=world]').should('have.attr', 'transform', 'translate(20 20) scale(2)');
 
     // 4 world px from the other rect's edge is 8 screen px at 200%: too far to snap.
@@ -86,11 +80,11 @@ describe('Smart guides', () => {
 
   it('snaps to a layer scrolled into view mid-drag', () => {
     // Scroll rect 1 off the left edge, leaving rect 2 at screen x 50..150.
-    wheel(250, 0);
+    cy.canvasWheel({ deltaX: 250, deltaY: 0 });
     cy.get('[data-testid=world]').should('have.attr', 'transform').and('contain', 'translate(-250 0)');
     cy.canvasPointer('pointerdown', [100, 150]);
     cy.canvasPointer('pointermove', [90, 152]);
-    wheel(-250, 0);
+    cy.canvasWheel({ deltaX: -250, deltaY: 0 });
     cy.get('[data-testid=world]').should('have.attr', 'transform').and('contain', 'translate(0 0)');
     // Unsnapped, this lands the rect at (204, 103), 4 px from rect 1, which is on screen again.
     cy.canvasPointer('pointermove', [254, 153]);
