@@ -23,9 +23,9 @@ import { CANVAS_FONT_FAMILY, measureText } from '../textMetrics';
 import { usePreferences } from '../../settings/preferences/PreferencesContext';
 import { CanvasGrid } from './CanvasGrid';
 import { detailLevel, overviewScale } from '../tableDetail';
-import { DimmedContext, FrameLabel, NodeView, RelationsContext, type Relations } from './NodeView';
+import { DimmedContext, FrameLabel, NodeView, RelationsContext, OverviewTableName, type Relations } from './NodeView';
 import { RoutePopup } from './RoutePopup';
-import { SelectionOverlay } from './SelectionOverlay';
+import { RouteSteps, SelectionOverlay } from './SelectionOverlay';
 import { TableCellEditor } from './TableCellEditor';
 import { TextEditor } from './TextEditor';
 import { css } from 'styled-system/css';
@@ -276,6 +276,21 @@ export function Canvas() {
     () => (joinPath?.route ?? []).map((step) => byId.get(step.table)).filter((n): n is TableNode => n?.type === 'table'),
     [joinPath, byId],
   );
+  // The cell-edited table stays at full detail, so it has no overview name.
+  const overviewNames = useMemo(() => {
+    if (detail !== 'overview') return [];
+    return nodes
+      .filter((n): n is TableNode => n.type === 'table' && n.id !== editingTableId && mounted.has(n.id) && isEffectivelyVisible(byId, n))
+      .map((node) => {
+        let opacity = node.opacity;
+        const clips: string[] = [];
+        for (let p = node.parentId ? byId.get(node.parentId) : undefined; p; p = p.parentId ? byId.get(p.parentId) : undefined) {
+          opacity *= p.opacity;
+          if (p.type === 'frame') clips.unshift(p.id);
+        }
+        return { node, opacity, clips: clips.join('\n') };
+      });
+  }, [detail, nodes, editingTableId, mounted, byId]);
   const selectedSet = new Set(selection);
   const selected = nodes.filter((n) => selectedSet.has(n.id) && isEffectivelyVisible(byId, n));
   const picked = state.selectedColumn;
@@ -371,9 +386,16 @@ export function Canvas() {
           hideHandles={editingId !== null || editingTable !== undefined || tool === 'connector'}
           related={related}
           relatedColor={relationHighlight}
-          routeTables={routeTables}
           hovered={hovered && isEffectivelyVisible(byId, hovered) ? hovered : null}
         />
+        {detail === 'overview' && (
+          <g transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.zoom})`}>
+            {overviewNames.map(({ node, opacity, clips }) => (
+              <OverviewTableName key={node.id} node={node} scale={overviewScale(viewport.zoom)} opacity={opacity} dimmed={dimmed.has(node.id)} clips={clips} />
+            ))}
+          </g>
+        )}
+        <RouteSteps tables={routeTables} viewport={viewport} color={relationHighlight} />
       </svg>
       {editingTable && tableCell && (
         <TableCellEditor

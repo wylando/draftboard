@@ -22,7 +22,7 @@ describe('Tables: level of detail', () => {
     cy.zoomMenu('zoom-out');
     cy.get('[data-testid=zoom-level]').should('have.text', '25%');
     table().should('have.attr', 'data-detail', 'overview');
-    table().find('[data-testid=table-name]').should('have.text', 'Table 1');
+    cy.get('[data-testid=overview-name] [data-testid=table-name]').should('have.text', 'Table 1');
     table().find('[data-testid=column-name]').should('not.exist');
     // Rows stay in the DOM so connectors and clicks still find them.
     table().find('[data-testid=table-column]').should('have.length', 1);
@@ -30,6 +30,43 @@ describe('Tables: level of detail', () => {
     cy.zoomMenu('zoom-100');
     cy.get('[data-testid=zoom-level]').should('have.text', '100%');
     table().should('have.attr', 'data-detail', 'full').find('[data-testid=column-type]').should('have.text', 'uuid');
+  });
+
+  it('draws overview names in front of every layer, connectors and the selection overlay included', () => {
+    cy.zoomMenu('zoom-out');
+    cy.zoomMenu('zoom-out');
+    table().should('have.attr', 'data-detail', 'overview');
+    cy.contains('[data-testid=layers-panel] [role=treeitem]', 'Table 1').click();
+    cy.get('[data-testid=selection-overlay] polygon').should('exist');
+    cy.get('[data-testid=overview-name]').should('contain', 'Table 1').then(($name) => {
+      // SVG paints in document order, so after the world (tables, connectors) and the overlay means on top.
+      for (const q of ['[data-testid=world]', '[data-testid=selection-overlay]']) {
+        cy.get(q).should(($o) => expect($o[0]!.compareDocumentPosition($name[0]!) & Node.DOCUMENT_POSITION_FOLLOWING, q).to.be.greaterThan(0));
+      }
+    });
+  });
+});
+
+describe('Tables: overview names inside a frame', () => {
+  // The table runs past the frame's right edge (400), and the frame is half transparent.
+  const frame = { id: 'f1', type: 'frame', name: 'Frame 1', parentId: null, x: 100, y: 100, width: 300, height: 200, rotation: 0, fill: '#ffffff', stroke: '#e6e6e6', strokeWidth: 0, cornerRadius: 0, opacity: 0.5, visible: true };
+  const inner = {
+    id: 'inner', type: 'table', name: 'inner_table', parentId: 'f1', x: 300, y: 150, width: 240, height: 64, rotation: 0,
+    fill: '#ffffff', stroke: '#d9d9d9', strokeWidth: 1, opacity: 1, visible: true, accent: '#80caff', indexes: [],
+    columns: [{ id: 'c1', name: 'id', dataType: 'uuid', primaryKey: true, nullable: false, unique: false }],
+  };
+
+  it('clips the name to the frame and fades it with the frame', () => {
+    const workspace = { version: 1, activeId: 'b1', boards: [{ id: 'b1', name: 'Board 1', nodes: [frame, inner] }] };
+    cy.visit('/', { onBeforeLoad: (win) => win.localStorage.setItem('draftboard:workspace:v1', JSON.stringify(workspace)) });
+    cy.get('[data-testid=node-inner]').should('have.attr', 'data-detail', 'full');
+    cy.zoomMenu('zoom-out');
+    cy.zoomMenu('zoom-out');
+    cy.get('[data-testid=node-inner]').should('have.attr', 'data-detail', 'overview');
+    cy.get('[data-testid=overview-name][data-table-id=inner]').should(($name) => {
+      expect($name[0]!.closest('[clip-path]')?.getAttribute('clip-path')).to.equal('url(#clip-f1)');
+      expect($name.attr('opacity')).to.equal('0.5');
+    });
   });
 });
 
@@ -77,7 +114,7 @@ describe('Tables: level of detail with long names', () => {
     cy.get('[data-testid=node-narrow]').should('have.attr', 'data-detail', 'overview');
     cy.get('[data-testid=node-narrow] [data-testid=column-name]').should('not.exist');
     cy.get('[data-testid=node-narrow] [data-testid=table-column]').should('have.length', 3);
-    cy.get('[data-testid=node-narrow] [data-testid=table-name-pill] title').should('have.text', 'customer_orders_archive_2024');
-    cy.get('[data-testid=node-narrow] [data-testid=table-name] tspan').should('have.length', 2);
+    cy.get('[data-testid=overview-name][data-table-id=narrow] [data-testid=table-name-pill] title').should('have.text', 'customer_orders_archive_2024');
+    cy.get('[data-testid=overview-name][data-table-id=narrow] [data-testid=table-name] tspan').should('have.length', 2);
   });
 });
