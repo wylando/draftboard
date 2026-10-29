@@ -2,14 +2,14 @@ export type TableDetail = 'full' | 'compact' | 'overview';
 
 /**
  * Design choice: below this zoom a table drops types, `?`, idx and the badges other than PK/FK. Full text
- * (12 world px) reads 10 px on screen here, so a higher threshold would leave the step to compact small.
+ * (12 world px) reads about 8 px on screen here: small, but types stay on screen while zooming out.
  */
-export const FULL_MIN_ZOOM = 0.85;
+export const FULL_MIN_ZOOM = 0.65;
 /**
  * Design choice: below this zoom a table shows only its name. Compact text is capped at the row height
- * (`COMPACT_MAX_SIZE`), which reads 10 px on screen at this zoom; any lower it would not.
+ * (`COMPACT_MAX_SIZE`), which reads 8 px on screen at this zoom, the smallest kept legible.
  */
-export const COMPACT_MIN_ZOOM = 0.5;
+export const COMPACT_MIN_ZOOM = 0.4;
 
 /** World px: the tallest compact row text that still sits in a 28 px row. */
 const COMPACT_MAX_SIZE = 20;

@@ -188,7 +188,29 @@ export function SelectionOverlay({
 
   return (
     <g data-testid="selection-overlay">
-      {/* Kept while handles hide: editing a table's cells still shows what it links to. */}
+      {selected.map((n) =>
+        n.type === 'connector' ? (
+          <polyline key={n.id} points={toScreen(n.points)} fill="none" stroke={SELECTION} strokeWidth={3} strokeOpacity={0.5} pointerEvents="none" />
+        ) : (
+          <polygon key={n.id} points={outline(n, viewport)} fill="none" stroke={SELECTION} strokeWidth={1} pointerEvents="none" />
+        ),
+      )}
+
+      {group && (
+        <rect
+          data-testid="selection-bounds"
+          x={group.x * viewport.zoom + viewport.x}
+          y={group.y * viewport.zoom + viewport.y}
+          width={group.width * viewport.zoom}
+          height={group.height * viewport.zoom}
+          fill="none"
+          stroke={SELECTION}
+          strokeDasharray="4 3"
+          pointerEvents="none"
+        />
+      )}
+
+      {/* After the selection bounds, so the highlight reads on top. Kept while handles hide: editing a table's cells still shows what it links to. */}
       <RelatedOutlines related={related} viewport={viewport} color={relatedColor} />
       {routeTables.map((t, i) => {
         const label = i === 0 ? 'Start' : i === routeTables.length - 1 ? 'End' : String(i + 1);
@@ -209,26 +231,6 @@ export function SelectionOverlay({
         ) : (
           <polygon data-testid="hover-outline" data-hover-id={hovered.id} points={outline(hovered, viewport)} fill="none" stroke={SELECTION} strokeWidth={1} pointerEvents="none" />
         ))}
-      {selected.map((n) =>
-        n.type === 'connector' ? (
-          <polyline key={n.id} points={toScreen(n.points)} fill="none" stroke={SELECTION} strokeWidth={3} strokeOpacity={0.5} pointerEvents="none" />
-        ) : (
-          <polygon key={n.id} points={outline(n, viewport)} fill="none" stroke={SELECTION} strokeWidth={1} pointerEvents="none" />
-        ),
-      )}
-
-      {group && (
-        <rect
-          x={group.x * viewport.zoom + viewport.x}
-          y={group.y * viewport.zoom + viewport.y}
-          width={group.width * viewport.zoom}
-          height={group.height * viewport.zoom}
-          fill="none"
-          stroke={SELECTION}
-          strokeDasharray="4 3"
-          pointerEvents="none"
-        />
-      )}
 
       {/* Before the resize handles, so a handle wins where the two overlap. Groups and tables keep rotation 0. */}
       {single &&

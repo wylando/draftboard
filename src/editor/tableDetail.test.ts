@@ -16,6 +16,11 @@ describe('detailLevel', () => {
     expect(detailLevel(COMPACT_MIN_ZOOM)).toBe('compact');
   });
 
+  it('keeps full detail down to 65% and compact down to 40%', () => {
+    expect(detailLevel(0.65)).toBe('full');
+    expect(detailLevel(0.4)).toBe('compact');
+  });
+
   it('is overview below the compact threshold', () => {
     expect(detailLevel(COMPACT_MIN_ZOOM - 0.01)).toBe('overview');
     expect(detailLevel(0.05)).toBe('overview');
@@ -35,12 +40,12 @@ describe('overviewScale', () => {
 });
 
 describe('compactSizes', () => {
-  it('reads about 12 px on screen across the band, within the row height', () => {
-    for (const z of [0.5, 0.6, 0.7, FULL_MIN_ZOOM - 0.01]) {
+  it('reads 8 px or more on screen across the band, about 12 px from 60%, within the row height', () => {
+    for (const z of [COMPACT_MIN_ZOOM, 0.5, 0.6, FULL_MIN_ZOOM - 0.01]) {
       const { column } = compactSizes(overviewScale(z));
       expect(column).toBeLessThanOrEqual(20);
       if (z >= 0.6) expect(column * z).toBeGreaterThan(11);
-      expect(column * z).toBeGreaterThanOrEqual(9.5);
+      expect(column * z).toBeGreaterThanOrEqual(8 - 1e-9);
     }
   });
 });

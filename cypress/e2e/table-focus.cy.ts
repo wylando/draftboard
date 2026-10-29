@@ -257,6 +257,17 @@ describe('Table focus highlight for two selected tables', () => {
     expectRelated([link('accounts', 'owners'), link('owners', 'orders')], [ids.owners]);
   });
 
+  it('paints the highlight and route pills over the dashed selection bounds', () => {
+    pick('accounts', 'orders');
+    expectRelated([link('accounts', 'owners'), link('owners', 'orders')], [ids.owners]);
+    overlay().find('[data-testid=selection-bounds]').then(($bounds) => {
+      for (const q of ['[data-testid=related-connector]', '[data-testid=related-table]', '[data-testid=route-step]']) {
+        // SVG paints in document order, so later means on top.
+        overlay().find(q).each(($el) => expect($bounds[0]!.compareDocumentPosition($el[0]!) & Node.DOCUMENT_POSITION_FOLLOWING, q).to.be.greaterThan(0));
+      }
+    });
+  });
+
   it('follows the selection order: the other way round the direct link enters a primary key', () => {
     pick('orders', 'accounts');
     expectRoute(['orders', '→ accounts · index lookup']);
