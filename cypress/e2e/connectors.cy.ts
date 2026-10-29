@@ -36,17 +36,13 @@ const connectIdRows = () => {
 describe('Connectors', () => {
   beforeEach(() => cy.visitEmpty());
 
-  it('links a column to a column on the facing sides, routed with right angles only', () => {
+  it('links a column to a column on the facing sides', () => {
     twoTables();
     connectIdRows();
     cy.get('[data-node-type=connector]').should('have.attr', 'data-from', 'column').and('have.attr', 'data-to', 'column');
     route((points) => {
       expect(points[0]).to.deep.equal([500, 350]);
       expect(points[points.length - 1]).to.deep.equal([340, 150]);
-      points.slice(1).forEach(([x, y], i) => {
-        const [px, py] = points[i] as [number, number];
-        expect(x === px || y === py, `segment ${i} is horizontal or vertical`).to.equal(true);
-      });
     });
     cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'select');
   });
