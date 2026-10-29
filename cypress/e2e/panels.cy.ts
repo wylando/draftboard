@@ -1,3 +1,5 @@
+import { seedWorkspace } from '../support/workspace';
+
 // Measured on the splitter panel, which holds the header bar and the scrolling panel below it.
 const panelWidth = (testId: string) => cy.get(`[data-testid=${testId}]`).parent().invoke('outerWidth');
 const rectOf = (testId: string) => cy.get(`[data-testid=${testId}]`).then(($el) => $el[0]!.getBoundingClientRect());
@@ -196,8 +198,7 @@ describe('Side panels', () => {
       id: `r${i}`, type: 'rect', name: `Rect ${i}`, parentId: null, x: i * 20, y: 100, width: 10, height: 10,
       rotation: 0, fill: '#cccccc', stroke: '#000000', strokeWidth: 1, opacity: 1, visible: true, cornerRadius: 0,
     }));
-    const workspace = { version: 1, activeId: 'b1', boards: [{ id: 'b1', name: 'Board 1', nodes: rects }] };
-    cy.visit('/', { onBeforeLoad: (win) => win.localStorage.setItem('draftboard:workspace:v1', JSON.stringify(workspace)) });
+    seedWorkspace(rects);
     cy.get('[data-testid=layers-panel] [role=treeitem]').should('have.length', 60);
     rectOf('hide-layers-panel').then((before) => {
       cy.get('[data-testid=layers-panel]').scrollTo('bottom');

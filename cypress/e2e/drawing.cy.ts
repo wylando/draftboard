@@ -1,3 +1,5 @@
+import { savedNodes } from '../support/workspace';
+
 describe('Drawing shapes', () => {
   beforeEach(() => cy.visitEmpty());
 
@@ -56,11 +58,8 @@ describe('Drawing shapes', () => {
   describe('default ink for new text and lines', () => {
     // Saves are debounced, so this retries until the write has landed.
     const savedInk = (type: string, expected: string) =>
-      cy.window().should((win) => {
-        const saved = JSON.parse(win.localStorage.getItem('draftboard:workspace:v1') ?? '{}') as {
-          boards?: Array<{ nodes: Array<{ type: string; fill: string; stroke: string }> }>;
-        };
-        const node = saved.boards?.[0]?.nodes.find((n) => n.type === type);
+      savedNodes((nodes) => {
+        const node = nodes.find((n) => n.type === type);
         expect(node, `saved ${type}`).to.not.equal(undefined);
         expect([node!.fill, node!.stroke]).to.deep.equal([expected, expected]);
       });

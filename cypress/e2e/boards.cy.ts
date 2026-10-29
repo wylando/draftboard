@@ -1,3 +1,5 @@
+import { savedWorkspace } from '../support/workspace';
+
 const MOD = { metaKey: true, ctrlKey: true };
 const tab = (name: string) => cy.get(`[data-board-name="${name}"]`);
 const closeButton = (name: string) => cy.get(`[aria-label="Close ${name}"]`);
@@ -14,18 +16,6 @@ const pointerAt = (el: Element, type: string, x: number | 'center') => {
   const init = { bubbles: true, cancelable: true, pointerId: 1, isPrimary: true, button: 0, buttons: type === 'pointerup' ? 0 : 1 };
   el.dispatchEvent(new (el.ownerDocument.defaultView!.PointerEvent)(type, { ...init, clientX, clientY: rect.top + rect.height / 2 }));
 };
-
-interface Saved {
-  activeId: string;
-  boards: Array<{ id: string; name: string; nodes: Array<{ type: string }> }>;
-}
-// Saves are debounced, so callers retry until the write has landed.
-const savedWorkspace = (check: (w: Saved) => void) =>
-  cy.window().should((win) => {
-    const raw = win.localStorage.getItem('draftboard:workspace:v1');
-    expect(raw).to.be.a('string');
-    check(JSON.parse(raw as string) as Saved);
-  });
 
 describe('Boards', () => {
   beforeEach(() => {

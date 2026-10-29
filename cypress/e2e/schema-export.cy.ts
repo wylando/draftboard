@@ -5,6 +5,7 @@ import { createConnector } from '../../src/editor/model/connector';
 import { createNode } from '../../src/editor/model/nodes';
 import { createColumn } from '../../src/editor/model/table';
 import type { DesignNode, TableNode } from '../../src/editor/model/types';
+import { seedWorkspace } from '../support/workspace';
 
 const PREVIEW = '[data-testid=export-preview]';
 
@@ -29,8 +30,7 @@ function visitWithTables(tables: Record<string, Col[]>, foreignKeys: [string, st
     const target = table(to);
     nodes.push(createConnector(column(table(from), col), column(target, target.columns[0]!.name), `${from}.${col} to ${to}`, byId));
   }
-  const workspace = { version: 1, activeId: 'b1', boards: [{ id: 'b1', name: 'Board 1', nodes }] };
-  cy.visit('/', { onBeforeLoad: (win) => win.localStorage.setItem('draftboard:workspace:v1', JSON.stringify(workspace)) });
+  seedWorkspace(nodes);
   cy.get('[data-node-type=table]').should('have.length', Object.keys(tables).length);
 }
 

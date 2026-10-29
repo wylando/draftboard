@@ -1,3 +1,5 @@
+import { seedWorkspace } from '../support/workspace';
+
 const rect = (id: string, name: string, x: number) => ({
   id,
   type: 'rect',
@@ -27,12 +29,7 @@ const panByWheel = (deltaX: number) =>
 
 describe('Large boards: only layers near the view are mounted', () => {
   beforeEach(() => {
-    const workspace = {
-      version: 1,
-      activeId: 'b1',
-      boards: [{ id: 'b1', name: 'Board 1', nodes: [rect('near', 'Near', 100), rect('other', 'Other', 300), rect('far', 'Far', 20000)] }],
-    };
-    cy.visit('/', { onBeforeLoad: (win) => win.localStorage.setItem('draftboard:workspace:v1', JSON.stringify(workspace)) });
+    seedWorkspace([rect('near', 'Near', 100), rect('other', 'Other', 300), rect('far', 'Far', 20000)]);
     node('near').should('exist');
   });
 

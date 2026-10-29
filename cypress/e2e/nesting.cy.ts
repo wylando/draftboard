@@ -1,3 +1,5 @@
+import { savedNodes } from '../support/workspace';
+
 // Layers rows expose the tree through ARIA: aria-level 1 = top level.
 const layer = (name: string) => cy.contains('[data-testid=layers-panel] [role=treeitem]', name);
 const MOD = { metaKey: true, ctrlKey: true };
@@ -156,7 +158,7 @@ describe('Groups', () => {
   });
 
   it('groups survive a reload', () => {
-    cy.window().its('localStorage').invoke('getItem', 'draftboard:workspace:v1').should('contain', '"group"');
+    savedNodes((nodes) => expect(nodes.map((n) => n.type)).to.include('group'));
     cy.reload();
     layer('Group 1').should('exist');
     layer('Rectangle 1').should('have.attr', 'aria-level', '2');

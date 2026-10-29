@@ -1,6 +1,8 @@
 // A module, so its helpers don't clash with other specs' in the shared spec scope.
 export {};
 
+import { savedNodes } from '../support/workspace';
+
 const placeTable = (at: [number, number]) => {
   cy.pressKey('d', { code: 'KeyD' });
   cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'table');
@@ -105,7 +107,7 @@ describe('Relationships', () => {
     // From Table 1's end: one → zero-or-one, then many and one-or-many are skipped → none.
     cy.canvasClick([352, 150]);
     marker('to').should('have.attr', 'data-cardinality', 'zeroOrOne');
-    cy.window().its('localStorage').invoke('getItem', 'draftboard:workspace:v1').should('contain', 'zeroOrOne');
+    savedNodes((nodes) => expect(nodes.map((n) => n.type === 'connector' && n.toCardinality)).to.include('zeroOrOne'));
     cy.reload();
     marker('to').should('have.attr', 'data-cardinality', 'zeroOrOne');
     badge(1, 1).should('have.text', 'FK');
