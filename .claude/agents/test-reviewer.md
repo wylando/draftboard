@@ -86,19 +86,21 @@ environment (CI fonts, viewport, browser).
   couple tests.
 - **No mystery guests.** The values an assertion depends on must be visible in the test body (say, an
   illustrative `table({ columns: ['id', 'user_id'] })`), not a fixture file whose relevant detail is out of sight.
-  If no such builder exists yet, propose one rather than accepting the hidden fixture.
-- **Builders with valid defaults over hand-written literals.** A test overrides only the fields it's about, so
-  adding a field to a type doesn't break every test. Prefer the real factories (`createNode`, `createGroup` in
-  `src/editor/model/nodes.ts`, `createColumn` in `src/editor/model/table.ts`) over hand-built node objects. Avoid an "object mother" file of named examples that
-  grows into a god-object.
+- **The app's factories are the builders.** Call `createNode`, `createGroup` (`src/editor/model/nodes.ts`) and
+  `createColumn` (`src/editor/model/table.ts`) directly, overriding only the fields the test is about, rather than
+  hand-writing whole node objects. Don't ask for a wrapper around one of them: the repo's rule is no single-type
+  factory functions, and three similar lines beat a premature abstraction. A test builder earns its place only for
+  a type with no app factory that tests hand-write over and over (e.g. the parser's `ImportedColumn`). Avoid an
+  "object mother" file of named examples that grows into a god-object.
 - **Vitest 5 fixtures** (`test.extend`, lazily created, composable, `test.override` per `describe`) suit expensive
   or shared setup such as a parsed schema or a loaded sql.js database. Don't use them for a one-line value.
 - **E2E seeds state, not clicks,** when the UI isn't what's being tested: write the workspace to `localStorage`
   (`draftboard:workspace:v1`) before visiting, or use an existing custom command (`visitEmpty`, `drawShape`,
   `canvasDrag`, `pressKey`, `prop`). Drive the canvas only through these commands; they dispatch real
   `PointerEvent`s at `elementFromPoint`.
-- **Shared helpers.** A helper used by a second spec moves to `cypress/support/` (a plain imported module, or a
-  custom command if it chains off Cypress). Flag copy-pasted helpers, such as readers for the saved workspace.
+- **Shared helpers.** A helper copied into three or more specs, or one whose copies have started to drift, moves
+  to `cypress/support/` (a plain imported module, or a custom command if it chains off Cypress); before then, a
+  local copy is fine. When a new test needs a helper that already exists in support, require it over a new copy.
   Keep helpers small and obvious: a helper that hides the claim of the test is a mystery guest.
 - **Layout:** unit tests colocated as `*.test.ts`; one Cypress spec per feature area. A new spec file needs a
   new feature area; otherwise extend the existing spec.
