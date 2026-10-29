@@ -60,7 +60,7 @@ describe('Drawing shapes', () => {
           boards?: Array<{ nodes: Array<{ type: string; fill: string; stroke: string }> }>;
         };
         const node = saved.boards?.[0]?.nodes.find((n) => n.type === type);
-        expect(node, `saved ${type}`).to.exist;
+        expect(node, `saved ${type}`).to.not.equal(undefined);
         expect([node!.fill, node!.stroke]).to.deep.equal([expected, expected]);
       });
 
