@@ -28,6 +28,8 @@ declare global {
       canvasPointer(type: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercancel', at: Pt, opts?: PointerOpts): Chainable<void>;
       /** Press and release at one point without moving. */
       canvasClick(at: Pt, opts?: PointerOpts): Chainable<void>;
+      /** Dispatch a wheel event on the canvas, as a trackpad scroll would. */
+      canvasWheel(opts: { deltaX?: number; deltaY?: number }): Chainable<void>;
       /** Dispatch a dblclick at canvas-relative coordinates. */
       canvasDblClick(at: Pt): Chainable<void>;
       /** Press at `from`, move in steps to `to`, release. */
@@ -104,6 +106,13 @@ Cypress.Commands.add('pointer', { prevSubject: 'element' }, (subject, type, by: 
 Cypress.Commands.add('canvasClick', (at, opts = {}) => {
   cy.canvasPointer('pointerdown', at, opts);
   cy.canvasPointer('pointerup', at, opts);
+});
+
+Cypress.Commands.add('canvasWheel', ({ deltaX = 0, deltaY = 0 }) => {
+  cy.get('[data-testid=canvas]').then(($canvas) => {
+    const win = $canvas[0]!.ownerDocument.defaultView!;
+    $canvas[0]!.dispatchEvent(new win.WheelEvent('wheel', { deltaX, deltaY, bubbles: true, cancelable: true }));
+  });
 });
 
 Cypress.Commands.add('canvasDblClick', (at) => {

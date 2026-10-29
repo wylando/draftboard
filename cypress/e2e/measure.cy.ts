@@ -57,10 +57,7 @@ describe('Measuring distances with Alt', () => {
     cy.get('[data-testid=measure-target]').should('not.exist');
     hover([150, 150]);
     measure('x', 100).should('exist');
-    cy.get('[data-testid=canvas]').then(($c) => {
-      const win = $c[0]!.ownerDocument.defaultView!;
-      $c[0]!.dispatchEvent(new win.WheelEvent('wheel', { deltaX: 0, deltaY: 400, bubbles: true, cancelable: true }));
-    });
+    cy.canvasWheel({ deltaY: 400 });
     // Rect 1 has scrolled away from the pointer.
     cy.get('[data-testid=distance-measure]').should('not.exist');
   });

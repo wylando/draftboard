@@ -7,3 +7,9 @@ export const placeTable = (at: [number, number]) => {
 };
 
 export const undo = () => cy.pressKey('z', { code: 'KeyZ', metaKey: true });
+
+/** A Layers-panel row, found by its layer name. */
+export const layerRow = (name: string) => cy.contains('[data-testid=layers-panel] [role=treeitem]', name);
+
+/** Modifier flags for "the platform's command key": Cypress runs on macOS and Linux, so both are set. */
+export const MOD = { metaKey: true, ctrlKey: true };

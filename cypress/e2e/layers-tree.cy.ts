@@ -1,4 +1,5 @@
-const layerRow = (name: string) => cy.contains('[data-testid=layers-panel] [role=treeitem]', name);
+import { layerRow } from '../support/canvas';
+
 const treeRows = () => cy.get('[data-testid=layers-panel] [role=treeitem]');
 
 /** HTML5 drag and drop between two layer rows. `at` picks the drop zone on the target row. */
