@@ -127,6 +127,19 @@ describe('A shaped connector still avoids tables', () => {
       const by = dragBOntoSegment((shaped.points as Pt[])[1]!.x);
       saved((_t, c) => expect(c.bends, 'the shape is kept').to.deep.equal(shaped.bends));
 
+      // The handle stays on the user's segment, not on a detour segment. Select the connector clear of B first.
+      cy.canvasClick([350, 150]);
+      cy.get('[data-testid=routing-orthogonal]').should('have.attr', 'data-state', 'on');
+      const [p1, p2] = [(shaped.points as Pt[])[1]!, (shaped.points as Pt[])[2]!];
+      cy.get('[data-testid=canvas]').then(($canvas) => {
+        const origin = $canvas[0]!.getBoundingClientRect();
+        cy.get('[data-connector-segment="1"]').should(($h) => {
+          const h = $h[0]!.getBoundingClientRect();
+          expect(h.left + h.width / 2 - origin.left, 'handle x').to.be.closeTo((p1.x + p2.x) / 2, 1);
+          expect(h.top + h.height / 2 - origin.top, 'handle y').to.be.closeTo((p1.y + p2.y) / 2, 1);
+        });
+      });
+
       dragTable([B[0] + 120 + by[0], B[1] + 10 + by[1]], [-by[0], -by[1]]);
       saved((tables, c) => {
         expect(table(tables, TABLE.B).y, 'B moved away again').to.be.greaterThan(400);

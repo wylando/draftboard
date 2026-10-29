@@ -320,10 +320,10 @@ describe('tight gaps and odd trees', () => {
 });
 
 describe('column links between tables that crowd each other', () => {
-  // The `id` row of a table at (x, y) is centred at y + 50; the table is 240 wide.
-  const idLink = (from: TableNode, to: TableNode, others: DesignNode[]) => {
+  // normalizeTree derives a table's height from its columns, so the 64 below is a placeholder; the `id` row of a table at (x, y) is centred at y + 50.
+  const idLink = (from: TableNode, to: TableNode) => {
     const column = (t: TableNode) => ({ kind: 'column', tableId: t.id, columnId: t.columns[0]!.id }) as const;
-    const byId = byIdOf([from, to, ...others]);
+    const byId = byIdOf([from, to]);
     const c = createConnector(column(from), column(to), 'link', byId);
     return normalizeTree([from, to, c]).find((n) => n.type === 'connector') as ConnectorNode;
   };
@@ -333,7 +333,7 @@ describe('column links between tables that crowd each other', () => {
     const upper = tableAt(100, 100, []);
     // One pixel left of the upper table, so their centres differ but they still overlap sideways.
     const lower = tableAt(99, 300, [upper]);
-    const { points } = idLink(lower, upper, []);
+    const { points } = idLink(lower, upper);
     expect(rightAngledRoute(points)).toBe(true);
     expect(points.every((p) => p.x >= 339) || points.every((p) => p.x <= 100)).toBe(true);
   });
@@ -341,14 +341,14 @@ describe('column links between tables that crowd each other', () => {
   it('links tables a 10 px gap apart with a plain line, since the gap is closer than both stubs together', () => {
     const left = tableAt(100, 100, []);
     const right = tableAt(350, 100, [left]);
-    expect(idLink(right, left, []).points).toEqual([{ x: 350, y: 150 }, { x: 340, y: 150 }]);
+    expect(idLink(right, left).points).toEqual([{ x: 350, y: 150 }, { x: 340, y: 150 }]);
   });
 
   it('keeps a route between overlapping tables short and local', () => {
     const left = tableAt(100, 100, []);
     // Overlaps the left table's right edge, sideways and in height.
     const right = tableAt(330, 110, [left]);
-    const { points } = idLink(right, left, []);
+    const { points } = idLink(right, left);
     expect(points.every((p) => p.x >= 300 && p.x <= 370)).toBe(true);
   });
 });
