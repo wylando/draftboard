@@ -30,6 +30,7 @@ import {
 import { useLatest } from '../../shared/useLatest';
 import type { EditorAction, EditorState } from '../model/editorReducer';
 import { anchorAt, bendsMoveWith, createConnector, dragSegment, linksToItself, shapePoints, shiftConnector } from '../model/connector';
+import { defaultInk, prefersDark } from '../ink';
 import { createNode, DEFAULT_SIZE, minSizeFor, nextName } from '../model/nodes';
 import { TABLE_HEADER_HEIGHT, TABLE_ROW_HEIGHT, type RowDrop, type TableCell } from '../model/table';
 import { byIdOf, descendantIds, enteredScopes, isEffectivelyVisible, selectTarget, topLevelIds } from '../model/tree';
@@ -292,7 +293,7 @@ export function useCanvasGestures({
           const box = boxFromPoints(start, end);
           const flipped = end.x - start.x >= 0 !== end.y - start.y >= 0;
           if (!g.nodeId) {
-            const node = createNode(g.nodeType, box, nodes, tableIdType);
+            const node = createNode(g.nodeType, box, nodes, tableIdType, defaultInk(nodes, g.startWorld, prefersDark()));
             if (node.type === 'line') node.flipped = flipped;
             g.nodeId = node.id;
             g.targets.changing.add(node.id);
@@ -522,7 +523,8 @@ export function useCanvasGestures({
       if (!g.nodeId) {
         // A click without a drag places a default-sized node at the pointer.
         const size = DEFAULT_SIZE[g.nodeType];
-        const node = createNode(g.nodeType, { x: g.startWorld.x, y: g.startWorld.y, ...size }, stateRef.current.nodes, tableIdType);
+        const nodes = stateRef.current.nodes;
+        const node = createNode(g.nodeType, { x: g.startWorld.x, y: g.startWorld.y, ...size }, nodes, tableIdType, defaultInk(nodes, g.startWorld, prefersDark()));
         dispatch({ type: 'addNode', node, parentAt: g.startWorld });
         if (node.type === 'text') onEditText(node.id);
       }
