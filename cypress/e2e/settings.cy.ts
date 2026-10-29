@@ -22,7 +22,7 @@ describe('Settings: keyboard shortcuts', () => {
     openSettings();
   });
 
-  it('lists every category with default bindings', () => {
+  it('lists every category with default bindings, align commands unbound', () => {
     for (const c of ['tools', 'edit', 'arrange', 'view', 'nudge', 'boards', 'app']) {
       cy.get(`[data-testid=category-${c}]`).should('exist');
     }

@@ -96,9 +96,9 @@ describe('Toasts', () => {
     toast().should('be.visible');
     cy.get('[data-testid=toast-region]').should('have.attr', 'aria-live', 'polite');
     cy.focused().should('not.have.attr', 'data-testid', 'toast-action');
-    // Ark times the toast with requestAnimationFrame and performance.now, which cy.clock/cy.tick did not
-    // advance here (the toast stayed open after tick(10000)), so this waits out the real 3 s duration
-    // (Toast.tsx) plus its 200 ms exit; the timeout only covers that.
+    // The claim is the real elapsed duration: 3000 ms (Toast.tsx) plus Ark's 200 ms removeDelay. Ark times it
+    // with its own rAF timer, which cy.clock can't fake, so the timeout is headroom over that fixed duration,
+    // not a flake workaround.
     cy.get('[data-testid=toast]', { timeout: 10000 }).should('not.exist');
   });
 

@@ -36,7 +36,7 @@ describe('Dialogs', () => {
     cy.get('[role=alertdialog]').should('not.exist');
   });
 
-  it('exports the board as JSON, named after the board,', () => {
+  it('exports the board as JSON, named after the board', () => {
     cy.drawShape('rect', [100, 100], [200, 200]);
     // A file left by an earlier run would satisfy readFile before the new download lands.
     cy.exec("rm -f 'cypress/downloads/Board 1.draftboard.json'");
