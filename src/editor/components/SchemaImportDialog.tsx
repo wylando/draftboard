@@ -49,7 +49,9 @@ const GUESSES_SHOWN = 8;
 /** Lists past this many items add nothing a reader will scan, and thousands of nodes slow the dialog. */
 const MAX_LISTED = 100;
 
-const bodyClass = css({ display: 'grid', gap: '2', minWidth: '0' });
+// An auto track would grow to the summary row's unwrappable chips and counts, wider than the dialog
+// in wide fallback fonts (Linux CI).
+const bodyClass = css({ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '2', minWidth: '0' });
 const labelClass = css({ color: 'text.secondary' });
 const textareaClass = css({
   width: 'full',
