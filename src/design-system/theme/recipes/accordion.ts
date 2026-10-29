@@ -34,8 +34,8 @@ export const accordionRecipe = defineSlotRecipe({
       flex: 'none',
       color: 'icon',
       '[data-part=item-trigger]:hover > &': { color: 'text' },
-      // chevronRight points down while the row is open.
-      '&[data-state=open]': { transform: 'rotate(90deg)' },
+      // chevronDown turns over while the row is open.
+      '&[data-state=open]': { transform: 'rotate(180deg)' },
     },
   },
 });

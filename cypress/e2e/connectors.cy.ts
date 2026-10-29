@@ -216,7 +216,8 @@ describe('Connectors', () => {
     cy.canvasDrag([550, 350], [150, 178]);
     cy.get('[data-node-type=connector]').should('have.attr', 'data-to', 'column');
     cy.canvasClick([200, 118]);
-    cy.get('[data-testid=column-editor]').eq(1).find('[data-testid=column-delete]').click();
+    cy.get('[data-testid=column-row]').eq(1).click();
+    cy.get('[data-testid=column-editor] [data-testid=column-delete]').click();
     line().should('have.attr', 'data-broken', 'true');
     route((points) => expect(points[points.length - 1]).to.deep.equal([340, 178]));
   });
