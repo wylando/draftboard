@@ -63,7 +63,7 @@ describe('Frames contain layers', () => {
   it('deleting the frame deletes its children', () => {
     layer('Frame 1').click();
     cy.prop('name').should('have.value', 'Frame 1');
-    cy.pressKey('Backspace');
+    cy.pressKey('Backspace', { code: 'Backspace' });
     cy.get('[data-node-type]').should('not.exist');
   });
 });
@@ -139,7 +139,7 @@ describe('Groups', () => {
     cy.pressKey('d', { code: 'KeyD', metaKey: true });
     cy.get('[data-node-type=group]').should('have.length', 2);
     cy.get('[data-node-type=rect]').should('have.length', 4);
-    cy.pressKey('Backspace');
+    cy.pressKey('Backspace', { code: 'Backspace' });
     cy.get('[data-node-type=group]').should('have.length', 1);
     cy.get('[data-node-type=rect]').should('have.length', 2);
   });
@@ -147,10 +147,10 @@ describe('Groups', () => {
   it('a group whose last layer is deleted disappears', () => {
     cy.canvasClick([150, 150], MOD);
     cy.prop('name').should('have.value', 'Rectangle 1');
-    cy.pressKey('Backspace');
+    cy.pressKey('Backspace', { code: 'Backspace' });
     cy.canvasClick([350, 150], MOD);
     cy.prop('name').should('have.value', 'Rectangle 2');
-    cy.pressKey('Backspace');
+    cy.pressKey('Backspace', { code: 'Backspace' });
     cy.get('[data-node-type=group]').should('not.exist');
     cy.get('[data-testid=layers-panel]').should('not.contain', 'Group 1');
   });

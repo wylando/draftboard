@@ -32,6 +32,18 @@ describe('Boards', () => {
     cy.visitEmpty();
   });
 
+  it('always shows a 24px close button on the open tab, and hides it on the others until hover', () => {
+    newBoard();
+    activeTab('Board 2');
+    closeButton('Board 2')
+      .should('have.css', 'opacity', '1')
+      .and(($b) => {
+        const { width, height } = $b[0]!.getBoundingClientRect();
+        expect(Math.min(width, height), 'close button size').to.be.at.least(24);
+      });
+    closeButton('Board 1').should('have.css', 'opacity', '0');
+  });
+
   it('starts with one board, and a new board is empty and separate from the others', () => {
     activeTab('Board 1').should('not.have.attr', 'aria-controls');
     closeButton('Board 1').should('not.exist');
@@ -77,21 +89,13 @@ describe('Boards', () => {
     cy.get('[data-node-type=rect]').should('have.length', 1);
   });
 
-  it('closes an empty board at once, activates the right neighbour, and asks before closing one with layers', () => {
+  it('closes an empty board at once, activating its right neighbour (or the left one when the last tab closes), and asks before closing one with layers', () => {
     cy.drawShape('rect', [100, 100], [200, 200]);
     newBoard();
     newBoard();
     newBoard();
     tabNames(['Board 1', 'Board 2', 'Board 3', 'Board 4']);
     activeTab('Board 4');
-    // The open tab's button is always shown at hit-target size; the others reveal theirs on hover.
-    closeButton('Board 4')
-      .should('have.css', 'opacity', '1')
-      .and(($b) => {
-        const { width, height } = $b[0]!.getBoundingClientRect();
-        expect(Math.min(width, height), 'close button size').to.be.at.least(24);
-      });
-    closeButton('Board 1').should('have.css', 'opacity', '0');
 
     closeButton('Board 4').click();
     tabNames(['Board 1', 'Board 2', 'Board 3']);
@@ -162,6 +166,19 @@ describe('Boards', () => {
     tab('Board 1').focus().type('{rightarrow}');
     tab('Board 2').should('be.focused');
     cy.prop('x').should('have.value', '101');
+  });
+
+  it('leaves Space on a focused tab to the browser, which presses the button', () => {
+    newBoard();
+    // Cypress's own typing never presses a button with Space, so check what stops it in a browser: a cancelled keydown.
+    // Recorded by a listener that runs after the canvas's own, so the flag is the final verdict on the event.
+    let prevented: boolean | undefined;
+    cy.window().then((win) => win.addEventListener('keydown', (e) => (prevented = e.defaultPrevented), { once: true }));
+    tab('Board 1').focus().then(($tab) => {
+      const win = $tab[0]!.ownerDocument.defaultView!;
+      $tab[0]!.dispatchEvent(new win.KeyboardEvent('keydown', { key: ' ', code: 'Space', bubbles: true, cancelable: true }));
+    });
+    cy.wrap(null).should(() => expect(prevented).to.equal(false));
   });
 
   it('keeps the open tab in view when the strip overflows, and scrolls it with the wheel', () => {

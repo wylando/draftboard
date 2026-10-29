@@ -138,8 +138,8 @@ describe('Handle hit areas', () => {
     cy.canvasClick([800, 650]);
     cy.drawShape('rect', [600, 400], [640, 440]);
     cy.prop('w').should('have.value', '40');
-    // Fractions of the 40px box (one in an edge's reach, one in a corner's): grabbing there would resize instead.
-    for (const [fx, fy] of [[0.3, 0.5], [0.25, 0.25]] as const) {
+    // Fractions of the 40px box: the first sits in an edge's grab reach, the second in a corner's, the third clear of both; none may resize.
+    for (const [fx, fy] of [[0.3, 0.5], [0.25, 0.25], [0.7, 0.7]] as const) {
       cy.prop('x').invoke('val').then((x) => {
         cy.canvasDrag([600 + 40 * fx + (Number(x) - 600), 400 + 40 * fy], [600 + 40 * fx + (Number(x) - 600) + 20, 400 + 40 * fy]);
         cy.prop('x').should('have.value', String(Number(x) + 20));
@@ -147,8 +147,8 @@ describe('Handle hit areas', () => {
       cy.prop('w').should('have.value', '40');
     }
     cy.prop('rotation').should('have.value', '0');
-    // Just outside the box's top-left corner (x is now 640; the corner grab area starts 4px out).
-    cy.canvasDrag([632, 392], [610, 410]);
+    // Just outside the box's top-left corner (x is now 660; the corner grab area starts 4px out).
+    cy.canvasDrag([652, 392], [630, 410]);
     cy.prop('rotation').should('not.have.value', '0');
   });
 
