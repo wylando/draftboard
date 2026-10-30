@@ -1,12 +1,8 @@
 // A module, so its helpers don't clash with other specs' in the shared spec scope.
 export {};
 
-const placeTable = (at: [number, number]) => {
-  cy.pressKey('d', { code: 'KeyD' });
-  cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'table');
-  cy.canvasClick(at);
-  cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'select');
-};
+import { savedNodes } from '../support/workspace';
+import { placeTable, undo } from '../support/canvas';
 
 const connect = (from: [number, number], to: [number, number]) => {
   cy.pressKey('c', { code: 'KeyC' });
@@ -31,7 +27,7 @@ const tablesWithColumn = () => {
 describe('Relationships', () => {
   beforeEach(() => cy.visitEmpty());
 
-  it('a column-to-column link is a many-to-one foreign key, warns when the types differ, and can be made visual only', () => {
+  it('a column-to-column link is a many-to-one foreign key, warns when the types differ, can be made visual only, and shows PFK until its table is gone', () => {
     tablesWithColumn();
     connect([550, 378], [150, 150]);
     marker('from').should('have.attr', 'data-cardinality', 'many');
@@ -53,7 +49,7 @@ describe('Relationships', () => {
     cy.get('[data-testid=connector-fk]').should('have.attr', 'data-state', 'unchecked');
     badge(1, 1).should('not.exist');
     cy.get('[data-testid=type-mismatch]').should('not.exist');
-    cy.pressKey('z', { code: 'KeyZ', metaKey: true });
+    undo();
     badge(1, 1).should('have.text', 'FK');
 
     // Matching types clear the warning.
@@ -66,11 +62,8 @@ describe('Relationships', () => {
     // A unique foreign key shows both.
     cy.get('[data-testid=column-editor] [data-testid=column-unique]').click();
     badge(1, 1).should('have.text', 'UFK');
-  });
 
-  it('a primary key that is also a foreign key shows both, until the table it points at is gone', () => {
-    placeTable([100, 100]);
-    placeTable([500, 300]);
+    // A primary key that is also a foreign key shows both, until the table it points at is gone.
     connect([550, 350], [150, 150]);
     badge(1, 0).should('have.text', 'PFK');
     cy.canvasClick([200, 118]);
@@ -97,7 +90,7 @@ describe('Relationships', () => {
     marker('from').should('have.attr', 'data-cardinality', 'many');
     marker('to').should('have.attr', 'data-cardinality', 'many');
     // Each click was one undo step.
-    cy.pressKey('z', { code: 'KeyZ', metaKey: true });
+    undo();
     marker('from').should('have.attr', 'data-cardinality', 'zeroOrOne');
   });
 
@@ -108,7 +101,7 @@ describe('Relationships', () => {
     // From Table 1's end: one → zero-or-one, then many and one-or-many are skipped → none.
     cy.canvasClick([352, 150]);
     marker('to').should('have.attr', 'data-cardinality', 'zeroOrOne');
-    cy.window().its('localStorage').invoke('getItem', 'draftboard:workspace:v1').should('contain', 'zeroOrOne');
+    savedNodes((nodes) => expect(nodes.map((n) => n.type === 'connector' && n.toCardinality)).to.include('zeroOrOne'));
     cy.reload();
     marker('to').should('have.attr', 'data-cardinality', 'zeroOrOne');
     badge(1, 1).should('have.text', 'FK');

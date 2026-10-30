@@ -1,4 +1,5 @@
-const layerRow = (name: string) => cy.contains('[data-testid=layers-panel] [role=treeitem]', name);
+import { layerRow } from '../support/canvas';
+
 const treeRows = () => cy.get('[data-testid=layers-panel] [role=treeitem]');
 
 /** HTML5 drag and drop between two layer rows. `at` picks the drop zone on the target row. */
@@ -55,7 +56,7 @@ describe('Layers tree', () => {
     layerRow('Ellipse 1').should('have.attr', 'aria-level', '2');
     // Dropped inside = top of the frame's children, so it lists first under the frame.
     treeRows().eq(1).should('contain', 'Ellipse 1');
-    cy.pressKey('z', { metaKey: true });
+    cy.pressKey('z', { code: 'KeyZ', metaKey: true });
     layerRow('Ellipse 1').should('have.attr', 'aria-level', '1');
   });
 

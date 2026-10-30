@@ -1,3 +1,5 @@
+import { seedWorkspace } from '../support/workspace';
+
 // Measured on the splitter panel, which holds the header bar and the scrolling panel below it.
 const panelWidth = (testId: string) => cy.get(`[data-testid=${testId}]`).parent().invoke('outerWidth');
 const rectOf = (testId: string) => cy.get(`[data-testid=${testId}]`).then(($el) => $el[0]!.getBoundingClientRect());
@@ -5,6 +7,9 @@ const rectOf = (testId: string) => cy.get(`[data-testid=${testId}]`).then(($el) 
 // within a couple of pixels of its target.
 const TOLERANCE = 2;
 const shouldBeWidth = (testId: string, px: number) => panelWidth(testId).should('be.closeTo', px, TOLERANCE);
+// EditorBody ignores toggle clicks while a hide/show morph runs and marks its root `data-morphing` meanwhile.
+// The click sets the marker synchronously, so its absence afterwards means the morph is over.
+const morphDone = () => cy.get('[data-morphing]').should('not.exist');
 const savedLayout = () => cy.window().then((win) => JSON.parse(win.localStorage.getItem('draftboard:layout:v1') ?? 'null'));
 
 /**
@@ -99,6 +104,7 @@ describe('Side panels', () => {
     cy.get('[data-testid=hide-layers-panel]').should('have.focus');
     cy.get('[data-testid=show-layers-panel]').should('not.exist');
     cy.get('[data-testid=layers-panel]').closest('[inert]').should('not.exist');
+    morphDone();
 
     // The Design panel mirrors it: its button is at the left of its header, and it collapses to the top right.
     rectOf('properties-panel').then((panel) =>
@@ -108,6 +114,7 @@ describe('Side panels', () => {
     cy.viewport(1000, 800);
     cy.get('[data-testid=hide-properties-panel]').click();
     cy.get('[data-testid=properties-panel]').should('not.be.visible');
+    morphDone();
     rectOf('canvas').then((canvas) =>
       rectOf('show-properties-panel').should((b) => {
         expect(b.right).to.be.within(canvas.right - 16, canvas.right);
@@ -131,10 +138,12 @@ describe('Side panels', () => {
       shouldBeWidth('layers-panel', 300);
       stays();
       cy.get('[data-testid=hide-layers-panel]').click();
-      cy.get('[data-testid=show-layers-panel]').should('exist');
+      cy.get('[data-testid=show-layers-panel]').should('have.focus');
+      morphDone();
       stays();
       cy.get('[data-testid=show-layers-panel]').click();
       cy.get('[data-testid=hide-layers-panel]').should('have.focus');
+      morphDone();
       stays();
     });
   });
@@ -155,12 +164,15 @@ describe('Side panels', () => {
       stays();
       cy.get('[data-testid=hide-layers-panel]').click();
       cy.get('[data-testid=show-layers-panel]').should('have.focus');
+      morphDone();
       stays();
       cy.get('[data-testid=hide-properties-panel]').click();
       cy.get('[data-testid=show-properties-panel]').should('have.focus');
+      morphDone();
       stays();
       cy.get('[data-testid=show-layers-panel]').click();
       cy.get('[data-testid=hide-layers-panel]').should('have.focus');
+      morphDone();
       stays();
     });
     // Where centring on the body doesn't fit (the open Design panel is 340 px wider than collapsed Layers,
@@ -169,6 +181,7 @@ describe('Side panels', () => {
     shouldBeWidth('layers-panel', 480);
     cy.get('[data-testid=hide-layers-panel]').click();
     cy.get('[data-testid=show-layers-panel]').should('have.focus');
+    morphDone();
     cy.viewport(800, 800);
     cy.get('[data-testid=canvas]').invoke('outerWidth').should('be.closeTo', 800, TOLERANCE);
     rectOf('canvas').then((canvas) =>
@@ -185,8 +198,7 @@ describe('Side panels', () => {
       id: `r${i}`, type: 'rect', name: `Rect ${i}`, parentId: null, x: i * 20, y: 100, width: 10, height: 10,
       rotation: 0, fill: '#cccccc', stroke: '#000000', strokeWidth: 1, opacity: 1, visible: true, cornerRadius: 0,
     }));
-    const workspace = { version: 1, activeId: 'b1', boards: [{ id: 'b1', name: 'Board 1', nodes: rects }] };
-    cy.visit('/', { onBeforeLoad: (win) => win.localStorage.setItem('draftboard:workspace:v1', JSON.stringify(workspace)) });
+    seedWorkspace(rects);
     cy.get('[data-testid=layers-panel] [role=treeitem]').should('have.length', 60);
     rectOf('hide-layers-panel').then((before) => {
       cy.get('[data-testid=layers-panel]').scrollTo('bottom');

@@ -1,8 +1,4 @@
-const wheel = (deltaX: number, deltaY: number) =>
-  cy.get('[data-testid=canvas]').then(($c) => {
-    const win = $c[0]!.ownerDocument.defaultView!;
-    $c[0]!.dispatchEvent(new win.WheelEvent('wheel', { deltaX, deltaY, bubbles: true, cancelable: true }));
-  });
+import { savedNodes, seedWorkspace } from '../support/workspace';
 
 const guide = (axis: 'x' | 'y', at: number) => cy.get(`[data-testid=snap-guide][data-axis=${axis}][data-at="${at}"]`);
 
@@ -57,7 +53,7 @@ describe('Smart guides', () => {
     cy.get('[data-testid=zoom-level]').should('have.text', '200%');
     // Zooming about the canvas center can push the rects off screen, and only layers on
     // screen are snap targets: scroll so the world origin sits at (20, 20).
-    toScreen(0, 0).then(([ox, oy]) => wheel(ox - 20, oy - 20));
+    toScreen(0, 0).then(([ox, oy]) => cy.canvasWheel({ deltaX: ox - 20, deltaY: oy - 20 }));
     cy.get('[data-testid=world]').should('have.attr', 'transform', 'translate(20 20) scale(2)');
 
     // 4 world px from the other rect's edge is 8 screen px at 200%: too far to snap.
@@ -84,11 +80,11 @@ describe('Smart guides', () => {
 
   it('snaps to a layer scrolled into view mid-drag', () => {
     // Scroll rect 1 off the left edge, leaving rect 2 at screen x 50..150.
-    wheel(250, 0);
+    cy.canvasWheel({ deltaX: 250, deltaY: 0 });
     cy.get('[data-testid=world]').should('have.attr', 'transform').and('contain', 'translate(-250 0)');
     cy.canvasPointer('pointerdown', [100, 150]);
     cy.canvasPointer('pointermove', [90, 152]);
-    wheel(-250, 0);
+    cy.canvasWheel({ deltaX: -250, deltaY: 0 });
     cy.get('[data-testid=world]').should('have.attr', 'transform').and('contain', 'translate(0 0)');
     // Unsnapped, this lands the rect at (204, 103), 4 px from rect 1, which is on screen again.
     cy.canvasPointer('pointermove', [254, 153]);
@@ -174,7 +170,7 @@ describe('Smart guides', () => {
     cy.get('[data-testid=snap-to-layers]').should('have.attr', 'data-state', 'unchecked');
     cy.window().its('localStorage').invoke('getItem', 'draftboard:preferences:v1').should('contain', '"snapToLayers":false');
     // Document saves are debounced; the drag below needs the rects to survive the reload.
-    cy.window().its('localStorage').invoke('getItem', 'draftboard:workspace:v1').should('contain', 'Rectangle 2');
+    savedNodes((nodes) => expect(nodes.map((n) => n.name)).to.include('Rectangle 2'));
 
     cy.reload();
     cy.get('[data-testid=nav-canvas]').click();
@@ -189,14 +185,6 @@ describe('Smart guides', () => {
 
 const base = { rotation: 0, fill: '#d9d9d9', stroke: '#000000', strokeWidth: 0, opacity: 1, visible: true, cornerRadius: 0 };
 
-const visitWith = (nodes: object[]) =>
-  cy.visit('/', {
-    onBeforeLoad: (win) => {
-      win.localStorage.clear();
-      win.localStorage.setItem('draftboard:document:v1', JSON.stringify({ version: 1, nodes }));
-    },
-  });
-
 describe('Smart guides on nested layers', () => {
   it('ignores a layer clipped out of sight by its frame', () => {
     const nodes = [
@@ -205,7 +193,7 @@ describe('Smart guides on nested layers', () => {
       { ...base, id: 'c', type: 'rect', name: 'Clipped', parentId: 'f', x: 400, y: 300, width: 50, height: 50 },
       { ...base, id: 'm', type: 'rect', name: 'Mover', parentId: null, x: 600, y: 600, width: 100, height: 100 },
     ];
-    visitWith(nodes);
+    seedWorkspace(nodes);
     cy.get('[data-testid=layers-panel]').should('contain', 'Clipped');
 
     // Unsnapped, Mover's left edge lands 4 px from Clipped's right edge (450).

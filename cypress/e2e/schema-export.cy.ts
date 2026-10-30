@@ -1,26 +1,46 @@
 // A module, so its helpers don't clash with other specs' in the shared spec scope.
 export {};
 
+import { createConnector } from '../../src/editor/model/connector';
+import { createNode } from '../../src/editor/model/nodes';
+import { createColumn } from '../../src/editor/model/table';
+import type { DesignNode, TableNode } from '../../src/editor/model/types';
+import { seedWorkspace } from '../support/workspace';
+
 const PREVIEW = '[data-testid=export-preview]';
 
-// Three tables (users, posts, comments) and three foreign keys, via the importer.
-const importFixture = () => {
-  cy.get('[data-testid=import-menu]').click();
-  cy.get('[data-testid=import-schema]').click();
-  cy.fixture('schema/postgres.sql').then((sql: string) => {
-    cy.get('[data-testid=schema-source]').type(sql, { delay: 0, parseSpecialCharSequences: false });
+type Col = [name: string, dataType: string, primaryKey?: boolean];
+const COLUMNS = {
+  users: [['id', 'uuid', true], ['email', 'text']],
+  posts: [['id', 'uuid', true], ['user_id', 'uuid'], ['title', 'text']],
+  comments: [['id', 'uuid', true], ['post_id', 'uuid'], ['user_id', 'uuid'], ['body', 'text']],
+} satisfies Record<string, Col[]>;
+
+// Seeds saved tables and foreign keys ([table, column, referenced table]) instead of importing them,
+// so only the export dialog is under test.
+function visitWithTables(tables: Record<string, Col[]>, foreignKeys: [string, string, string][]) {
+  const nodes: DesignNode[] = Object.entries(tables).map(([name, columns], i) => {
+    const t = createNode('table', { x: 100 + i * 300, y: 100, width: 240, height: 0 }, []) as TableNode;
+    return { ...t, name, columns: columns.map(([n, type, pk]) => createColumn(n, type, pk)) };
   });
-  cy.contains('button', 'Preview').click();
-  cy.get('[data-testid=import-submit]').click();
-  cy.get('[data-node-type=table]').should('have.length', 3);
-};
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const table = (name: string) => nodes.find((n): n is TableNode => n.type === 'table' && n.name === name)!;
+  const column = (t: TableNode, name: string) => ({ kind: 'column' as const, tableId: t.id, columnId: t.columns.find((c) => c.name === name)!.id });
+  for (const [from, col, to] of foreignKeys) {
+    const target = table(to);
+    nodes.push(createConnector(column(table(from), col), column(target, target.columns[0]!.name), `${from}.${col} to ${to}`, byId));
+  }
+  seedWorkspace(nodes);
+  cy.get('[data-node-type=table]').should('have.length', Object.keys(tables).length);
+}
+
+const visitFixture = () =>
+  visitWithTables(COLUMNS, [['posts', 'user_id', 'users'], ['comments', 'post_id', 'posts'], ['comments', 'user_id', 'users']]);
 
 describe('Schema export', () => {
-  beforeEach(() => cy.visitEmpty());
-
   it('previews SQL for the selected tables, or the whole board, and switches to DBML', () => {
-    importFixture();
-    // The import leaves nothing selected; select just users by its layer row.
+    visitFixture();
+    // Nothing is selected on load; select just users by its layer row.
     cy.contains('[data-testid=layers-panel] [role=treeitem]', 'users').click();
     cy.get('[data-testid=export-menu]').click();
     cy.get('[data-testid=export-schema]').click();
@@ -54,15 +74,16 @@ describe('Schema export', () => {
   });
 
   it('names left-out relationships by their ends, above the preview, and can include the linked tables', () => {
-    importFixture();
+    visitFixture();
     cy.contains('[data-testid=layers-panel] [role=treeitem]', 'posts').click();
     cy.get('[data-testid=export-menu]').click();
     cy.get('[data-testid=export-schema]').click();
     cy.get('[data-testid=export-notice]').should('contain', 'relationships left out').and('contain', 'posts.user_id → users.id');
     cy.get('[data-testid=export-notice]').should('not.contain', 'Connector');
     // Above the preview in the document.
-    cy.get('[data-testid=export-notice]').then(($n) => {
-      cy.get(PREVIEW).then(($p) => expect($n[0]!.getBoundingClientRect().bottom).to.be.lte($p[0]!.getBoundingClientRect().top));
+    cy.get(PREVIEW).should(($p) => {
+      const notice = $p[0]!.ownerDocument.querySelector('[data-testid=export-notice]')!;
+      expect(notice.getBoundingClientRect().bottom).to.be.lte($p[0]!.getBoundingClientRect().top);
     });
     cy.get('[data-testid=export-include-linked]').click();
     cy.get('[data-testid=export-scope] [data-value=selection]').should('contain', 'Selection (3 tables)');
@@ -71,7 +92,7 @@ describe('Schema export', () => {
   });
 
   it('wraps long preview lines instead of clipping them', () => {
-    importFixture();
+    visitFixture();
     cy.get('[data-testid=export-menu]').click();
     cy.get('[data-testid=export-schema]').click();
     cy.get(PREVIEW).should('have.css', 'white-space', 'pre-wrap');
@@ -79,14 +100,7 @@ describe('Schema export', () => {
 
   it('keeps a left-out relationship with a long unbroken name inside the dialog', () => {
     const name = 'GlSourceSyncIntegrityVerificationAuditHistoryRecordsArchive';
-    cy.get('[data-testid=import-menu]').click();
-    cy.get('[data-testid=import-schema]').click();
-    cy.get('[data-testid=schema-source]').type(
-      `CREATE TABLE users (id uuid PRIMARY KEY);\nCREATE TABLE ${name} (id uuid PRIMARY KEY, ${name}Id uuid REFERENCES users(id));`,
-      { delay: 0, parseSpecialCharSequences: false },
-    );
-    cy.contains('button', 'Preview').click();
-    cy.get('[data-testid=import-submit]').click();
+    visitWithTables({ users: COLUMNS.users, [name]: [['id', 'uuid', true], [`${name}Id`, 'uuid']] }, [[name, `${name}Id`, 'users']]);
     cy.contains('[data-testid=layers-panel] [role=treeitem]', name).click();
     cy.get('[data-testid=export-menu]').click();
     cy.get('[data-testid=export-schema]').click();
@@ -99,7 +113,7 @@ describe('Schema export', () => {
   });
 
   it('copies the preview and downloads it as a file named after the board', () => {
-    importFixture();
+    visitFixture();
     cy.get('[data-testid=export-menu]').click();
     cy.get('[data-testid=export-schema]').click();
     cy.window().then((win) => cy.stub(win.navigator.clipboard, 'writeText').as('copy').resolves());
@@ -117,6 +131,7 @@ describe('Schema export', () => {
   });
 
   it('says there is nothing to export on a board without tables', () => {
+    cy.visitEmpty();
     cy.get('[data-testid=export-menu]').click();
     cy.get('[data-testid=export-schema]').click();
     cy.get('[data-testid=export-scope]').should('contain', 'No tables to export');

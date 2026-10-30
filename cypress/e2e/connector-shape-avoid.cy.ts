@@ -1,6 +1,9 @@
 // A module, so its helpers don't clash with other specs' in the shared spec scope.
 export {};
 
+import { savedNodes } from '../support/workspace';
+import { placeTable } from '../support/canvas';
+
 interface Pt {
   x: number;
   y: number;
@@ -15,13 +18,6 @@ interface Saved extends Box {
   points?: Pt[];
   bends?: Pt[];
 }
-
-const placeTable = (at: [number, number]) => {
-  cy.pressKey('d', { code: 'KeyD' });
-  cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'table');
-  cy.canvasClick(at);
-  cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'select');
-};
 
 // A's `id` row is centred at y 150 (right edge x 270); C is lower, its `id` row at y 350 (left edge x 690).
 // B starts out of the way, below both; the tests drag it onto the connector.
@@ -57,9 +53,7 @@ const centre = () =>
 
 /** The saved tables (left to right: A, B, C by their x at the start) and the connector, retried until saved. */
 const saved = (check: (tables: Saved[], connector: Saved) => void) =>
-  cy.window().should((win) => {
-    const raw = win.localStorage.getItem('draftboard:workspace:v1');
-    const nodes = raw ? (JSON.parse(raw) as { boards: Array<{ nodes: Saved[] }> }).boards[0]!.nodes : [];
+  savedNodes<Saved>((nodes) => {
     const connector = nodes.find((n) => n.type === 'connector');
     expect(connector, 'saved connector').to.not.equal(undefined);
     check(nodes.filter((n) => n.type === 'table'), connector as Saved);
@@ -104,9 +98,29 @@ const dragTable = (header: [number, number], by: [number, number]) => cy.canvasD
 describe('A shaped connector still avoids tables', () => {
   beforeEach(() => cy.visitEmpty());
 
-  /** The saved connector as it is right now. */
-  const connectorNow = () =>
-    cy.window().then((win) => (JSON.parse(win.localStorage.getItem('draftboard:workspace:v1') as string) as { boards: Array<{ nodes: Saved[] }> }).boards[0]!.nodes.find((n) => n.type === 'connector') as Saved);
+  /**
+   * The saved connector once it matches the finished drag. Saves are debounced, so the read retries until the saved
+   * route's dragged segment is where the handle is drawn.
+   */
+  const connectorNow = () => {
+    let latest: Saved | undefined;
+    return cy
+      .get('[data-testid=canvas]')
+      .should(($canvas) => {
+        const doc = $canvas[0]!.ownerDocument;
+        const raw = doc.defaultView!.localStorage.getItem('draftboard:workspace:v1');
+        const nodes = raw ? (JSON.parse(raw) as { boards: Array<{ nodes: Saved[] }> }).boards[0]!.nodes : [];
+        const connector = nodes.find((n) => n.type === 'connector');
+        expect(connector?.points, 'saved route').to.not.equal(undefined);
+        expect(connector?.bends, 'saved manual shape').to.not.equal(undefined);
+        const [p1, p2] = [connector!.points![1]!, connector!.points![2]!];
+        const origin = $canvas[0]!.getBoundingClientRect();
+        const h = doc.querySelector('[data-connector-segment="1"]')!.getBoundingClientRect();
+        expect(h.left + h.width / 2 - origin.left, 'handle x matches the saved route').to.be.closeTo((p1.x + p2.x) / 2, 1);
+        latest = connector;
+      })
+      .then(() => latest as Saved);
+  };
 
   /** Drags B so it straddles the shaped segment; the returned offset puts it back. */
   const dragBOntoSegment = (segmentX: number) => {

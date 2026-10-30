@@ -176,7 +176,9 @@ src/
 │   └── persistence.ts# localStorage (boards) + JSON import/export
 ├── settings/         # Command registry, keybindings, preferences, Settings page
 └── shared/           # Small shared hooks
-cypress/e2e/          # One spec per feature area
+cypress/
+├── e2e/              # One spec per feature area
+└── support/          # Custom commands, workspace seed/read helpers, helpers shared by 3+ specs
 docs/                 # Feature reference, README media, reverse-engineering notes
 ```
 

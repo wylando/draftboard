@@ -1,5 +1,4 @@
-const layer = (name: string) => cy.contains('[data-testid=layers-panel] [role=treeitem]', name);
-const MOD = { metaKey: true, ctrlKey: true };
+import { layerRow, MOD } from '../support/canvas';
 
 describe('Copy, cut and paste', () => {
   beforeEach(() => {
@@ -42,7 +41,7 @@ describe('Copy, cut and paste', () => {
     cy.pressKey('Backspace');
     cy.drawShape('frame', [50, 50], [450, 350]);
     cy.drawShape('rect', [100, 100], [200, 200]);
-    layer('Frame 1').click();
+    layerRow('Frame 1').click();
     cy.prop('name').should('have.value', 'Frame 1');
 
     cy.pressKey('c', { ...MOD, code: 'KeyC' });

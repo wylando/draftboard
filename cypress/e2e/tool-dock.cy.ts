@@ -3,13 +3,11 @@ describe('Tool dock', () => {
 
   it('floats at the bottom centre of the canvas', () => {
     cy.get('[data-testid=tool-dock]').should('be.visible');
-    cy.get('[data-testid=canvas]').then(($canvas) => {
-      cy.get('[data-testid=tool-dock]').should(($dock) => {
-        const c = $canvas[0].getBoundingClientRect();
-        const d = $dock[0].getBoundingClientRect();
-        expect(Math.abs(d.left + d.width / 2 - (c.left + c.width / 2)), 'horizontal centre offset').to.be.lessThan(2);
-        expect(c.bottom - d.bottom, 'gap above canvas bottom').to.be.within(4, 40);
-      });
+    cy.get('[data-testid=tool-dock]').should(($dock) => {
+      const c = $dock[0].ownerDocument.querySelector('[data-testid=canvas]')!.getBoundingClientRect();
+      const d = $dock[0].getBoundingClientRect();
+      expect(Math.abs(d.left + d.width / 2 - (c.left + c.width / 2)), 'horizontal centre offset').to.be.lessThan(2);
+      expect(c.bottom - d.bottom, 'gap above canvas bottom').to.be.within(4, 40);
     });
   });
 

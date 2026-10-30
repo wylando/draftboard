@@ -45,25 +45,26 @@ describe('Toasts', () => {
   });
 
   // The clock is frozen so a toast can't expire by itself: only the dismissal can remove its Undo.
-  it('Undo goes away when another edit follows the delete', () => {
+  it('Undo goes away once the delete is undone, and when another edit follows a delete', () => {
     cy.clock();
     cy.drawShape('rect', [100, 100], [200, 200]);
     cy.drawShape('rect', [300, 100], [400, 200]);
     cy.pressKey('Backspace');
     cy.contains('[data-testid=toast]', 'Deleted 1 layer').should('exist');
+    cy.get('[data-testid=toast-action]').should('exist');
+    cy.pressKey('z', { ...MOD_KEYS, code: 'KeyZ' });
+    cy.get('[data-node-type=rect]').should('have.length', 2);
+    cy.get('[data-testid=toast-action]').should('not.exist');
+
+    // The undo restored the layer without selecting it.
+    cy.canvasClick([350, 150]);
+    cy.prop('x').should('have.value', '300');
+    cy.pressKey('Backspace');
+    cy.get('[data-node-type=rect]').should('have.length', 1);
+    cy.get('[data-testid=toast-action]').should('exist');
     cy.drawShape('rect', [100, 300], [200, 400]);
     cy.get('[data-testid=toast-action]').should('not.exist');
     cy.get('[data-node-type=rect]').should('have.length', 2);
-  });
-
-  it('drops the Undo once the delete has been undone', () => {
-    cy.clock();
-    cy.drawShape('rect', [100, 100], [200, 200]);
-    cy.pressKey('Backspace');
-    cy.contains('[data-testid=toast]', 'Deleted 1 layer').should('exist');
-    cy.pressKey('z', { ...MOD_KEYS, code: 'KeyZ' });
-    cy.get('[data-node-type=rect]').should('have.length', 1);
-    cy.get('[data-testid=toast-action]').should('not.exist');
   });
 
   it('toasts for the Design panel buttons too', () => {
@@ -95,6 +96,9 @@ describe('Toasts', () => {
     toast().should('be.visible');
     cy.get('[data-testid=toast-region]').should('have.attr', 'aria-live', 'polite');
     cy.focused().should('not.have.attr', 'data-testid', 'toast-action');
+    // The claim is the real elapsed duration: 3000 ms (Toast.tsx) plus Ark's 200 ms removeDelay. Ark times it
+    // with its own rAF timer, which cy.clock can't fake, so the timeout is headroom over that fixed duration,
+    // not a flake workaround.
     cy.get('[data-testid=toast]', { timeout: 10000 }).should('not.exist');
   });
 
@@ -103,15 +107,11 @@ describe('Toasts', () => {
     cy.pressKey('c', { ...MOD_KEYS, code: 'KeyC' });
     toast().should('be.visible');
     // The region spans the canvas width at the bottom; a click there must still reach the canvas.
-    cy.get('[data-testid=toast-region]').then(($r) => {
-      const box = $r[0].getBoundingClientRect();
-      cy.get('[data-testid=canvas]').then(($c) => {
-        const c = $c[0].getBoundingClientRect();
-        cy.document().then((doc) => {
-          const el = doc.elementFromPoint(c.left + 20, box.bottom - 10);
-          expect(el?.closest('[data-testid=toast-region]')).to.equal(null);
-        });
-      });
+    cy.get('[data-testid=toast-region]').should(($r) => {
+      const doc = $r[0]!.ownerDocument;
+      const box = $r[0]!.getBoundingClientRect();
+      const c = doc.querySelector('[data-testid=canvas]')!.getBoundingClientRect();
+      expect(doc.elementFromPoint(c.left + 20, box.bottom - 10)?.closest('[data-testid=toast-region]')).to.equal(null);
     });
     cy.canvasClick([150, 150]);
     cy.prop('name').should('have.value', 'Rectangle 1');

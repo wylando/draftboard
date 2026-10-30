@@ -1,17 +1,13 @@
+import { savedNodes } from '../support/workspace';
+import { layerRow, MOD } from '../support/canvas';
+
 // Layers rows expose the tree through ARIA: aria-level 1 = top level.
-const layer = (name: string) => cy.contains('[data-testid=layers-panel] [role=treeitem]', name);
-const MOD = { metaKey: true, ctrlKey: true };
 
 describe('Frames contain layers', () => {
   beforeEach(() => {
     cy.visitEmpty();
     cy.drawShape('frame', [50, 50], [450, 350]);
     cy.drawShape('rect', [100, 100], [200, 200]);
-  });
-
-  it('a shape drawn on a frame goes inside it', () => {
-    layer('Frame 1').should('have.attr', 'aria-level', '1').and('have.attr', 'aria-expanded', 'true');
-    layer('Rectangle 1').should('have.attr', 'aria-level', '2');
   });
 
   it('clicking a child on the canvas selects the child, not the frame', () => {
@@ -26,39 +22,39 @@ describe('Frames contain layers', () => {
     cy.prop('name').should('have.value', 'Frame 1');
     cy.canvasDrag([300, 300], [350, 320]);
     cy.prop('x').should('have.value', '100');
-    layer('Rectangle 1').click();
+    layerRow('Rectangle 1').click();
     cy.prop('x').should('have.value', '150');
     cy.prop('y').should('have.value', '120');
   });
 
   it('moving the frame with the X field moves its children too', () => {
-    layer('Frame 1').click();
+    layerRow('Frame 1').click();
     cy.prop('name').should('have.value', 'Frame 1');
     cy.prop('x').clear().type('0{enter}');
-    layer('Rectangle 1').click();
+    layerRow('Rectangle 1').click();
     cy.prop('x').should('have.value', '50');
   });
 
   it('dragging a child out of the frame takes it out, and undo puts it back', () => {
     cy.canvasDrag([150, 150], [550, 150]);
-    layer('Rectangle 1').should('have.attr', 'aria-level', '1');
-    cy.pressKey('z', { metaKey: true });
-    layer('Rectangle 1').should('have.attr', 'aria-level', '2');
+    layerRow('Rectangle 1').should('have.attr', 'aria-level', '1');
+    cy.pressKey('z', { code: 'KeyZ', metaKey: true });
+    layerRow('Rectangle 1').should('have.attr', 'aria-level', '2');
     cy.prop('x').should('have.value', '100');
   });
 
   it('dragging a shape onto a frame puts it inside', () => {
     cy.drawShape('ellipse', [500, 100], [560, 160]);
-    layer('Ellipse 1').should('have.attr', 'aria-level', '1');
+    layerRow('Ellipse 1').should('have.attr', 'aria-level', '1');
     cy.canvasDrag([530, 130], [300, 250]);
-    layer('Ellipse 1').should('have.attr', 'aria-level', '2');
+    layerRow('Ellipse 1').should('have.attr', 'aria-level', '2');
   });
 
   it('rotating the frame turns its children about the frame center', () => {
-    layer('Frame 1').click();
+    layerRow('Frame 1').click();
     cy.prop('name').should('have.value', 'Frame 1');
     cy.prop('rotation').clear().type('180{enter}');
-    layer('Rectangle 1').click();
+    layerRow('Rectangle 1').click();
     // Frame center is (250, 200): the rect's center (150, 150) maps to (350, 250).
     cy.prop('rotation').should('have.value', '180');
     cy.prop('x').should('have.value', '300');
@@ -66,9 +62,9 @@ describe('Frames contain layers', () => {
   });
 
   it('deleting the frame deletes its children', () => {
-    layer('Frame 1').click();
+    layerRow('Frame 1').click();
     cy.prop('name').should('have.value', 'Frame 1');
-    cy.pressKey('Backspace');
+    cy.pressKey('Backspace', { code: 'Backspace' });
     cy.get('[data-node-type]').should('not.exist');
   });
 });
@@ -88,9 +84,9 @@ describe('Groups', () => {
     cy.prop('x').should('have.value', '100');
     cy.prop('w').should('have.value', '300');
     cy.prop('rotation').should('not.exist');
-    layer('Group 1').should('have.attr', 'aria-level', '1');
-    layer('Rectangle 1').should('have.attr', 'aria-level', '2');
-    layer('Rectangle 2').should('have.attr', 'aria-level', '2');
+    layerRow('Group 1').should('have.attr', 'aria-level', '1');
+    layerRow('Rectangle 1').should('have.attr', 'aria-level', '2');
+    layerRow('Rectangle 2').should('have.attr', 'aria-level', '2');
   });
 
   it('click selects the group, double-click selects inside, Mod+click goes straight in', () => {
@@ -115,8 +111,8 @@ describe('Groups', () => {
     cy.prop('name').should('have.value', 'Rectangle 1');
     cy.canvasDrag([150, 150], [150, 350]);
     cy.prop('y').should('have.value', '300');
-    layer('Rectangle 1').should('have.attr', 'aria-level', '2');
-    layer('Group 1').click();
+    layerRow('Rectangle 1').should('have.attr', 'aria-level', '2');
+    layerRow('Group 1').click();
     cy.prop('h').should('have.value', '300');
   });
 
@@ -124,7 +120,7 @@ describe('Groups', () => {
     // Group spans 100..400 × 100..200; drag the SE handle to double the width.
     cy.canvasDrag([400, 200], [700, 200]);
     cy.prop('w').should('have.value', '600');
-    layer('Rectangle 2').click();
+    layerRow('Rectangle 2').click();
     cy.prop('x').should('have.value', '500');
     cy.prop('w').should('have.value', '200');
   });
@@ -133,9 +129,9 @@ describe('Groups', () => {
     cy.pressKey('g', { code: 'KeyG', metaKey: true, shiftKey: true });
     cy.get('[data-node-type=group]').should('not.exist');
     cy.get('[data-testid=properties-panel]').should('contain', '2 layers selected');
-    layer('Rectangle 1').should('have.attr', 'aria-level', '1');
-    cy.pressKey('z', { metaKey: true });
-    layer('Group 1').should('exist');
+    layerRow('Rectangle 1').should('have.attr', 'aria-level', '1');
+    cy.pressKey('z', { code: 'KeyZ', metaKey: true });
+    layerRow('Group 1').should('exist');
   });
 
   it('nudge, duplicate and delete act on the whole group', () => {
@@ -144,7 +140,7 @@ describe('Groups', () => {
     cy.pressKey('d', { code: 'KeyD', metaKey: true });
     cy.get('[data-node-type=group]').should('have.length', 2);
     cy.get('[data-node-type=rect]').should('have.length', 4);
-    cy.pressKey('Backspace');
+    cy.pressKey('Backspace', { code: 'Backspace' });
     cy.get('[data-node-type=group]').should('have.length', 1);
     cy.get('[data-node-type=rect]').should('have.length', 2);
   });
@@ -152,18 +148,18 @@ describe('Groups', () => {
   it('a group whose last layer is deleted disappears', () => {
     cy.canvasClick([150, 150], MOD);
     cy.prop('name').should('have.value', 'Rectangle 1');
-    cy.pressKey('Backspace');
+    cy.pressKey('Backspace', { code: 'Backspace' });
     cy.canvasClick([350, 150], MOD);
     cy.prop('name').should('have.value', 'Rectangle 2');
-    cy.pressKey('Backspace');
+    cy.pressKey('Backspace', { code: 'Backspace' });
     cy.get('[data-node-type=group]').should('not.exist');
     cy.get('[data-testid=layers-panel]').should('not.contain', 'Group 1');
   });
 
   it('groups survive a reload', () => {
-    cy.window().its('localStorage').invoke('getItem', 'draftboard:workspace:v1').should('contain', '"group"');
+    savedNodes((nodes) => expect(nodes.map((n) => n.type)).to.include('group'));
     cy.reload();
-    layer('Group 1').should('exist');
-    layer('Rectangle 1').should('have.attr', 'aria-level', '2');
+    layerRow('Group 1').should('exist');
+    layerRow('Rectangle 1').should('have.attr', 'aria-level', '2');
   });
 });

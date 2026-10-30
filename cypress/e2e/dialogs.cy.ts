@@ -36,17 +36,12 @@ describe('Dialogs', () => {
     cy.get('[role=alertdialog]').should('not.exist');
   });
 
-  it('exports the board as JSON, named after the board, and picks a file to import from the File menu', () => {
+  it('exports the board as JSON, named after the board', () => {
     cy.drawShape('rect', [100, 100], [200, 200]);
     // A file left by an earlier run would satisfy readFile before the new download lands.
     cy.exec("rm -f 'cypress/downloads/Board 1.draftboard.json'");
     cy.get('[data-testid=export-menu]').click();
     cy.get('[data-testid=export-board]').click();
     cy.readFile('cypress/downloads/Board 1.draftboard.json').its('nodes').should('have.length', 1);
-
-    cy.get('[data-testid=import-file]').then(($input) => cy.stub($input[0]!, 'click').as('pick'));
-    cy.get('[data-testid=import-menu]').click();
-    cy.get('[data-testid=import-board]').click();
-    cy.get('@pick').should('have.been.calledOnce');
   });
 });

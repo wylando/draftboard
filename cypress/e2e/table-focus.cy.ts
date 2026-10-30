@@ -1,17 +1,12 @@
 // A module, so its helpers don't clash with other specs' in the shared spec scope.
 export {};
 
-const placeTable = (at: [number, number]) => {
-  cy.pressKey('d', { code: 'KeyD' });
-  cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'table');
-  cy.canvasClick(at);
-  cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'select');
-};
+import { savedNodes } from '../support/workspace';
+import { layerRow, placeTable } from '../support/canvas';
 
 const overlay = () => cy.get('[data-testid=selection-overlay]');
 const relatedConnectors = () => cy.get('[data-testid=related-connector]');
 const relatedTables = () => cy.get('[data-testid=related-table]');
-const layerRow = (name: string) => cy.contains('[data-testid=layers-panel] [role=treeitem]', name);
 const nodeId = (type: string, index: number) =>
   cy.get(`[data-node-type=${type}]`).eq(index).invoke('attr', 'data-node-id');
 
@@ -136,10 +131,7 @@ describe('Table focus highlight', () => {
     cy.get('[data-testid=route-popup]').should('exist');
     // A frozen clock holds the wheel's settle timer, so the hidden state can't pass by before it is checked.
     cy.clock();
-    cy.get('[data-testid=canvas]').then(($c) => {
-      const win = $c[0]!.ownerDocument.defaultView!;
-      $c[0]!.dispatchEvent(new win.WheelEvent('wheel', { deltaX: 30, bubbles: true, cancelable: true }));
-    });
+    cy.canvasWheel({ deltaX: 30 });
     cy.get('[data-testid=route-popup]').should('not.exist');
     cy.tick(1000);
     cy.get('[data-testid=route-popup]').should('exist');
@@ -227,8 +219,7 @@ describe('Table focus highlight for two selected tables', () => {
     cy.get('[data-testid=import-submit]').click();
     cy.get('[data-testid=dialog]').should('not.exist');
     cy.get('[data-node-type=connector]').should('have.length', 3);
-    cy.window().should((win) => {
-      const nodes = (JSON.parse(win.localStorage.getItem('draftboard:workspace:v1') ?? '{"boards":[{"nodes":[]}]}') as { boards: Array<{ nodes: Saved[] }> }).boards[0]!.nodes;
+    savedNodes<Saved>((nodes) => {
       const tables = nodes.filter((n) => n.type === 'table');
       const connectors = nodes.filter((n) => n.type === 'connector');
       expect(tables).to.have.length(3);

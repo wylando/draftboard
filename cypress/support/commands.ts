@@ -28,15 +28,19 @@ declare global {
       canvasPointer(type: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercancel', at: Pt, opts?: PointerOpts): Chainable<void>;
       /** Press and release at one point without moving. */
       canvasClick(at: Pt, opts?: PointerOpts): Chainable<void>;
+      /** Dispatch a wheel event on the canvas, as a trackpad scroll would. */
+      canvasWheel(opts: { deltaX?: number; deltaY?: number }): Chainable<void>;
       /** Dispatch a dblclick at canvas-relative coordinates. */
       canvasDblClick(at: Pt): Chainable<void>;
       /** Press at `from`, move in steps to `to`, release. */
       canvasDrag(from: Pt, to: Pt, opts?: PointerOpts): Chainable<void>;
       /** Select a tool via its toolbar button, then drag on the canvas. */
       drawShape(tool: string, from: Pt, to: Pt): Chainable<void>;
-      /** Dispatch a keydown (and keyup) on the window. */
       /** Open the top bar's zoom menu and pick an item (`zoom-in`, `zoom-out`, `zoom-fit`, `zoom-100`). */
       zoomMenu(item: 'zoom-in' | 'zoom-out' | 'zoom-fit' | 'zoom-100'): Chainable<void>;
+      /** Open the top bar's Import menu and pick an item. */
+      importMenu(item: 'import-schema'): Chainable<void>;
+      /** Dispatch a keydown (and keyup) on the window. */
       pressKey(key: string, opts?: { code?: string; shiftKey?: boolean; metaKey?: boolean; altKey?: boolean; repeat?: boolean }): Chainable<void>;
       /** Read a node's committed property value from the properties panel. */
       prop(name: string): Chainable<JQuery<HTMLInputElement>>;
@@ -104,6 +108,13 @@ Cypress.Commands.add('canvasClick', (at, opts = {}) => {
   cy.canvasPointer('pointerup', at, opts);
 });
 
+Cypress.Commands.add('canvasWheel', ({ deltaX = 0, deltaY = 0 }) => {
+  cy.get('[data-testid=canvas]').then(($canvas) => {
+    const win = $canvas[0]!.ownerDocument.defaultView!;
+    $canvas[0]!.dispatchEvent(new win.WheelEvent('wheel', { deltaX, deltaY, bubbles: true, cancelable: true }));
+  });
+});
+
 Cypress.Commands.add('canvasDblClick', (at) => {
   cy.get('[data-testid=canvas]').then(($canvas) => {
     const rect = $canvas[0]!.getBoundingClientRect();
@@ -136,6 +147,11 @@ Cypress.Commands.add('drawShape', (tool, from, to) => {
 
 Cypress.Commands.add('zoomMenu', (item) => {
   cy.get('[data-testid=zoom-level]').click();
+  cy.get(`[data-testid=${item}]`).click();
+});
+
+Cypress.Commands.add('importMenu', (item) => {
+  cy.get('[data-testid=import-menu]').click();
   cy.get(`[data-testid=${item}]`).click();
 });
 

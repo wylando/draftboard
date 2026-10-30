@@ -1,18 +1,12 @@
 // A module, so its helpers don't clash with other specs' in the shared spec scope.
 export {};
 
-const placeTable = (at: [number, number]) => {
-  cy.pressKey('d', { code: 'KeyD' });
-  cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'table');
-  cy.canvasClick(at);
-  cy.get('[data-testid=canvas]').should('have.attr', 'data-tool', 'select');
-};
+import { placeTable, undo } from '../support/canvas';
 
 const parseRoute = (r: string | undefined) => String(r).split(' ').map((p) => p.split(',').map(Number) as [number, number]);
 /** Checks the route of connector `i`, retrying until React has drawn it. */
 const route = (i: number, check: (points: Array<[number, number]>) => void) =>
   cy.get('[data-node-type=connector] [data-testid=connector-line]').eq(i).should(($l) => check(parseRoute($l.attr('data-route'))));
-const undo = () => cy.pressKey('z', { code: 'KeyZ', metaKey: true });
 
 // Table 1 at (100, 100): `id` row centred at y 150, right edge x 340.
 // Table 2 at (500, 300): `id` row centred at y 350, left edge x 500.
